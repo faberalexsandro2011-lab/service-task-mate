@@ -3,10 +3,8 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
-  ChevronRight,
   ClipboardList,
   FileSpreadsheet,
-  Filter,
   LogOut,
   MapPin,
   Plus,
@@ -144,6 +142,7 @@ function Dashboard() {
       </div>
     );
   }
+  if (!data) return <LoadingScreen />;
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[248px_1fr]">
@@ -275,7 +274,10 @@ function CreateDialog({ open, onOpenChange, technicians, creatorEmail, onCreated
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const technician = technicians.find((item) => item.id === technicianId);
-    if (!technician) return toast.error("Selecione um técnico.");
+    if (!technician) {
+      toast.error("Selecione um técnico.");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase.from("ordens_servico").insert({
       numero_os: String(form.get("numero_os") ?? "").trim(),
@@ -287,7 +289,10 @@ function CreateDialog({ open, onOpenChange, technicians, creatorEmail, onCreated
       criado_por_email: creatorEmail,
     });
     setSaving(false);
-    if (error) return toast.error(error.message.includes("duplicate") ? "Já existe uma OS com esse número." : "Não foi possível criar a ordem.");
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Já existe uma OS com esse número." : "Não foi possível criar a ordem.");
+      return;
+    }
     toast.success("Ordem de serviço criada.");
     onOpenChange(false);
     setTechnicianId("");
@@ -320,10 +325,15 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
 
   async function pickFile(file?: File) {
     if (!file) return;
-    if (file.size > 20 * 1024 * 1024) return toast.error("O ficheiro excede o limite de 20 MB.");
+    if (file.size > 20 * 1024 * 1024) {
+      toast.error("O ficheiro excede o limite de 20 MB.");
+      return;
+    }
     try {
       const workbook = read(await file.arrayBuffer());
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("empty");
+      const firstSheet = workbook.Sheets[firstSheetName];
       if (!firstSheet) throw new Error("empty");
       const records = utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
       const normalized = records.map((record) => normalizeImportRow(record, technicians));
@@ -351,7 +361,10 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
     });
     const { error } = await supabase.from("ordens_servico").insert(payload);
     setSaving(false);
-    if (error) return toast.error("A importação falhou. Confirme se os números de OS são únicos.");
+    if (error) {
+      toast.error("A importação falhou. Confirme se os números de OS são únicos.");
+      return;
+    }
     toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"}.`);
     setRows([]);
     setFileName("");
@@ -387,13 +400,13 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
 
 function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil[]): ImportRow {
   const clean = Object.fromEntries(Object.entries(record).map(([key, value]) => [key.trim().toLowerCase().replaceAll(" ", "_"), String(value ?? "").trim()]));
-  const numero = clean.numero_os || clean.numero || clean.os || "";
-  const frota = clean.frota || "";
-  const tecnico = clean.tecnico_email || clean.email_tecnico || clean.tecnico || "";
+  const numero = clean["numero_os"] || clean["numero"] || clean["os"] || "";
+  const frota = clean["frota"] || "";
+  const tecnico = clean["tecnico_email"] || clean["email_tecnico"] || clean["tecnico"] || "";
   let reason = "";
   if (!numero || !frota || !tecnico) reason = "Faltam OS, frota ou e-mail";
   else if (!technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado";
-  return { numero_os: numero, frota, localizacao: clean.localizacao || "", descricao: clean.descricao || clean.descricao_problema || "", tecnico_email: tecnico, valid: !reason, reason: reason || undefined };
+  return { numero_os: numero, frota, localizacao: clean["localizacao"] || "", descricao: clean["descricao"] || clean["descricao_problema"] || "", tecnico_email: tecnico, valid: !reason, ...(reason ? { reason } : {}) };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
