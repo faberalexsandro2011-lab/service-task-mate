@@ -362,7 +362,9 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
     const { error } = await supabase.from("ordens_servico").insert(payload);
     setSaving(false);
     if (error) {
-      toast.error("A importação falhou. Confirme se os números de OS são únicos.");
+      console.error("Import error", error);
+      const msg = error.code === "23505" ? "Já existe uma OS com um destes números." : error.code === "42501" ? "Sem permissão: apenas gestores podem importar." : error.message;
+      toast.error(`A importação falhou: ${msg}`);
       return;
     }
     toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"}.`);
@@ -391,22 +393,32 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
             </div>
           </div>
         )}
-        <input ref={inputRef} type="file" accept=".xlsx,.csv" hidden onChange={(event) => pickFile(event.target.files?.[0])} />
+        <input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={(event) => { void pickFile(event.target.files?.[0]); event.target.value = ""; }} />
         <DialogFooter><Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button disabled={!validRows.length || saving} onClick={importRows}>{saving ? "A importar..." : `Importar ${validRows.length || ""}`}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
+function normKey(key: string) {
+  return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function pick(clean: Record<string, string>, keys: string[], contains?: string[]) {
+  for (const k of keys) if (clean[k]) return clean[k];
+  if (contains) for (const [k, v] of Object.entries(clean)) if (v && contains.some((c) => k.includes(c))) return v;
+  return "";
+}
+
 function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil[]): ImportRow {
-  const clean = Object.fromEntries(Object.entries(record).map(([key, value]) => [key.trim().toLowerCase().replaceAll(" ", "_"), String(value ?? "").trim()]));
-  const numero = clean["numero_os"] || clean["numero"] || clean["os"] || "";
-  const frota = clean["frota"] || "";
-  const tecnico = clean["tecnico_email"] || clean["email_tecnico"] || clean["tecnico"] || "";
+  const clean: Record<string, string> = Object.fromEntries(Object.entries(record).map(([key, value]) => [normKey(key), String(value ?? "").trim()]));
+  const numero = pick(clean, ["numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os", "ordem", "ordem_servico", "ordem_de_servico"], ["numero", "ordem"]);
+  const frota = pick(clean, ["frota", "viatura", "veiculo", "matricula"], ["frota"]);
+  const tecnico = pick(clean, ["tecnico_email", "email_tecnico", "tecnico", "email", "tecnico_atribuido"], ["tecnico", "email"]);
   let reason = "";
-  if (!numero || !frota || !tecnico) reason = "Faltam OS, frota ou e-mail";
-  else if (!technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado";
-  return { numero_os: numero, frota, localizacao: clean["localizacao"] || "", descricao: clean["descricao"] || clean["descricao_problema"] || "", tecnico_email: tecnico, valid: !reason, ...(reason ? { reason } : {}) };
+  if (!numero || !frota) reason = "Faltam número da OS ou frota";
+  else if (tecnico && !technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado";
+  return { numero_os: numero, frota, localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]), descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]), tecnico_email: tecnico, valid: !reason, ...(reason ? { reason } : {}) };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
