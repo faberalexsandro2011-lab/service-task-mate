@@ -335,7 +335,14 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
       if (!firstSheetName) throw new Error("empty");
       const firstSheet = workbook.Sheets[firstSheetName];
       if (!firstSheet) throw new Error("empty");
-      const records = utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
+      // Encontra a linha de cabeçalho (pode não ser a primeira linha da folha)
+      const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "" });
+      let headerIdx = matrix.findIndex((r) => r.map((c) => normKey(String(c))).some((k) => k.includes("frota") || k.includes("numero") || k === "os"));
+      if (headerIdx < 0) headerIdx = 0;
+      const headers = (matrix[headerIdx] ?? []).map((c, i) => String(c).trim() || `col_${i}`);
+      const records = matrix.slice(headerIdx + 1)
+        .filter((r) => r.some((c) => String(c).trim() !== ""))
+        .map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ""])));
       const normalized = records.map((record) => normalizeImportRow(record, technicians));
       setRows(normalized);
       setFileName(file.name);
@@ -415,10 +422,13 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
   const numero = pick(clean, ["numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os", "ordem", "ordem_servico", "ordem_de_servico"], ["numero", "ordem"]);
   const frota = pick(clean, ["frota", "viatura", "veiculo", "matricula"], ["frota"]);
   const tecnico = pick(clean, ["tecnico_email", "email_tecnico", "tecnico", "email", "tecnico_atribuido"], ["tecnico", "email"]);
+  const valid = Boolean(numero && frota);
   let reason = "";
-  if (!numero || !frota) reason = "Faltam número da OS ou frota";
-  else if (tecnico && !technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado";
-  return { numero_os: numero, frota, localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]), descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]), tecnico_email: tecnico, valid: !reason, ...(reason ? { reason } : {}) };
+  if (!numero && !frota) reason = "Linha sem número da OS e frota";
+  else if (!numero) reason = "Falta o número da OS";
+  else if (!frota) reason = "Falta a frota";
+  else if (tecnico && !technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado — será importada sem técnico";
+  return { numero_os: numero, frota, localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]), descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]), tecnico_email: tecnico, valid, ...(reason ? { reason } : {}) };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
