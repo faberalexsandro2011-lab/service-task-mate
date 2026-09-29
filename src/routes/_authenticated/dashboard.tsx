@@ -1,16 +1,21 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Ban,
   CheckCircle2,
   ClipboardList,
+  Clock,
   FileSpreadsheet,
   LogOut,
   MapPin,
+  Play,
   Plus,
   Search,
   Upload,
   UserRound,
+  Wifi,
+  WifiOff,
   Wrench,
   X,
 } from "lucide-react";
@@ -95,29 +100,83 @@ async function getDashboardData() {
   };
 }
 
+type Status = "pendente" | "em_andamento" | "concluida" | "cancelada";
+const STATUS_LABEL: Record<Status, string> = {
+  pendente: "Pendente",
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  cancelada: "Cancelada",
+};
+type Actor = { id: string; email: string; name: string; isManager: boolean };
+
+/** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
+function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
+  if (!error) return fallback;
+  if (error.code === "42501" || /permission|row-level/i.test(error.message ?? "")) {
+    return "Sem permissão para esta ação. Confirme se a OS lhe está atribuída.";
+  }
+  if (!navigator.onLine) return "Sem ligação à internet. Tente novamente quando voltar a estar online.";
+  return fallback;
+}
+
 function Dashboard() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<"minhas" | "fila">("minhas");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [online, setOnline] = useState(true);
+  const [live, setLive] = useState(false);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
 
+  // Estado da ligação do navegador
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  // Atualização em tempo real: qualquer alteração em ordens_servico recarrega a lista
+  useEffect(() => {
+    const channel = supabase
+      .channel("ordens_servico_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      })
+      .subscribe((status) => setLive(status === "SUBSCRIBED"));
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   const data = dashboardQuery.data;
-  const orders = data?.orders ?? [];
+  const isManager = data?.role === "gestor";
+  const userId = data?.user.id;
+  const allOrders = data?.orders ?? [];
+  // Técnico: "minhas" = atribuídas a si; "fila" = pendentes sem técnico
+  const orders = useMemo(() => {
+    if (isManager) return allOrders;
+    return scope === "minhas"
+      ? allOrders.filter((o) => o.tecnico_id === userId)
+      : allOrders.filter((o) => !o.tecnico_id && o.status === "pendente");
+  }, [allOrders, isManager, scope, userId]);
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
     if (!term) return orders;
     return orders.filter((order) =>
-      [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.descricao]
+      [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.tecnico_nome, order.descricao]
         .filter(Boolean)
         .some((value) => value?.toLocaleLowerCase("pt").includes(term)),
     );
   }, [orders, search]);
-  const active = filtered.filter((order) => order.status !== "concluida");
-  const completed = filtered.filter((order) => order.status === "concluida");
-  const isManager = data?.role === "gestor";
+  const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -136,13 +195,29 @@ function Dashboard() {
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-md text-center">
           <p className="font-semibold">Não foi possível abrir o painel.</p>
-          <p className="mt-2 text-sm text-muted-foreground">{dashboardQuery.error.message}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{friendlyError(dashboardQuery.error as { message?: string }, dashboardQuery.error.message)}</p>
           <Button className="mt-5" onClick={() => router.invalidate()}>Tentar novamente</Button>
         </div>
       </div>
     );
   }
   if (!data) return <LoadingScreen />;
+
+  const actor: Actor = {
+    id: data.user.id,
+    email: data.user.email ?? "",
+    name: data.me?.nome ?? data.user.email ?? "",
+    isManager,
+  };
+  const connected = online && live;
+
+  const tabs: { value: string; label: string; list: Ordem[] }[] = [
+    { value: "todas", label: "Todas", list: filtered },
+    { value: "pendente", label: "Pendentes", list: byStatus("pendente") },
+    { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
+    { value: "concluida", label: "Concluídas", list: byStatus("concluida") },
+    { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
+  ];
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[248px_1fr]">
@@ -154,33 +229,52 @@ function Dashboard() {
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
         </nav>
-        <UserPanel name={data.me?.nome ?? data.user.email ?? "Utilizador"} email={data.user.email ?? ""} role={data.role} onSignOut={signOut} />
+        <UserPanel name={actor.name || "Utilizador"} email={actor.email} role={data.role} onSignOut={signOut} />
       </aside>
 
       <main className="min-w-0">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-7 lg:hidden">
           <Brand compact />
-          <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
+          <div className="flex items-center gap-2">
+            <ConnectionPill connected={connected} online={online} />
+            <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
+          </div>
         </header>
+        {!online && (
+          <div className="bg-destructive px-4 py-2 text-center text-sm text-destructive-foreground">
+            Sem ligação à internet. As alterações serão mostradas quando a ligação voltar.
+          </div>
+        )}
         <div className="mx-auto max-w-[1500px] p-4 sm:p-7 lg:p-9">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm font-medium text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
+                <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>
+              </div>
               <h1 className="mt-1 text-2xl font-bold tracking-normal sm:text-3xl">Ordens de serviço</h1>
-              <p className="mt-2 text-sm text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Consulte as ordens que lhe foram atribuídas."}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} onImported={refresh} />
-                <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creatorEmail={data.user.email ?? ""} onCreated={refresh} />
+                <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creatorEmail={actor.email} onCreated={refresh} />
               </div>
             )}
           </div>
 
-          <section className="mt-7 grid gap-3 sm:grid-cols-3">
-            <Metric label="Total de OS" value={orders.length} icon={<ClipboardList />} />
-            <Metric label="Ativas" value={orders.filter((order) => order.status !== "concluida").length} icon={<Wrench />} accent />
-            <Metric label="Concluídas" value={orders.filter((order) => order.status === "concluida").length} icon={<CheckCircle2 />} />
+          {!isManager && (
+            <div className="mt-6 inline-flex rounded-md border bg-card p-1">
+              <Button size="sm" variant={scope === "minhas" ? "default" : "ghost"} onClick={() => setScope("minhas")}>As minhas OS</Button>
+              <Button size="sm" variant={scope === "fila" ? "default" : "ghost"} onClick={() => setScope("fila")}>Fila geral</Button>
+            </div>
+          )}
+
+          <section className="mt-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
+            <Metric label="Pendentes" value={orders.filter((o) => o.status === "pendente").length} icon={<Clock />} />
+            <Metric label="Em andamento" value={orders.filter((o) => o.status === "em_andamento").length} icon={<Wrench />} accent />
+            <Metric label="Concluídas" value={orders.filter((o) => o.status === "concluida").length} icon={<CheckCircle2 />} />
+            <Metric label="Canceladas" value={orders.filter((o) => o.status === "cancelada").length} icon={<Ban />} />
           </section>
 
           <section className="mt-7 border-t pt-6">
@@ -194,18 +288,31 @@ function Dashboard() {
                 <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico" className="pl-9" />
               </div>
             </div>
-            <Tabs defaultValue="ativas">
-              <TabsList className="grid w-full grid-cols-2 sm:w-80">
-                <TabsTrigger value="ativas">Ativas <span className="ml-1 text-xs text-muted-foreground">{active.length}</span></TabsTrigger>
-                <TabsTrigger value="concluidas">Concluídas <span className="ml-1 text-xs text-muted-foreground">{completed.length}</span></TabsTrigger>
+            <Tabs defaultValue="todas">
+              <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-auto">
+                {tabs.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value}>{t.label} <span className="ml-1 text-xs text-muted-foreground">{t.list.length}</span></TabsTrigger>
+                ))}
               </TabsList>
-              <TabsContent value="ativas" className="mt-4"><OrderList orders={active} empty="Não existem ordens ativas." /></TabsContent>
-              <TabsContent value="concluidas" className="mt-4"><OrderList orders={completed} empty="Ainda não existem ordens concluídas." /></TabsContent>
+              {tabs.map((t) => (
+                <TabsContent key={t.value} value={t.value} className="mt-4">
+                  <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} />
+                </TabsContent>
+              ))}
             </Tabs>
           </section>
         </div>
       </main>
     </div>
+  );
+}
+
+function ConnectionPill({ connected, online }: { connected: boolean; online: boolean }) {
+  return (
+    <span className={connected ? "inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary" : "inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"}>
+      {connected ? <Wifi className="size-3.5" /> : <WifiOff className="size-3.5" />}
+      {connected ? "Online" : online ? "A ligar…" : "Offline"}
+    </span>
   );
 }
 
@@ -240,30 +347,180 @@ function Metric({ label, value, icon, accent = false }: { label: string; value: 
   );
 }
 
-function OrderList({ orders, empty }: { orders: Ordem[]; empty: string }) {
+const fmtDate = (value: string | null) =>
+  value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
+const fmtMoney = (value: number | null) =>
+  value == null ? null : new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
+
+function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
   if (orders.length === 0) return <div className="rounded-md border border-dashed py-14 text-center text-sm text-muted-foreground">{empty}</div>;
   return (
-    <div className="overflow-hidden rounded-md border bg-card">
-      <div className="hidden grid-cols-[1.1fr_1fr_1.1fr_1.5fr_120px] gap-4 border-b bg-muted/50 px-4 py-3 text-[11px] font-semibold uppercase text-muted-foreground md:grid">
-        <span>OS / Frota</span><span>Localização</span><span>Técnico</span><span>Descrição</span><span>Data</span>
-      </div>
-      <div className="divide-y">
-        {orders.map((order) => (
-          <article key={order.id} className="grid gap-3 px-4 py-4 transition-colors hover:bg-muted/40 md:grid-cols-[1.1fr_1fr_1.1fr_1.5fr_120px] md:items-center md:gap-4">
-            <div><div className="flex items-center gap-2"><span className="font-semibold">{order.numero_os}</span><StatusBadge completed={order.status === "concluida"} /></div><div className="mt-1 text-xs text-muted-foreground">Frota {order.frota}</div></div>
-            <div className="flex items-center gap-2 text-sm"><MapPin className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{order.localizacao || "—"}</span></div>
-            <div className="min-w-0 text-sm"><div className="truncate">{order.tecnico_email || "Sem técnico"}</div></div>
-            <div className="line-clamp-2 text-sm text-muted-foreground">{order.descricao || "Sem descrição"}</div>
-            <time className="text-xs text-muted-foreground">{new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(order.created_at))}</time>
-          </article>
-        ))}
-      </div>
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {orders.map((order) => (
+        <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+      ))}
     </div>
   );
 }
 
-function StatusBadge({ completed }: { completed: boolean }) {
-  return <span className={completed ? "rounded-sm bg-secondary px-1.5 py-0.5 text-[10px] font-semibold uppercase text-secondary-foreground" : "rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary"}>{completed ? "Concluída" : "Ativa"}</span>;
+/** Regista uma entrada no histórico de auditoria da OS. */
+async function logHistory(osId: string, actor: Actor, acao: string, detalhe: string) {
+  await supabase.from("historico_edicoes").insert({ os_id: osId, acao, detalhe, usuario_id: actor.id, usuario_email: actor.email });
+}
+
+function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [finishOpen, setFinishOpen] = useState(false);
+  const status = order.status as Status;
+  const isMine = order.tecnico_id === actor.id;
+  const canStart = status === "pendente" && (!order.tecnico_id || isMine);
+  const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
+
+  async function start() {
+    setBusy(true);
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
+      .eq("id", order.id)
+      .eq("status", "pendente")
+      .select("id");
+    if (error || !data?.length) {
+      setBusy(false);
+      toast.error(error ? friendlyError(error, "Não foi possível iniciar o atendimento.") : "Esta OS já foi assumida ou alterada por outra pessoa.");
+      await onChanged();
+      return;
+    }
+    await logHistory(order.id, actor, "iniciada", `Atendimento iniciado por ${actor.email}`);
+    setBusy(false);
+    toast.success(`OS ${order.numero_os} em andamento.`);
+    await onChanged();
+  }
+
+  async function cancel() {
+    if (!confirm(`Cancelar a OS ${order.numero_os}?`)) return;
+    setBusy(true);
+    const { error } = await supabase.from("ordens_servico").update({ status: "cancelada" }).eq("id", order.id);
+    if (error) {
+      setBusy(false);
+      toast.error(friendlyError(error, "Não foi possível cancelar a OS."));
+      return;
+    }
+    await logHistory(order.id, actor, "cancelada", `Cancelada por ${actor.email}`);
+    setBusy(false);
+    toast.success(`OS ${order.numero_os} cancelada.`);
+    await onChanged();
+  }
+
+  return (
+    <article className="flex flex-col rounded-md border bg-card p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold">OS {order.numero_os}</div>
+          <div className="text-xs text-muted-foreground">Frota {order.frota}</div>
+        </div>
+        <StatusBadge status={status} />
+      </div>
+      <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{order.descricao || "Sem descrição"}</p>
+      <dl className="mt-3 space-y-1 text-xs">
+        <div className="flex items-center gap-2"><MapPin className="size-3.5 text-muted-foreground" />{order.localizacao || "—"}</div>
+        <div className="flex items-center gap-2"><UserRound className="size-3.5 text-muted-foreground" />{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</div>
+        <div className="text-muted-foreground">Aberta: {fmtDate(order.created_at)}{order.data_inicio && ` · Início: ${fmtDate(order.data_inicio)}`}{order.concluida_em && ` · Fim: ${fmtDate(order.concluida_em)}`}</div>
+      </dl>
+      {status === "concluida" && (order.notas_fecho || order.pecas_utilizadas || order.valor_total != null) && (
+        <div className="mt-3 space-y-1 rounded-md bg-muted/60 p-3 text-xs">
+          {order.notas_fecho && <p><span className="font-semibold">Solução:</span> {order.notas_fecho}</p>}
+          {order.pecas_utilizadas && <p><span className="font-semibold">Peças:</span> {order.pecas_utilizadas}</p>}
+          {order.valor_total != null && <p><span className="font-semibold">Valor:</span> {fmtMoney(order.valor_total)}</p>}
+        </div>
+      )}
+      {(canStart || canFinish || canCancel) && (
+        <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
+          {canStart && <Button size="sm" disabled={busy} onClick={start}><Play /> Iniciar atendimento</Button>}
+          {canFinish && <Button size="sm" disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
+          {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={cancel}><Ban /> Cancelar</Button>}
+        </div>
+      )}
+      <FinishDialog open={finishOpen} onOpenChange={setFinishOpen} order={order} actor={actor} onDone={onChanged} />
+    </article>
+  );
+}
+
+function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; order: Ordem; actor: Actor; onDone: () => Promise<void> }) {
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const solucao = String(form.get("solucao") ?? "").trim();
+    const pecas = String(form.get("pecas") ?? "").trim();
+    const valorRaw = String(form.get("valor") ?? "").trim().replace(",", ".");
+    if (!solucao) {
+      toast.error("Descreva o serviço realizado.");
+      return;
+    }
+    const valor = valorRaw ? Number(valorRaw) : null;
+    if (valor != null && (Number.isNaN(valor) || valor < 0)) {
+      toast.error("Indique um valor válido.");
+      return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .update({ status: "concluida", notas_fecho: solucao, pecas_utilizadas: pecas || null, valor_total: valor, concluida_em: new Date().toISOString() })
+      .eq("id", order.id)
+      .eq("status", "em_andamento")
+      .select("id");
+    if (error || !data?.length) {
+      setSaving(false);
+      toast.error(error ? friendlyError(error, "Não foi possível finalizar a OS.") : "Esta OS já não está em andamento.");
+      return;
+    }
+    await logHistory(order.id, actor, "concluida", `Concluída por ${actor.email}: ${solucao}`);
+    setSaving(false);
+    toast.success(`OS ${order.numero_os} concluída.`);
+    onOpenChange(false);
+    await onDone();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Finalizar OS {order.numero_os}</DialogTitle>
+          <DialogDescription>Registe o que foi feito para concluir o serviço.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="solucao">Serviço realizado / solução técnica *</Label>
+            <Textarea id="solucao" name="solucao" required rows={4} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pecas">Peças utilizadas / trocadas</Label>
+            <Textarea id="pecas" name="pecas" rows={2} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="valor">Valor total do serviço / peças (€)</Label>
+            <Input id="valor" name="valor" inputMode="decimal" placeholder="0,00" />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Voltar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "A gravar…" : "Concluir serviço"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StatusBadge({ status }: { status: Status }) {
+  const styles: Record<Status, string> = {
+    pendente: "bg-accent text-accent-foreground",
+    em_andamento: "bg-primary text-primary-foreground",
+    concluida: "bg-secondary text-secondary-foreground",
+    cancelada: "bg-destructive/10 text-destructive",
+  };
+  return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
 function CreateDialog({ open, onOpenChange, technicians, creatorEmail, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creatorEmail: string; onCreated: () => Promise<void> }) {

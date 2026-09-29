@@ -57,46 +57,58 @@ export type Database = {
           concluida_em: string | null
           created_at: string
           criado_por_email: string | null
+          data_inicio: string | null
           descricao: string | null
           frota: string
           id: string
           localizacao: string | null
           notas_fecho: string | null
           numero_os: string
+          pecas_utilizadas: string | null
           status: string
           tecnico_email: string | null
           tecnico_id: string | null
+          tecnico_nome: string | null
           updated_at: string
+          valor_total: number | null
         }
         Insert: {
           concluida_em?: string | null
           created_at?: string
           criado_por_email?: string | null
+          data_inicio?: string | null
           descricao?: string | null
           frota: string
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os: string
+          pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
           tecnico_id?: string | null
+          tecnico_nome?: string | null
           updated_at?: string
+          valor_total?: number | null
         }
         Update: {
           concluida_em?: string | null
           created_at?: string
           criado_por_email?: string | null
+          data_inicio?: string | null
           descricao?: string | null
           frota?: string
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os?: string
+          pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
           tecnico_id?: string | null
+          tecnico_nome?: string | null
           updated_at?: string
+          valor_total?: number | null
         }
         Relationships: []
       }
