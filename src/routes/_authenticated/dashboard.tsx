@@ -534,7 +534,7 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
       tecnico_nome: technician.nome || technician.email,
       criado_por_email: creator.email,
       status: "pendente",
-    });
+    }).select("id");
     setSaving(false);
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Já existe uma OS com esse número." : "Não foi possível criar a ordem.");
@@ -615,9 +615,10 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
         descricao: row.descricao || null,
         tecnico_id: technician?.id ?? null,
         tecnico_email: technician?.email ?? null,
+        tecnico_nome: technician?.nome ?? technician?.email ?? null,
       };
     });
-    const { error } = await supabase.from("ordens_servico").insert(payload);
+    const { data: created, error } = await supabase.from("ordens_servico").insert(payload).select("id, tecnico_nome, tecnico_email");
     setSaving(false);
     if (error) {
       console.error("Import error", error);
@@ -625,7 +626,11 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
       toast.error(`A importação falhou: ${msg}`);
       return;
     }
-    toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"}.`);
+    if (created?.length) {
+      await Promise.all(created.map((row) => logHistory(row.id, { id: "", email: "importação", name: "Importação", isManager: true }, "aberta", "OS aberta por importação")));
+      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, { id: "", email: "importação", name: "Importação", isManager: true }, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
+    }
+    toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"} e registada no histórico.`);
     setRows([]);
     setFileName("");
     onOpenChange(false);
