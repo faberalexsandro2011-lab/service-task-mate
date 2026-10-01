@@ -7,6 +7,6 @@
   "theme_color": "#315b2c",
   "description": "Aplicativo de campo para técnicos.",
   "icons": [
-    { "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+    { "src": "/agri-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }
