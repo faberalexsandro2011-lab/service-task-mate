@@ -265,7 +265,7 @@ function Dashboard() {
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2">
-                <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} onImported={refresh} />
+                <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
             )}
@@ -567,7 +567,7 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
   );
 }
 
-function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; onImported: () => Promise<void> }) {
+function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creator: Actor; onImported: () => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [fileName, setFileName] = useState("");
@@ -627,8 +627,8 @@ function ImportDialog({ open, onOpenChange, technicians, onImported }: { open: b
       return;
     }
     if (created?.length) {
-      await Promise.all(created.map((row) => logHistory(row.id, { id: "", email: "importação", name: "Importação", isManager: true }, "aberta", "OS aberta por importação")));
-      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, { id: "", email: "importação", name: "Importação", isManager: true }, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
+      await Promise.all(created.map((row) => logHistory(row.id, creator, "aberta", `OS aberta por ${creator.email} via importação`)));
+      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, creator, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
     }
     toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"} e registada no histórico.`);
     setRows([]);
