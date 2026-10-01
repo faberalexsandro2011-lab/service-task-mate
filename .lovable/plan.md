@@ -16,7 +16,7 @@ Escritório (Painel Central)  --abre OS + escolhe técnico-->  Telemóvel do té
   - Separadores: Todas, Pendentes, Em andamento, Concluídas.
   - Cartões com Frota, Nº da OS, Localização e Descrição do problema.
   - Botão para abrir a localização no mapa.
-  - Botões "Iniciar atendimento" e "Finalizar serviço" (notas, peças, valor).
+  - Botões "Iniciar atendimento" e "Finalizar serviço" (apenas notas do serviço; sem campos de peças nem valor, também removidos do Painel Central).
 - **Aviso de nova OS:** com a app aberta, quando o escritório envia uma OS, aparece um alerta com som e vibração, e a OS surge no topo da lista.
 - **Entrada automática:** depois do login, o técnico vai diretamente para o ecrã do telemóvel; o gestor vai para o Painel Central.
 - **Painel Central:** ao criar a OS, o técnico escolhido é obrigatório para "enviar" a OS. Aparece a confirmação "Enviada para [nome do técnico]".
