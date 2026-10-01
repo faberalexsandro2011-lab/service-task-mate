@@ -106,7 +106,7 @@ type Status = "pendente" | "em_andamento" | "concluida" | "cancelada";
 const STATUS_LABEL: Record<Status, string> = {
   pendente: "Pendente",
   em_andamento: "Em andamento",
-  concluida: "Concluída",
+  concluida: "Finalizada",
   cancelada: "Cancelada",
 };
 type Actor = { id: string; email: string; name: string; isManager: boolean };
