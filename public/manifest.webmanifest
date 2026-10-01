@@ -1,0 +1,12 @@
+{
+  "name": "Central OS - Área do Técnico",
+  "short_name": "Central OS",
+  "start_url": "/tecnico",
+  "display": "standalone",
+  "background_color": "#f7f1df",
+  "theme_color": "#315b2c",
+  "description": "Aplicativo de campo para técnicos.",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+  ]
+}
