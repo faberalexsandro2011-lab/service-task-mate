@@ -62,6 +62,11 @@
 }
 
 :root {
+  --agri-leaf: oklch(0.48 0.13 142);
+  --agri-field: oklch(0.34 0.10 139);
+  --agri-wheat: oklch(0.82 0.16 88);
+  --agri-earth: oklch(0.38 0.08 65);
+  --agri-straw: oklch(0.96 0.035 88);
   --radius: 0.45rem;
   --background: oklch(0.985 0.003 247);
   --foreground: oklch(0.18 0.025 252);
