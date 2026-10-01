@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,8 +48,8 @@ function Index() {
       <section className="relative hidden overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 opacity-10 [background-image:linear-gradient(var(--primary-foreground)_1px,transparent_1px),linear-gradient(90deg,var(--primary-foreground)_1px,transparent_1px)] [background-size:42px_42px]" />
         <div className="relative flex items-center gap-3"><div className="grid size-10 place-items-center rounded-md bg-primary-foreground text-primary"><Wrench className="size-5" /></div><div><div className="font-bold">Central OS</div><div className="text-xs opacity-70">Gestão operacional</div></div></div>
-        <div className="relative max-w-xl pb-12"><p className="text-sm font-semibold uppercase opacity-70">Operações organizadas</p><h1 className="mt-4 text-5xl font-bold leading-tight tracking-normal">Cada ordem.<br />Sempre acompanhada.</h1><p className="mt-6 max-w-md text-base leading-7 opacity-75">Distribua, acompanhe e conclua o trabalho da sua equipa num único lugar.</p></div>
-        <div className="relative flex items-center gap-2 text-xs opacity-60"><LockKeyhole className="size-3.5" /> Acesso reservado a utilizadores autorizados</div>
+        <div className="relative max-w-xl pb-12"><div className="mb-6 flex items-center gap-3 text-[var(--agri-wheat)]"><Tractor className="size-9" /><Wheat className="size-8" /><span className="text-sm font-semibold uppercase tracking-widest">Operação no campo</span></div><p className="text-sm font-semibold uppercase opacity-70">Operações organizadas</p><h1 className="mt-4 text-5xl font-bold leading-tight tracking-normal">Cada ordem.<br />Sempre acompanhada.</h1><p className="mt-6 max-w-md text-base leading-7 opacity-75">Distribua, acompanhe e conclua o trabalho da sua equipa num único lugar.</p></div>
+        <div className="relative flex items-center gap-2 text-xs opacity-70"><Wheat className="size-3.5" /> Campo, oficina e equipa conectados em tempo real</div>
       </section>
       <main className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-12">
         <div className="w-full max-w-sm">
