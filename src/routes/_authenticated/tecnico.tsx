@@ -13,6 +13,28 @@ export const Route = createFileRoute("/_authenticated/tecnico")({ component: Tec
 type Ordem = Tables<"ordens_servico">;
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
+function playFieldAlert() {
+  try {
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!AudioContextClass) return;
+    const context = new AudioContextClass();
+    const gain = context.createGain();
+    const oscillator = context.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.value = 0.06;
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    window.setTimeout(() => {
+      oscillator.stop();
+      void context.close();
+    }, 220);
+  } catch {
+    // Navegadores podem bloquear áudio até haver interação do utilizador.
+  }
+}
+
 function TechnicianPage() {
   const [orders, setOrders] = useState<Ordem[]>([]);
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
@@ -42,7 +64,7 @@ function TechnicianPage() {
         await load();
         if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id)) {
           toast.success("Nova OS enviada para você.");
-          try { new Audio("/alerta-os.mp3").play().catch(() => undefined); } catch {}
+          try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
         }
       }
