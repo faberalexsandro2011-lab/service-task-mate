@@ -14,6 +14,8 @@ import {
   Search,
   Upload,
   UserRound,
+  Tractor,
+  History,
   Wifi,
   WifiOff,
   Wrench,
@@ -228,6 +230,11 @@ function Dashboard() {
           <div className="flex items-center gap-3 rounded-md bg-sidebar-accent px-3 py-2.5 text-sm font-medium text-sidebar-accent-foreground">
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
+          {isManager && (
+            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+              <History className="size-4" /> Histórico
+            </button>
+          )}
         </nav>
         <UserPanel name={actor.name || "Utilizador"} email={actor.email} role={data.role} onSignOut={signOut} />
       </aside>
@@ -249,6 +256,7 @@ function Dashboard() {
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
+                <Tractor className="size-5 text-[var(--agri-leaf)]" />
                 <p className="text-sm font-medium text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
                 <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>
               </div>
@@ -258,7 +266,7 @@ function Dashboard() {
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} onImported={refresh} />
-                <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creatorEmail={actor.email} onCreated={refresh} />
+                <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
             )}
           </div>
@@ -349,9 +357,6 @@ function Metric({ label, value, icon, accent = false }: { label: string; value: 
 
 const fmtDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
-const fmtMoney = (value: number | null) =>
-  value == null ? null : new Intl.NumberFormat("pt-PT", { style: "currency", currency: "EUR" }).format(value);
-
 function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
   if (orders.length === 0) return <div className="rounded-md border border-dashed py-14 text-center text-sm text-muted-foreground">{empty}</div>;
   return (
@@ -427,11 +432,9 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         <div className="flex items-center gap-2"><UserRound className="size-3.5 text-muted-foreground" />{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</div>
         <div className="text-muted-foreground">Aberta: {fmtDate(order.created_at)}{order.data_inicio && ` · Início: ${fmtDate(order.data_inicio)}`}{order.concluida_em && ` · Fim: ${fmtDate(order.concluida_em)}`}</div>
       </dl>
-      {status === "concluida" && (order.notas_fecho || order.pecas_utilizadas || order.valor_total != null) && (
+      {status === "concluida" && order.notas_fecho && (
         <div className="mt-3 space-y-1 rounded-md bg-muted/60 p-3 text-xs">
           {order.notas_fecho && <p><span className="font-semibold">Solução:</span> {order.notas_fecho}</p>}
-          {order.pecas_utilizadas && <p><span className="font-semibold">Peças:</span> {order.pecas_utilizadas}</p>}
-          {order.valor_total != null && <p><span className="font-semibold">Valor:</span> {fmtMoney(order.valor_total)}</p>}
         </div>
       )}
       {(canStart || canFinish || canCancel) && (
@@ -453,21 +456,14 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const solucao = String(form.get("solucao") ?? "").trim();
-    const pecas = String(form.get("pecas") ?? "").trim();
-    const valorRaw = String(form.get("valor") ?? "").trim().replace(",", ".");
     if (!solucao) {
       toast.error("Descreva o serviço realizado.");
-      return;
-    }
-    const valor = valorRaw ? Number(valorRaw) : null;
-    if (valor != null && (Number.isNaN(valor) || valor < 0)) {
-      toast.error("Indique um valor válido.");
       return;
     }
     setSaving(true);
     const { data, error } = await supabase
       .from("ordens_servico")
-      .update({ status: "concluida", notas_fecho: solucao, pecas_utilizadas: pecas || null, valor_total: valor, concluida_em: new Date().toISOString() })
+      .update({ status: "concluida", notas_fecho: solucao, concluida_em: new Date().toISOString() })
       .eq("id", order.id)
       .eq("status", "em_andamento")
       .select("id");
@@ -476,9 +472,9 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
       toast.error(error ? friendlyError(error, "Não foi possível finalizar a OS.") : "Esta OS já não está em andamento.");
       return;
     }
-    await logHistory(order.id, actor, "concluida", `Concluída por ${actor.email}: ${solucao}`);
+    await logHistory(order.id, actor, "finalizada", `Finalizada por ${actor.email}: ${solucao}`);
     setSaving(false);
-    toast.success(`OS ${order.numero_os} concluída.`);
+    toast.success(`OS ${order.numero_os} finalizada.`);
     onOpenChange(false);
     await onDone();
   }
@@ -494,14 +490,6 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
           <div className="space-y-2">
             <Label htmlFor="solucao">Serviço realizado / solução técnica *</Label>
             <Textarea id="solucao" name="solucao" required rows={4} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pecas">Peças utilizadas / trocadas</Label>
-            <Textarea id="pecas" name="pecas" rows={2} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="valor">Valor total do serviço / peças (€)</Label>
-            <Input id="valor" name="valor" inputMode="decimal" placeholder="0,00" />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Voltar</Button>
@@ -523,7 +511,7 @@ function StatusBadge({ status }: { status: Status }) {
   return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
-function CreateDialog({ open, onOpenChange, technicians, creatorEmail, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creatorEmail: string; onCreated: () => Promise<void> }) {
+function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creator: Actor; onCreated: () => Promise<void> }) {
   const [saving, setSaving] = useState(false);
   const [technicianId, setTechnicianId] = useState("");
 
@@ -536,21 +524,27 @@ function CreateDialog({ open, onOpenChange, technicians, creatorEmail, onCreated
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("ordens_servico").insert({
+    const { data: created, error } = await supabase.from("ordens_servico").insert({
       numero_os: String(form.get("numero_os") ?? "").trim(),
       frota: String(form.get("frota") ?? "").trim(),
       localizacao: String(form.get("localizacao") ?? "").trim() || null,
       descricao: String(form.get("descricao") ?? "").trim() || null,
       tecnico_id: technician.id,
       tecnico_email: technician.email,
-      criado_por_email: creatorEmail,
+      tecnico_nome: technician.nome || technician.email,
+      criado_por_email: creator.email,
+      status: "pendente",
     });
     setSaving(false);
     if (error) {
       toast.error(error.message.includes("duplicate") ? "Já existe uma OS com esse número." : "Não foi possível criar a ordem.");
       return;
     }
-    toast.success("Ordem de serviço criada.");
+    if (created?.[0]?.id) {
+      await logHistory(created[0].id, creator, "aberta", `OS aberta por ${creator.email}`);
+      await logHistory(created[0].id, creator, "enviada", `Enviada para ${technician.nome || technician.email}`);
+    }
+    toast.success(`Enviada para ${technician.nome || technician.email}.`);
     onOpenChange(false);
     setTechnicianId("");
     await onCreated();
