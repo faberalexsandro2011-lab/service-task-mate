@@ -149,3 +149,45 @@
     letter-spacing: 0;
   }
 }
+
+@layer components {
+  .modern-card {
+    border-radius: 1.25rem;
+    box-shadow: 0 10px 30px oklch(0.2 0.03 140 / 0.07);
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .modern-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px oklch(0.2 0.03 140 / 0.11);
+  }
+
+  .glass-panel {
+    background: oklch(1 0 0 / 0.72);
+    backdrop-filter: blur(14px);
+  }
+
+  .interactive-control {
+    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  }
+
+  .interactive-control:active {
+    transform: scale(0.98);
+  }
+}
+
+@keyframes agri-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.agri-fade-up {
+  animation: agri-fade-up 420ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modern-card, .interactive-control, .agri-fade-up {
+    animation: none;
+    transition: none;
+  }
+}
