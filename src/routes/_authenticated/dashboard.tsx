@@ -14,6 +14,8 @@ import {
   Search,
   Upload,
   UserRound,
+  ShieldCheck,
+  Trash2,
   Tractor,
   History,
   Wifi,
@@ -92,12 +94,16 @@ async function getDashboardData() {
     roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"),
   );
   const me = profileResult.data.find((profile) => profile.id === authData.user.id);
+  const team = profileResult.data
+    .map((profile) => ({ profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" }))
+    .filter((item) => item.profile.id !== authData.user.id);
 
   return {
     user: authData.user,
     role,
     me,
     technicians,
+    team,
     orders: ordersResult.data,
   };
 }
@@ -110,6 +116,7 @@ const STATUS_LABEL: Record<Status, string> = {
   cancelada: "Cancelada",
 };
 type Actor = { id: string; email: string; name: string; isManager: boolean };
+type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" };
 const OWNER_ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
@@ -269,6 +276,7 @@ function Dashboard() {
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 <TechnicianDialog open={technicianOpen} onOpenChange={setTechnicianOpen} onCreated={refresh} />
+                <TeamDialog team={data.team} actor={actor} onChanged={refresh} />
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
@@ -579,6 +587,66 @@ function StatusBadge({ status }: { status: Status }) {
     cancelada: "bg-destructive/10 text-destructive",
   };
   return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
+}
+
+function TeamDialog({ team, actor, onChanged }: { team: TeamMember[]; actor: Actor; onChanged: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const canManage = actor.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+
+  async function changeRole(member: TeamMember) {
+    if (!canManage || member.profile.email.toLowerCase() !== OWNER_ADMIN_EMAIL) {
+      toast.error("Somente o e-mail autorizado pode alterar privilégios de administrador.");
+      return;
+    }
+    const nextRole = member.role === "gestor" ? "tecnico" : "gestor";
+    if (!confirm(`${nextRole === "gestor" ? "Promover" : "Retirar administrador de"} ${member.profile.nome || member.profile.email}?`)) return;
+    setBusyId(member.profile.id);
+    const { error } = await supabase.from("user_roles").update({ role: nextRole }).eq("user_id", member.profile.id);
+    setBusyId(null);
+    if (error) { toast.error(friendlyError(error, "Não foi possível alterar a função.")); return; }
+    toast.success(nextRole === "gestor" ? "Administrador ativado." : "Acesso de administrador removido.");
+    await onChanged();
+  }
+
+  async function removeAccess(member: TeamMember) {
+    if (!canManage) { toast.error("Somente o administrador autorizado pode excluir contas."); return; }
+    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) { toast.error("A conta principal não pode ser excluída."); return; }
+    if (!confirm(`Excluir o acesso de ${member.profile.nome || member.profile.email}? A conta de autenticação continuará existente, mas ficará sem acesso ao sistema.`)) return;
+    setBusyId(member.profile.id);
+    const { error: roleError } = await supabase.from("user_roles").delete().eq("user_id", member.profile.id);
+    if (roleError) { setBusyId(null); toast.error(friendlyError(roleError, "Não foi possível remover a função.")); return; }
+    const { error: profileError } = await supabase.from("profiles").delete().eq("id", member.profile.id);
+    setBusyId(null);
+    if (profileError) { toast.error(friendlyError(profileError, "A função foi removida, mas o perfil não pôde ser excluído.")); return; }
+    toast.success("Acesso removido do sistema.");
+    await onChanged();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="outline"><UserRound /> Lista de técnicos</Button></DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader><DialogTitle>Equipa de técnicos</DialogTitle><DialogDescription>Consulte os técnicos e gerencie o acesso.</DialogDescription></DialogHeader>
+        <div className="space-y-2">
+          {!team.length && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum técnico cadastrado.</div>}
+          {team.map((member) => {
+            const isOwner = member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+            const busy = busyId === member.profile.id;
+            return <div key={member.profile.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0"><div className="flex items-center gap-2 font-semibold"><UserRound className="size-4 text-primary" /><span className="truncate">{member.profile.nome || member.profile.email}</span>{member.role === "gestor" && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">ADMIN</span>}</div><div className="mt-1 truncate text-xs text-muted-foreground">{member.profile.email}</div></div>
+              <div className="flex flex-wrap gap-2">
+                {isOwner && <Button size="sm" variant="outline" disabled={busy || !canManage} onClick={() => void changeRole(member)}><ShieldCheck /> {member.role === "gestor" ? "Retirar AD" : "Tornar AD"}</Button>}
+                {!isOwner && <span className="self-center text-xs text-muted-foreground">Técnico</span>}
+                <Button size="sm" variant="destructive" disabled={busy || !canManage || isOwner} onClick={() => void removeAccess(member)}><Trash2 /> Excluir acesso</Button>
+              </div>
+            </div>;
+          })}
+        </div>
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; onCreated: () => Promise<void> }) {
