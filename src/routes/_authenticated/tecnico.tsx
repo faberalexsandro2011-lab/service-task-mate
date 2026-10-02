@@ -80,15 +80,34 @@ function TechnicianPage() {
     await saveOfflineActor(nextActor);
 
     const email = auth.user.email ?? nextActor.email;
-    const { data, error } = await supabase
+
+    // Primeiro usa o ID do usuário, que é a chave oficial da atribuição.
+    // Se houver OS antigas atribuídas somente pelo e-mail, tenta também o e-mail.
+    const primary = await supabase
       .from("ordens_servico")
       .select("*")
-      .or(`tecnico_id.eq.${auth.user.id},tecnico_email.eq.${email}`)
+      .eq("tecnico_id", auth.user.id)
       .order("created_at", { ascending: false });
+
+    let data = primary.data ?? [];
+    let error = primary.error;
+
+    if (!error && data.length === 0 && email) {
+      const fallback = await supabase
+        .from("ordens_servico")
+        .select("*")
+        .eq("tecnico_email", email)
+        .order("created_at", { ascending: false });
+      if (!fallback.error) {
+        data = fallback.data ?? [];
+      } else {
+        error = fallback.error;
+      }
+    }
 
     if (!error) {
       const unique = new Map<string, Ordem>();
-      for (const item of data ?? []) unique.set(item.id, item);
+      for (const item of data) unique.set(item.id, item);
       setOrders([...unique.values()]);
       await saveOfflineOrders([...unique.values()]);
     } else if (cachedOrders.length) {
