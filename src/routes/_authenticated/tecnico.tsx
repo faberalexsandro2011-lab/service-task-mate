@@ -10,7 +10,16 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getOfflineActor, getOfflineOrders, getOfflineQueue, makeOfflineId, queueOfflineAction, removeOfflineAction, saveOfflineActor, saveOfflineOrders } from "@/lib/offline";
 
-export const Route = createFileRoute("/_authenticated/tecnico")({ component: TechnicianPage });
+export const Route = createFileRoute("/_authenticated/tecnico")({
+  head: () => ({
+    links: [{ rel: "manifest", href: "/manifest.webmanifest" }],
+    meta: [
+      { name: "theme-color", content: "#315b2c" },
+      { name: "mobile-web-app-capable", content: "yes" },
+    ],
+  }),
+  component: TechnicianPage,
+});
 type Ordem = Tables<"ordens_servico">;
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
