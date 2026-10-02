@@ -130,6 +130,7 @@ function Dashboard() {
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [technicianOpen, setTechnicianOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("todas");
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
@@ -287,25 +288,50 @@ function Dashboard() {
             <Metric label="Canceladas" value={orders.filter((o) => o.status === "cancelada").length} icon={<Ban />} />
           </section>
 
-          <section className="mt-7 border-t pt-6">
-            <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-              <div>
-                <h2 className="text-lg font-semibold">Registo de ordens</h2>
-                <p className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
+          <section className="mt-7 overflow-hidden rounded-xl border bg-card shadow-sm">
+            <div className="border-b bg-gradient-to-r from-primary/10 via-card to-[var(--agri-wheat)]/10 p-4 sm:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="size-5 text-primary" />
+                    <h2 className="text-lg font-bold">Registo de ordens</h2>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"} · clique numa aba para filtrar rapidamente.
+                  </p>
+                </div>
+                <div className="relative w-full lg:max-w-sm">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-11 bg-background pl-9 shadow-sm" />
+                </div>
               </div>
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico" className="pl-9" />
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {tabs.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setActiveTab(t.value)}
+                    className={activeTab === t.value ? "group rounded-lg border border-primary bg-primary p-3 text-left text-primary-foreground shadow-md transition-all duration-200" : "group rounded-lg border bg-background/80 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"}
+                  >
+                    <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-80">{t.label}</span>
+                    <span className="mt-1 block text-2xl font-bold tabular-nums">{t.list.length}</span>
+                  </button>
+                ))}
               </div>
             </div>
-            <Tabs defaultValue="todas">
-              <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-auto">
-                {tabs.map((t) => (
-                  <TabsTrigger key={t.value} value={t.value}>{t.label} <span className="ml-1 text-xs text-muted-foreground">{t.list.length}</span></TabsTrigger>
-                ))}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="sr-only">
+                {tabs.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
               </TabsList>
               {tabs.map((t) => (
-                <TabsContent key={t.value} value={t.value} className="mt-4">
+                <TabsContent key={t.value} value={t.value} className="m-0 p-4 sm:p-6">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{t.label}</p>
+                      <p className="text-xs text-muted-foreground">Mostrando {t.list.length} {t.list.length === 1 ? "registro" : "registros"}</p>
+                    </div>
+                    {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
+                  </div>
                   <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} />
                 </TabsContent>
               ))}
