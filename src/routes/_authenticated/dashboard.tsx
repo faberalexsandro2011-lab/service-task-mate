@@ -461,7 +461,14 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
 
 /** Regista uma entrada no histórico de auditoria da OS. */
 async function logHistory(osId: string, actor: Actor, acao: string, detalhe: string) {
-  await supabase.from("historico_edicoes").insert({ os_id: osId, acao, detalhe, usuario_id: actor.id, usuario_email: actor.email });
+  const { error } = await supabase.from("historico_edicoes").insert({
+    os_id: osId,
+    acao,
+    detalhe,
+    usuario_id: actor.id,
+    usuario_email: actor.email,
+  });
+  if (error) throw error;
 }
 
 function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; onChanged: () => Promise<void> }) {
@@ -883,8 +890,13 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
       return;
     }
     if (created?.[0]?.id) {
-      await logHistory(created[0].id, creator, "aberta", `OS aberta por ${creator.email}`);
-      await logHistory(created[0].id, creator, "enviada", `Enviada para ${technician.nome || technician.email}`);
+      try {
+        await logHistory(created[0].id, creator, "aberta", `OS aberta por ${creator.email}`);
+        await logHistory(created[0].id, creator, "enviada", `Enviada para ${technician.nome || technician.email}`);
+      } catch (historyError) {
+        console.error("[OS] Falha ao registrar histórico:", historyError);
+        toast.warning("OS criada, mas o histórico não foi registrado.");
+      }
     }
     toast.success(`Enviada para ${technician.nome || technician.email}.`);
     onOpenChange(false);
