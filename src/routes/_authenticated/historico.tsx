@@ -7,7 +7,15 @@ import type { Tables } from "@/integrations/supabase/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/_authenticated/historico")({\n  beforeLoad: async () => {\n    const { data, error } = await supabase.auth.getUser();\n    if (error || !data.user) throw redirect({ to: "/" });\n    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).maybeSingle();\n    if (roleRow?.role !== "gestor") throw redirect({ to: "/tecnico", replace: true });\n  },\n  component: HistoryPage,\n});
+export const Route = createFileRoute("/_authenticated/historico")({
+  beforeLoad: async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) throw redirect({ to: "/" });
+    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).maybeSingle();
+    if (roleRow?.role !== "gestor") throw redirect({ to: "/tecnico", replace: true });
+  },
+  component: HistoryPage,
+});
 type Ordem = Tables<"ordens_servico">;
 type Historico = Tables<"historico_edicoes">;
 
