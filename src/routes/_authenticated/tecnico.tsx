@@ -47,7 +47,7 @@ function TechnicianPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function load() {
-    const { data: auth } = await supabase.auth.getUser();
+    const { data: auth } = await supabase.auth.getSession();
     if (!auth.user) return;
 
     const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
@@ -138,6 +138,9 @@ function TechnicianPage() {
   }
 
   useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((error) => console.warn("Service worker offline:", error));
+    }
     setOnline(navigator.onLine);
     void load();
 
