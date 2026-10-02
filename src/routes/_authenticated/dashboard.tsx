@@ -521,7 +521,6 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
 
 function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; order: Ordem; actor: Actor; onDone: () => Promise<void> }) {
   const [saving, setSaving] = useState(false);
-  const [adminAccess, setAdminAccess] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
