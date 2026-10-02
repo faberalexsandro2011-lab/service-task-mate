@@ -495,9 +495,14 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       await onChanged();
       return;
     }
-    await logHistory(order.id, actor, "iniciada", `Atendimento iniciado por ${actor.email}`);
+    try {
+      await logHistory(order.id, actor, "iniciada", `Atendimento iniciado por ${actor.email}`);
+      toast.success(`OS ${order.numero_os} em andamento.`);
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar histórico de início:", historyError);
+      toast.warning(`OS ${order.numero_os} iniciada, mas o histórico ficou pendente.`);
+    }
     setBusy(false);
-    toast.success(`OS ${order.numero_os} em andamento.`);
     await onChanged();
   }
 
@@ -510,9 +515,14 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       toast.error(friendlyError(error, "Não foi possível cancelar a OS."));
       return;
     }
-    await logHistory(order.id, actor, "cancelada", `Cancelada por ${actor.email}`);
+    try {
+      await logHistory(order.id, actor, "cancelada", `Cancelada por ${actor.email}`);
+      toast.success(`OS ${order.numero_os} cancelada.`);
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar histórico de cancelamento:", historyError);
+      toast.warning(`OS ${order.numero_os} cancelada, mas o histórico ficou pendente.`);
+    }
     setBusy(false);
-    toast.success(`OS ${order.numero_os} cancelada.`);
     await onChanged();
   }
 
