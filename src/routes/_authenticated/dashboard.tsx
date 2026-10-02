@@ -699,7 +699,17 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
     if (error) {
       setSaving(false);
-      toast.error(error.message || "Não foi possível cadastrar o usuário.");
+      let detail = error.message || "Não foi possível cadastrar o usuário.";
+      try {
+        const response = (error as any)?.context;
+        if (response && typeof response.json === "function") {
+          const payload = await response.clone().json();
+          if (payload?.error) detail = String(payload.error);
+        }
+      } catch {
+        // Mantém a mensagem padrão quando a resposta não puder ser lida.
+      }
+      toast.error(detail);
       return;
     }
 
