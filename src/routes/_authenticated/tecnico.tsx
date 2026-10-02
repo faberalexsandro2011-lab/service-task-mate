@@ -516,7 +516,7 @@ function TechnicianPage() {
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
-            {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
+            {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => start(order)}><Play /> Iniciar serviço</Button>}
             {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
