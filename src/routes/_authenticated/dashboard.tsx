@@ -5,6 +5,7 @@ import {
   Ban,
   CheckCircle2,
   ClipboardList,
+  ClipboardPaste,
   Clock,
   FileSpreadsheet,
   LogOut,
@@ -137,6 +138,7 @@ function Dashboard() {
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("todas");
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
@@ -275,6 +277,7 @@ function Dashboard() {
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />
+                <PasteOrdersDialog open={pasteOpen} onOpenChange={setPasteOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
@@ -848,6 +851,150 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
           <Field label="Descrição do problema"><Textarea name="descricao" rows={4} placeholder="Descreva o problema identificado..." /></Field>
           <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? "A guardar..." : "Criar ordem"}</Button></DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImported }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creator: Actor; onImported: () => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [rows, setRows] = useState<ImportRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const validRows = rows.filter((row) => row.valid);
+
+  function parseText(value: string) {
+    setText(value);
+    const lines = value.split(/\\r?\\n/).filter((line) => line.trim());
+    if (!lines.length) {
+      setRows([]);
+      return;
+    }
+
+    const matrix = lines.map((line) => line.split("\\t").map((cell) => cell.trim()));
+    const first = matrix[0] ?? [];
+    const normalizedHeaders = first.map((cell) => normKey(cell));
+    const hasHeader = normalizedHeaders.some((key) => key.includes("frota") || key.includes("numero") || key === "os");
+    const headers = hasHeader
+      ? first.map((cell, index) => cell || `col_${index}`)
+      : ["numero_os", "frota", "localizacao", "descricao", "tecnico_email"];
+    const dataRows = hasHeader ? matrix.slice(1) : matrix;
+
+    const records = dataRows
+      .filter((row) => row.some((cell) => cell.trim()))
+      .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+
+    setRows(records.map((record) => normalizeImportRow(record, technicians)));
+  }
+
+  async function importPastedRows() {
+    if (!validRows.length) return;
+    setSaving(true);
+    const payload = validRows.map((row) => {
+      const technician = technicians.find((item) => item.email.toLowerCase() === row.tecnico_email.toLowerCase());
+      return {
+        numero_os: row.numero_os,
+        frota: row.frota,
+        localizacao: row.localizacao || null,
+        descricao: row.descricao || null,
+        tecnico_id: technician?.id ?? null,
+        tecnico_email: technician?.email ?? null,
+        tecnico_nome: technician?.nome ?? technician?.email ?? null,
+        criado_por_email: creator.email,
+        status: "pendente",
+      };
+    });
+
+    const { data: created, error } = await supabase.from("ordens_servico").insert(payload).select("id, tecnico_nome, tecnico_email");
+    setSaving(false);
+
+    if (error) {
+      const msg = error.code === "23505"
+        ? "Já existe uma OS com um destes números."
+        : error.code === "42501"
+          ? "Sem permissão: apenas gestores podem adicionar OS."
+          : error.message;
+      toast.error(`Não foi possível adicionar as OS: ${msg}`);
+      return;
+    }
+
+    if (created?.length) {
+      await Promise.all(created.map((row) => logHistory(row.id, creator, "aberta", `OS aberta por ${creator.email} via colagem do Excel`)));
+      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, creator, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
+    }
+
+    toast.success(`${payload.length} ${payload.length === 1 ? "OS adicionada" : "OS adicionadas"} com sucesso.`);
+    setText("");
+    setRows([]);
+    onOpenChange(false);
+    await onImported();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline"><ClipboardPaste /> Colar OS do Excel</Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Adicionar OS copiadas do Excel</DialogTitle>
+          <DialogDescription>
+            No Excel, selecione as linhas e pressione Ctrl+C. Depois cole aqui com Ctrl+V. As colunas devem ser: Número da OS, Frota, Localização, Descrição e Técnico.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Textarea
+          autoFocus
+          value={text}
+          onChange={(event) => parseText(event.target.value)}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData("text");
+            if (pasted) {
+              event.preventDefault();
+              parseText(pasted);
+            }
+          }}
+          rows={8}
+          placeholder={"Cole aqui diretamente do Excel...\\n\\nExemplo:\\n12345\\tTR-001\\tFazenda Norte\\tMotor sem força\\ttecnico@empresa.com"}
+          className="font-mono text-sm"
+        />
+
+        {rows.length > 0 && (
+          <div className="rounded-xl border">
+            <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
+              <div>
+                <p className="font-semibold">Pré-visualização</p>
+                <p className="text-xs text-muted-foreground">{validRows.length} válidas · {rows.length - validRows.length} com problemas</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { setText(""); setRows([]); }}>Limpar</Button>
+            </div>
+            <div className="max-h-72 overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-xs">
+                <thead className="sticky top-0 bg-muted">
+                  <tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Localização</th><th className="p-2">Técnico</th><th className="p-2">Observação</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {rows.slice(0, 100).map((row, index) => (
+                    <tr key={`paste-${row.numero_os}-${index}`}>
+                      <td className="p-2">{row.valid ? <CheckCircle2 className="size-4 text-primary" /> : <X className="size-4 text-destructive" />}</td>
+                      <td className="p-2 font-medium">{row.numero_os || "—"}</td>
+                      <td className="p-2">{row.frota || "—"}</td>
+                      <td className="p-2">{row.localizacao || "—"}</td>
+                      <td className="p-2">{row.tecnico_email || "—"}</td>
+                      <td className="p-2 text-muted-foreground">{row.reason || "Pronta"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button disabled={!validRows.length || saving} onClick={() => void importPastedRows()}>
+            {saving ? "Adicionando..." : `Adicionar ${validRows.length ? validRows.length : ""} OS`}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
