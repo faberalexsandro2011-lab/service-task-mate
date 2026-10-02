@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, LogOut, Search, Bell, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -41,7 +41,7 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
-  const [online, setOnline] = useState(navigator.onLine);
+  const [online, setOnline] = useState(navigator.onLine);\n  const [search, setSearch] = useState("");
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -72,7 +72,7 @@ function TechnicianPage() {
     return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
-  const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
+  const visible = useMemo(() => {\n    const term = search.trim().toLocaleLowerCase("pt");\n    const base = tab === "todas" ? orders : orders.filter(o => o.status === tab);\n    if (!term) return base;\n    return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));\n  }, [orders, tab, search]);
 
   async function start(order: Ordem) {
     if (!actor) return;
@@ -99,30 +99,74 @@ function TechnicianPage() {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
   }
 
-  return <main className="min-h-screen bg-[var(--agri-straw)]">
-    <header className="sticky top-0 z-10 border-b bg-[var(--agri-field)] text-white shadow-md">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-        <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-xl bg-[var(--agri-wheat)] text-[var(--agri-earth)]"><Tractor /></div><div><h1 className="text-xl font-black">Área do Técnico</h1><p className="text-xs opacity-80">{actor?.name || "Carregando..."} · OS em tempo real</p></div></div>
-        <div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div>
+  return <main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
+    <header className="sticky top-0 z-20 border-b border-white/10 bg-[var(--agri-field)]/95 text-white shadow-lg backdrop-blur-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--agri-wheat)] text-[var(--agri-earth)] shadow-lg"><Tractor className="size-6" /></div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2"><h1 className="truncate text-lg font-black tracking-tight sm:text-xl">Central OS</h1><span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">Campo</span></div>
+            <p className="truncate text-xs text-white/70">{actor?.name || "Carregando técnico..."}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold sm:flex">{online ? <Wifi className="size-3.5 text-[var(--agri-wheat)]" /> : <WifiOff className="size-3.5" />}{online ? "Online" : "Offline"}</div>
+          <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Notificações"><Bell className="size-4" /></button>
+        </div>
       </div>
     </header>
-    <section className="mx-auto max-w-5xl px-3 py-4">
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-12 w-full grid-cols-4 rounded-xl"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
-      <div className="mt-4 grid gap-4">
-        {visible.map(order => <article key={order.id} className="rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99]">
-          <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
-          <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-3">{order.descricao || "Sem descrição do problema."}</p></div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {order.localizacao && <Button variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
-            {order.status === "pendente" && <Button size="lg" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
-            {order.status === "em_andamento" && <Button size="lg" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
+
+    <section className="mx-auto max-w-6xl px-3 py-5 sm:px-6 sm:py-7">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--agri-field)] via-[var(--agri-leaf)] to-[var(--agri-earth)] p-5 text-white shadow-xl sm:p-7">
+        <div className="pointer-events-none absolute -right-12 -top-12 size-40 rounded-full bg-white/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-16 left-1/3 size-48 rounded-full bg-[var(--agri-wheat)]/10 blur-3xl" />
+        <div className="relative">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/70"><Sparkles className="size-4" /> Operação em campo</div>
+          <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">Bom trabalho, {actor?.name?.split(" ")[0] || "técnico"}!</h2>
+          <p className="mt-1 max-w-xl text-sm text-white/75">Acompanhe suas ordens e atualize o serviço em poucos toques.</p>
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:max-w-xl sm:gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "pendente").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Pendentes</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "em_andamento").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Em campo</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
+          <TabsList className="grid h-12 w-full grid-cols-4 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
+            <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
+            <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
+            <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
+            <TabsTrigger value="concluida" className="rounded-xl px-3">Concluídas</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar OS, frota..." className="h-11 w-full rounded-2xl border bg-card pl-9 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        {visible.map(order => <article key={order.id} className="group rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:p-6">
+          <div className="flex items-start justify-between gap-3">
+            <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
+            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
+          </div>
+          <div className="mt-5 grid gap-3 text-sm">
+            <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
+            <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
+            {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
+            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
-        {!visible.length && <div className="rounded-2xl border border-dashed bg-card p-12 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-8" />Nenhuma OS nesta categoria.</div>}
+        {!visible.length && <div className="lg:col-span-2 rounded-3xl border border-dashed bg-card p-14 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-9 text-primary" /><p className="font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm">Altere o filtro ou a pesquisa para ver outros serviços.</p></div>}
       </div>
     </section>
     <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); } }}>
-      <DialogContent><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" onClick={() => setFinish(null)}>Voltar</Button><Button onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
+      <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
-  </main>;
-}
+  </main>;\n
