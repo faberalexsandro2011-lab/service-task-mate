@@ -129,6 +129,7 @@ function Dashboard() {
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [technicianOpen, setTechnicianOpen] = useState(false);
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
@@ -265,6 +266,7 @@ function Dashboard() {
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2">
+                <TechnicianDialog open={technicianOpen} onOpenChange={setTechnicianOpen} onCreated={refresh} />
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
@@ -509,6 +511,103 @@ function StatusBadge({ status }: { status: Status }) {
     cancelada: "bg-destructive/10 text-destructive",
   };
   return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
+}
+
+function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; onCreated: () => Promise<void> }) {
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const nome = String(form.get("nome") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim().toLowerCase();
+    const password = String(form.get("password") ?? "");
+
+    if (!nome || !email || password.length < 8) {
+      toast.error("Preencha o nome, um e-mail válido e uma palavra-passe com pelo menos 8 caracteres.");
+      return;
+    }
+
+    setSaving(true);
+    const { data: managerSession } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { nome }, emailRedirectTo: window.location.origin },
+    });
+
+    if (error) {
+      setSaving(false);
+      toast.error(error.message.toLowerCase().includes("already registered") ? "Este e-mail já possui uma conta." : error.message);
+      return;
+    }
+
+    const newUser = data.user;
+    if (!newUser) {
+      setSaving(false);
+      toast.error("Não foi possível criar a conta do técnico.");
+      return;
+    }
+
+    // O signUp pode trocar temporariamente a sessão quando a confirmação de e-mail está desativada.
+    // Restauramos imediatamente a sessão do gestor para que ele continue no painel.
+    if (managerSession.session && data.session?.user.id === newUser.id) {
+      await supabase.auth.setSession({
+        access_token: managerSession.session.access_token,
+        refresh_token: managerSession.session.refresh_token,
+      });
+    }
+
+    const { data: existingProfile } = await supabase.from("profiles").select("id").eq("id", newUser.id).maybeSingle();
+    if (!existingProfile) {
+      await supabase.from("profiles").insert({ id: newUser.id, email, nome });
+    } else {
+      await supabase.from("profiles").update({ email, nome }).eq("id", newUser.id);
+    }
+
+    const { data: existingRole } = await supabase.from("user_roles").select("user_id").eq("user_id", newUser.id).maybeSingle();
+    if (!existingRole) {
+      const { error: roleError } = await supabase.from("user_roles").insert({
+        id: crypto.randomUUID(),
+        user_id: newUser.id,
+        role: "tecnico",
+      });
+      if (roleError) {
+        console.error("[Cadastro técnico] Falha ao definir função:", roleError);
+        setSaving(false);
+        toast.error("Conta criada, mas não foi possível definir a função de técnico. Verifique as permissões do gestor.");
+        return;
+      }
+    }
+
+    setSaving(false);
+    event.currentTarget.reset();
+    onOpenChange(false);
+    toast.success(data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
+    await onCreated();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild><Button variant="outline"><UserRound /> Cadastrar técnico</Button></DialogTrigger>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Cadastrar técnico</DialogTitle>
+          <DialogDescription>Crie o acesso do técnico sem sair da conta do gestor.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="grid gap-4">
+          <Field label="Nome do técnico"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
+          <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" /></Field>
+          <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada com a função <strong>técnico</strong>. Se a confirmação de e-mail estiver ativa, o técnico receberá a confirmação antes de entrar.</p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? "A criar..." : "Cadastrar técnico"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creator: Actor; onCreated: () => Promise<void> }) {
