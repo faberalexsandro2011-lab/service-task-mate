@@ -80,7 +80,7 @@ function TechnicianPage() {
     return () => { window.removeEventListener("beforeinstallprompt", onInstallPrompt); window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
-  const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
+  const counts = useMemo(() => ({\n    pendente: orders.filter((o) => o.status === "pendente").length,\n    em_andamento: orders.filter((o) => o.status === "em_andamento").length,\n    concluida: orders.filter((o) => o.status === "concluida").length,\n  }), [orders]);\n\n  const visible = useMemo(() => {\n    const filtered = tab === "todas" ? orders : orders.filter(o => o.status === tab);\n    return [...filtered].sort((a, b) => {\n      const aNew = newOrderIds.has(a.id) ? 0 : 1;\n      const bNew = newOrderIds.has(b.id) ? 0 : 1;\n      if (aNew !== bNew) return aNew - bNew;\n      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();\n    });\n  }, [orders, tab, newOrderIds]);
 
   async function refreshOrders() {\n    setRefreshing(true);\n    await load();\n    setRefreshing(false);\n  }\n\n  async function installApp() {
     if (!installEvent) return;
