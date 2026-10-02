@@ -77,16 +77,49 @@ function TechnicianPage() {
       return;
     }
 
-    const { data: profile, error: profileError } = await supabase.from("profiles").select("nome,email").eq("id", auth.user.id).maybeSingle();
+    // O e-mail vem sempre da sessão do Auth. O perfil é apenas a fonte do nome.
+    // Assim, uma falha de RLS em profiles não impede a identificação do técnico.
+    const sessionEmail = String(auth.user.email ?? "").trim().toLowerCase();
     const metadataName = String(auth.user.user_metadata?.nome ?? auth.user.user_metadata?.name ?? "").trim();
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,nome,email")
+      .eq("id", auth.user.id)
+      .maybeSingle();
+
+    let resolvedName = profile?.nome?.trim() || metadataName;
+    // Se o perfil ainda não existir, tenta criá-lo automaticamente com os dados
+    // que já estão disponíveis na sessão autenticada.
+    if (!profile && sessionEmail) {
+      const { data: createdProfile, error: createProfileError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: auth.user.id,
+          email: sessionEmail,
+          nome: resolvedName || null,
+        }, { onConflict: "id" })
+        .select("id,nome,email")
+        .maybeSingle();
+
+      if (!createProfileError && createdProfile) {
+        resolvedName = createdProfile.nome?.trim() || resolvedName;
+      } else if (createProfileError) {
+        console.warn("[Técnico] Não foi possível criar/regularizar o perfil:", createProfileError);
+      }
+    }
+
     const nextActor = {
       id: auth.user.id,
-      email: auth.user.email ?? profile?.email ?? "",
-      name: profile?.nome || metadataName || auth.user.email || "Técnico",
+      email: sessionEmail || profile?.email?.trim().toLowerCase() || "",
+      name: resolvedName || sessionEmail || "Técnico",
     };
     setActor(nextActor);
     setProfileName(nextActor.name);
     await saveOfflineActor(nextActor);
+
+    if (profileError) {
+      console.warn("[Técnico] Perfil não pôde ser lido; usando dados do Auth:", profileError);
+    }
 
     const email = nextActor.email;
     // Consulta pelas duas chaves e junta os resultados. Isso evita perder OS
@@ -563,10 +596,16 @@ function TechnicianPage() {
           <Button disabled={profileSaving || !actor || !profileName.trim()} onClick={async () => {
             if (!actor) return;
             setProfileSaving(true);
-            const { error } = await supabase.from("profiles").update({ nome: profileName.trim() }).eq("id", actor.id);
+            const { error } = await supabase
+              .from("profiles")
+              .upsert({
+                id: actor.id,
+                email: actor.email,
+                nome: profileName.trim(),
+              }, { onConflict: "id" });
             setProfileSaving(false);
             if (error) {
-              toast.error("Não foi possível atualizar o perfil.");
+              toast.error(`Não foi possível salvar o perfil: ${error.message}`);
               return;
             }
             const next = { ...actor, name: profileName.trim() };
