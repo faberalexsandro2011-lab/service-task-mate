@@ -33,16 +33,41 @@ function Index() {
     setBusy(true);
     setError("");
     const form = new FormData(event.currentTarget);
+    const login = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+
+    // Permite entrar tanto pelo e-mail quanto pelo nome de usuário/cadastrado.
+    // O campo "nome" do perfil é resolvido para o e-mail real da autenticação.
+    let email = login;
+    if (!login.includes("@")) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("email, nome")
+        .ilike("nome", login)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("[Login] Não foi possível localizar o usuário:", profileError);
+      }
+      if (profile?.email) {
+        email = profile.email.trim();
+      } else {
+        setBusy(false);
+        setError("Usuário não encontrado. Confira o nome de usuário ou use o e-mail cadastrado.");
+        return;
+      }
+    }
+
     const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: String(form.get("email") ?? "").trim(),
-      password: String(form.get("password") ?? ""),
+      email,
+      password,
     });
     setBusy(false);
     if (signInError) {
       console.error("[Login] Supabase signInWithPassword:", signInError);
       const message = signInError.message?.toLowerCase() ?? "";
       if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
-        setError("Usuário ou palavra-passe incorretos. Confirme o e-mail e a palavra-passe da conta do sistema.");
+        setError("Usuário/e-mail ou palavra-passe incorretos. Confirme os dados da conta do sistema.");
       } else if (message.includes("email not confirmed")) {
         setError("O e-mail desta conta ainda não foi confirmado.");
       } else if (message.includes("rate limit")) {
@@ -69,7 +94,7 @@ function Index() {
           <div className="mb-8"><p className="text-sm font-medium text-primary">Bem-vindo</p><h2 className="mt-2 text-3xl font-bold tracking-normal">Entre na sua conta</h2><p className="mt-2 text-sm text-muted-foreground">Use os dados fornecidos pela sua organização.</p></div>
           {/* method="post" keeps credentials out of the URL if submitted before hydration; button stays disabled until hydrated */}
           <form action="/" method="post" onSubmit={signIn} className="grid gap-5" aria-busy={busy}>
-            <div className="grid gap-1.5"><Label htmlFor="email">E-mail</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="nome@empresa.pt" className="h-11" /></div>
+            <div className="grid gap-1.5"><Label htmlFor="email">Usuário ou e-mail</Label><Input id="email" name="email" type="text" autoComplete="username" required placeholder="Nome do usuário ou nome@empresa.com" className="h-11" /></div>
             <div className="grid gap-1.5"><Label htmlFor="password">Palavra-passe</Label><div className="relative"><Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required className="h-11 pr-11" /><Button type="button" variant="ghost" size="icon" onClick={() => setShowPassword((value) => !value)} className="absolute right-1 top-1 size-9" title={showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"}>{showPassword ? <EyeOff /> : <Eye />}</Button></div></div>
             {error && <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div>}
             <Button type="submit" size="lg" disabled={busy || !hydrated} className="h-11 w-full" aria-disabled={busy || !hydrated}>{busy ? "A entrar..." : !hydrated ? "A carregar..." : <>Entrar <ArrowRight /></>}</Button>
