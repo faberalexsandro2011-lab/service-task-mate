@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeft, Download, History, Search } from "lucide-react";
 import { utils, writeFile } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +7,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/_authenticated/historico")({ component: HistoryPage });
+export const Route = createFileRoute("/_authenticated/historico")({\n  beforeLoad: async () => {\n    const { data, error } = await supabase.auth.getUser();\n    if (error || !data.user) throw redirect({ to: "/" });\n    const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id).maybeSingle();\n    if (roleRow?.role !== "gestor") throw redirect({ to: "/tecnico", replace: true });\n  },\n  component: HistoryPage,\n});
 type Ordem = Tables<"ordens_servico">;
 type Historico = Tables<"historico_edicoes">;
 
