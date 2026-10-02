@@ -10,8 +10,29 @@ export const Route = createFileRoute("/_authenticated")({
 
     let role: "gestor" | "tecnico" = "tecnico";
     if (navigator.onLine) {
-      const { data: roleRow } = await supabase.from("user_roles").select("role").eq("user_id", data.session.user.id).maybeSingle();
-      role = roleRow?.role ?? "tecnico";
+      // Use the SECURITY DEFINER helper so the role check is not blocked by
+      // RLS on user_roles. This is important for fresh Supabase projects.
+      const { data: isManager, error: managerRoleError } = await supabase.rpc("has_role", {
+        _user_id: data.session.user.id,
+        _role: "gestor",
+      });
+
+      if (!managerRoleError && isManager === true) {
+        role = "gestor";
+      } else {
+        const { data: roleRow, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.session.user.id)
+          .maybeSingle();
+
+        if (!roleError && roleRow?.role === "gestor") {
+          role = "gestor";
+        } else {
+          role = "tecnico";
+        }
+      }
+
       await saveOfflineRole(role);
     } else {
       role = (await getOfflineRole<"gestor" | "tecnico">()) ?? "tecnico";
