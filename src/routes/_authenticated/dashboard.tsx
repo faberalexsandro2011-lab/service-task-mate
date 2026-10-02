@@ -597,10 +597,6 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
       toast.error("Preencha o nome, um e-mail válido e uma palavra-passe com pelo menos 8 caracteres.");
       return;
     }
-    if (adminAccess && email !== OWNER_ADMIN_EMAIL) {
-      toast.error("Acesso de administrador reservado ao e-mail autorizado.");
-      return;
-    }
 
     setSaving(true);
     const { data: managerSession } = await supabase.auth.getSession();
@@ -640,25 +636,16 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     }
 
     const { data: existingRole } = await supabase.from("user_roles").select("user_id").eq("user_id", newUser.id).maybeSingle();
-    const desiredRole = adminAccess ? "gestor" : "tecnico";
     if (!existingRole) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         id: crypto.randomUUID(),
         user_id: newUser.id,
-        role: desiredRole,
+        role: adminAccess ? "gestor" : "tecnico",
       });
       if (roleError) {
         console.error("[Cadastro técnico] Falha ao definir função:", roleError);
         setSaving(false);
-        toast.error("Conta criada, mas não foi possível definir a função. Verifique as permissões do gestor.");
-        return;
-      }
-    } else if (adminAccess) {
-      const { error: roleError } = await supabase.from("user_roles").update({ role: "gestor" }).eq("user_id", newUser.id);
-      if (roleError) {
-        console.error("[Cadastro técnico] Falha ao promover para gestor:", roleError);
-        setSaving(false);
-        toast.error("A conta existe, mas não foi possível promover para administrador.");
+        toast.error("Conta criada, mas não foi possível definir a função de técnico. Verifique as permissões do gestor.");
         return;
       }
     }
@@ -666,9 +653,9 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     setSaving(false);
     event.currentTarget.reset();
     setEmailValue("");
-    onOpenChange(false);
     setAdminAccess(false);
-    toast.success(adminAccess ? "Conta de administrador cadastrada." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
+    onOpenChange(false);
+    toast.success(adminAccess ? "Administrador cadastrado." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
     await onCreated();
   }
 
@@ -684,13 +671,8 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
           <Field label="Nome do técnico"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
           <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" value={emailValue} onChange={(event) => setEmailValue(event.target.value.toLowerCase())} /></Field>
           <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
-          {email === OWNER_ADMIN_EMAIL && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-              <input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="mt-1 size-4 accent-primary" />
-              <span><span className="block text-sm font-semibold">Permitir acesso de administrador</span><span className="mt-1 block text-xs text-muted-foreground">Esta opção só aparece para o e-mail autorizado e dará acesso ao Painel Central e ao Histórico.</span></span>
-            </label>
-          )}
-          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada como <strong>{adminAccess ? "administrador (gestor)" : "técnico"}</strong>. Apenas o e-mail autorizado pode receber privilégios de administrador por esta tela.</p>
+          {emailValue === OWNER_ADMIN_EMAIL && <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm"><input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="size-4 accent-primary" /><span><strong>Permitir acesso de administrador</strong><span className="ml-1 text-xs text-muted-foreground">(somente este e-mail)</span></span></label>}
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada com a função <strong>técnico</strong>. Se a confirmação de e-mail estiver ativa, o técnico receberá a confirmação antes de entrar.</p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={saving}>{saving ? "A criar..." : "Cadastrar técnico"}</Button>
