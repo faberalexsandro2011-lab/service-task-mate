@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,8 @@ function Index() {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,11 +57,12 @@ function Index() {
         <div className="w-full max-w-sm">
           <div className="mb-10 flex items-center gap-3 lg:hidden"><div className="grid size-10 place-items-center rounded-md bg-primary text-primary-foreground"><Wrench className="size-5" /></div><div><div className="font-bold">Central OS</div><div className="text-xs text-muted-foreground">Gestão operacional</div></div></div>
           <div className="mb-8"><p className="text-sm font-medium text-primary">Bem-vindo</p><h2 className="mt-2 text-3xl font-bold tracking-normal">Entre na sua conta</h2><p className="mt-2 text-sm text-muted-foreground">Use os dados fornecidos pela sua organização.</p></div>
-          <form onSubmit={signIn} className="grid gap-5">
+          {/* method="post" keeps credentials out of the URL if submitted before hydration; button stays disabled until hydrated */}
+          <form onSubmit={signIn} method="post" className="grid gap-5">
             <div className="grid gap-1.5"><Label htmlFor="email">E-mail</Label><Input id="email" name="email" type="email" autoComplete="email" required placeholder="nome@empresa.pt" className="h-11" /></div>
             <div className="grid gap-1.5"><Label htmlFor="password">Palavra-passe</Label><div className="relative"><Input id="password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" required className="h-11 pr-11" /><Button type="button" variant="ghost" size="icon" onClick={() => setShowPassword((value) => !value)} className="absolute right-1 top-1 size-9" title={showPassword ? "Ocultar palavra-passe" : "Mostrar palavra-passe"}>{showPassword ? <EyeOff /> : <Eye />}</Button></div></div>
             {error && <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div>}
-            <Button type="submit" size="lg" disabled={busy} className="h-11 w-full">{busy ? "A entrar..." : <>Entrar <ArrowRight /></>}</Button>
+            <Button type="submit" size="lg" disabled={busy || !hydrated} className="h-11 w-full">{busy ? "A entrar..." : !hydrated ? "A carregar..." : <>Entrar <ArrowRight /></>}</Button>
           </form>
           <p className="mt-8 text-center text-xs text-muted-foreground">Problemas no acesso? Contacte o gestor do sistema.</p>
         </div>
