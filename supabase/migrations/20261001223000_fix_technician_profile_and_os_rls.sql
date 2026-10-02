@@ -57,3 +57,23 @@ WITH CHECK (
   )
   AND public.has_role(auth.uid(), 'tecnico')
 );
+
+-- Permite que o técnico registre histórico também quando a OS foi atribuída
+-- somente pelo e-mail (sem tecnico_id).
+CREATE POLICY "Tecnicos registram historico por ID ou email central_os"
+ON public.historico_edicoes
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  usuario_id = auth.uid()
+  AND EXISTS (
+    SELECT 1
+    FROM public.ordens_servico o
+    WHERE o.id = os_id
+      AND (
+        o.tecnico_id = auth.uid()
+        OR lower(coalesce(o.tecnico_email, '')) = lower(coalesce((SELECT email FROM auth.users WHERE id = auth.uid()), ''))
+      )
+      AND public.has_role(auth.uid(), 'tecnico')
+  )
+);
