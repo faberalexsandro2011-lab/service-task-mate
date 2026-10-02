@@ -39,7 +39,17 @@ function Index() {
     });
     setBusy(false);
     if (signInError) {
-      setError("E-mail ou palavra-passe incorretos.");
+      console.error("[Login] Supabase signInWithPassword:", signInError);
+      const message = signInError.message?.toLowerCase() ?? "";
+      if (message.includes("invalid login credentials") || message.includes("invalid email or password")) {
+        setError("Usuário ou palavra-passe incorretos. Confirme o e-mail e a palavra-passe da conta do sistema.");
+      } else if (message.includes("email not confirmed")) {
+        setError("O e-mail desta conta ainda não foi confirmado.");
+      } else if (message.includes("rate limit")) {
+        setError("Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.");
+      } else {
+        setError("Não foi possível entrar. Tente novamente ou contacte o gestor.");
+      }
       return;
     }
     await navigate({ to: "/dashboard", replace: true });
