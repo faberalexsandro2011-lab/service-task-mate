@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Smartphone } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -42,10 +42,6 @@ function TechnicianPage() {
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -57,12 +53,6 @@ function TechnicianPage() {
   }
 
   useEffect(() => {
-    const onInstallPrompt = (event: Event) => {
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onInstallPrompt);
-    window.addEventListener("appinstalled", () => setInstallEvent(null));
     load();
     const onlineHandler = () => setOnline(true);
     const offlineHandler = () => setOnline(false);
@@ -73,59 +63,28 @@ function TechnicianPage() {
       if (next.tecnico_id === actor?.id || previous.tecnico_id === actor?.id) {
         await load();
         if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id)) {
-          if (next.id) setNewOrderIds((current) => new Set(current).add(next.id as string));
           toast.success("Nova OS enviada para você.");
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
         }
       }
     }).subscribe();
-    return () => { window.removeEventListener("beforeinstallprompt", onInstallPrompt); window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
+    return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
-  const counts = useMemo(() => ({
-    pendente: orders.filter((o) => o.status === "pendente").length,
-    em_andamento: orders.filter((o) => o.status === "em_andamento").length,
-    concluida: orders.filter((o) => o.status === "concluida").length,
-  }), [orders]);
-
-  const visible = useMemo(() => {
-    const filtered = tab === "todas" ? orders : orders.filter(o => o.status === tab);
-    return [...filtered].sort((a, b) => {
-      const aNew = newOrderIds.has(a.id) ? 0 : 1;
-      const bNew = newOrderIds.has(b.id) ? 0 : 1;
-      if (aNew !== bNew) return aNew - bNew;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-  }, [orders, tab, newOrderIds]);
-
-  async function refreshOrders() {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
-  }
-
-  async function installApp() {
-    if (!installEvent) return;
-    setInstalling(true);
-    await installEvent.prompt();
-    await installEvent.userChoice;
-    setInstalling(false);
-    setInstallEvent(null);
-  }
+  const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
 
   async function start(order: Ordem) {
-    if (!actor) return undefined;
+    if (!actor) return;
     const { data, error } = await supabase.from("ordens_servico").update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_nome: actor.name, tecnico_email: actor.email }).eq("id", order.id).eq("status", "pendente").select("id");
     if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
     await supabase.from("historico_edicoes").insert({ os_id: order.id, acao: "iniciada", detalhe: `Atendimento iniciado por ${actor.email}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Atendimento iniciado.");
     await load();
-    return undefined;
   }
 
   async function finalize() {
-    if (!actor || !finish) return undefined;
+    if (!actor || !finish) return;
     const solution = notes.trim();
     if (!solution) return toast.error("Informe o serviço realizado.");
     const { data, error } = await supabase.from("ordens_servico").update({ status: "concluida", notas_fecho: solution, concluida_em: new Date().toISOString() }).eq("id", finish.id).eq("status", "em_andamento").select("id");
@@ -133,32 +92,30 @@ function TechnicianPage() {
     await supabase.from("historico_edicoes").insert({ os_id: finish.id, acao: "finalizada", detalhe: `Finalizada por ${actor.email}: ${solution}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Serviço finalizado.");
     setFinish(null); setNotes(""); await load();
-    return undefined;
   }
 
   function openMap(location: string | null) {
     if (!location) return toast.info("Esta OS não possui localização.");
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
-    return undefined;
   }
 
   return <main className="min-h-screen bg-[var(--agri-straw)]">
     <header className="sticky top-0 z-10 border-b bg-[var(--agri-field)] text-white shadow-md">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-xl bg-[var(--agri-wheat)] text-[var(--agri-earth)]"><Tractor /></div><div><h1 className="text-xl font-black">Área do Técnico</h1><p className="text-xs opacity-80">{actor?.name || "Carregando..."} · OS em tempo real</p></div></div>
-        <div className="flex items-center gap-2"><Button type="button" size="sm" variant="secondary" disabled={refreshing} onClick={() => void refreshOrders()}><Clock3 className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> {refreshing ? "Atualizando..." : "Atualizar"}</Button>{installEvent && <Button type="button" size="sm" variant="secondary" disabled={installing} onClick={() => void installApp()}><Smartphone className="size-4" /> {installing ? "Instalando..." : "Instalar app"}</Button>}<div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div></div>
+        <div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div>
       </div>
     </header>
     <section className="mx-auto max-w-5xl px-3 py-4">
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-14 w-full grid-cols-4 rounded-xl bg-white/90 p-1 shadow-sm"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-12 w-full grid-cols-4 rounded-xl"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
       <div className="mt-4 grid gap-4">
-        {visible.map(order => <article key={order.id} className={`rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99] ${newOrderIds.has(order.id) ? "ring-4 ring-[var(--agri-wheat)]" : ""}`} onClick={() => { if (newOrderIds.has(order.id)) setNewOrderIds((current) => { const next = new Set(current); next.delete(order.id); return next; }); }}>
-          <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="flex items-center gap-2">{newOrderIds.has(order.id) && <span className="rounded-full bg-[var(--agri-wheat)] px-3 py-1 text-xs font-black text-[var(--agri-earth)]">NOVA</span>}<div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
-          <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-4 text-base font-medium leading-6">{order.descricao || "Sem descrição do problema."}</p></div>
+        {visible.map(order => <article key={order.id} className="rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99]">
+          <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
+          <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-3">{order.descricao || "Sem descrição do problema."}</p></div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {order.localizacao && <Button className="min-h-12 text-base" variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
-            {order.status === "pendente" && <Button className="min-h-12 text-base" size="lg" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
-            {order.status === "em_andamento" && <Button className="min-h-12 text-base" size="lg" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.localizacao && <Button variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
+            {order.status === "pendente" && <Button size="lg" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
+            {order.status === "em_andamento" && <Button size="lg" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
         {!visible.length && <div className="rounded-2xl border border-dashed bg-card p-12 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-8" />Nenhuma OS nesta categoria.</div>}
@@ -168,12 +125,4 @@ function TechnicianPage() {
       <DialogContent><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" onClick={() => setFinish(null)}>Voltar</Button><Button onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
   </main>;
-}
-
-
-declare global {
-  interface BeforeInstallPromptEvent extends Event {
-    prompt: () => Promise<void>;
-    userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-  }
 }
