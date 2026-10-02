@@ -36,21 +36,24 @@ function Index() {
     const login = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
 
-    // Permite entrar tanto pelo e-mail quanto pelo nome de usuário/cadastrado.
-    // O campo "nome" do perfil é resolvido para o e-mail real da autenticação.
+    // O login por nome usa uma função segura no banco, pois o usuário ainda
+    // não está autenticado e as políticas de profiles não permitem consultar
+    // perfis de terceiros antes do login.
     let email = login;
     if (!login.includes("@")) {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("email, nome")
-        .ilike("nome", login)
-        .maybeSingle();
+      const { data: resolvedEmail, error: lookupError } = await supabase.rpc("lookup_email_by_username", {
+        p_nome: login,
+      });
 
-      if (profileError) {
-        console.error("[Login] Não foi possível localizar o usuário:", profileError);
+      if (lookupError) {
+        console.error("[Login] Não foi possível localizar o usuário:", lookupError);
+        setBusy(false);
+        setError("Não foi possível localizar o usuário. Use o e-mail cadastrado ou tente novamente.");
+        return;
       }
-      if (profile?.email) {
-        email = profile.email.trim();
+
+      if (resolvedEmail) {
+        email = resolvedEmail.trim();
       } else {
         setBusy(false);
         setError("Usuário não encontrado. Confira o nome de usuário ou use o e-mail cadastrado.");
