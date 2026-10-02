@@ -75,16 +75,17 @@ function TechnicianPage() {
   const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
 
   async function start(order: Ordem) {
-    if (!actor) return;
+    if (!actor) return undefined;
     const { data, error } = await supabase.from("ordens_servico").update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_nome: actor.name, tecnico_email: actor.email }).eq("id", order.id).eq("status", "pendente").select("id");
     if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
     await supabase.from("historico_edicoes").insert({ os_id: order.id, acao: "iniciada", detalhe: `Atendimento iniciado por ${actor.email}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Atendimento iniciado.");
     await load();
+    return undefined;
   }
 
   async function finalize() {
-    if (!actor || !finish) return;
+    if (!actor || !finish) return undefined;
     const solution = notes.trim();
     if (!solution) return toast.error("Informe o serviço realizado.");
     const { data, error } = await supabase.from("ordens_servico").update({ status: "concluida", notas_fecho: solution, concluida_em: new Date().toISOString() }).eq("id", finish.id).eq("status", "em_andamento").select("id");
@@ -92,11 +93,13 @@ function TechnicianPage() {
     await supabase.from("historico_edicoes").insert({ os_id: finish.id, acao: "finalizada", detalhe: `Finalizada por ${actor.email}: ${solution}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Serviço finalizado.");
     setFinish(null); setNotes(""); await load();
+    return undefined;
   }
 
   function openMap(location: string | null) {
     if (!location) return toast.info("Esta OS não possui localização.");
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
+    return undefined;
   }
 
   return <main className="min-h-screen bg-[var(--agri-straw)]">

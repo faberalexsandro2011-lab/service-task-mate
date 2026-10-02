@@ -65,7 +65,13 @@ export interface FileRouteTypes {
   fullPaths: '/' | '/dashboard' | '/historico' | '/tecnico'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/dashboard' | '/historico' | '/tecnico'
-  id: '__root__' | '/' | '/_authenticated' | '/_authenticated/dashboard' | '/_authenticated/historico' | '/_authenticated/tecnico'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/historico'
+    | '/_authenticated/tecnico'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
