@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
-      user_metadata: { nome },
+      user_metadata: { nome, role: adminAccess ? "gestor" : "tecnico" },
     });
 
     if (createError || !created.user) {
@@ -105,20 +105,41 @@ Deno.serve(async (req) => {
       return json({ error: "A conta foi criada, mas não foi possível criar o perfil." }, 500);
     }
 
-    const { error: roleUpsertError } = await adminClient
+    const targetRole = adminAccess ? "gestor" : "tecnico";
+    const { data: existingRole, error: roleReadError } = await adminClient
       .from("user_roles")
-      .upsert(
-        {
+      .select("user_id")
+      .eq("user_id", newUser.id)
+      .maybeSingle();
+
+    if (roleReadError) {
+      await adminClient.auth.admin.deleteUser(newUser.id);
+      return json({ error: `A conta foi criada, mas não foi possível verificar a função: ${roleReadError.message}` }, 500);
+    }
+
+    if (existingRole) {
+      const { error: roleUpdateError } = await adminClient
+        .from("user_roles")
+        .update({ role: targetRole })
+        .eq("user_id", newUser.id);
+
+      if (roleUpdateError) {
+        await adminClient.auth.admin.deleteUser(newUser.id);
+        return json({ error: `A conta foi criada, mas não foi possível definir a função: ${roleUpdateError.message}` }, 500);
+      }
+    } else {
+      const { error: roleInsertError } = await adminClient
+        .from("user_roles")
+        .insert({
           id: crypto.randomUUID(),
           user_id: newUser.id,
-          role: adminAccess ? "gestor" : "tecnico",
-        },
-        { onConflict: "user_id" },
-      );
+          role: targetRole,
+        });
 
-    if (roleUpsertError) {
-      await adminClient.auth.admin.deleteUser(newUser.id);
-      return json({ error: "A conta foi criada, mas não foi possível definir a função." }, 500);
+      if (roleInsertError) {
+        await adminClient.auth.admin.deleteUser(newUser.id);
+        return json({ error: `A conta foi criada, mas não foi possível definir a função: ${roleInsertError.message}` }, 500);
+      }
     }
 
     return json({
