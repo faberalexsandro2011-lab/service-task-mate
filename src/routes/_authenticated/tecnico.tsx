@@ -43,7 +43,9 @@ function TechnicianPage() {
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installing, setInstalling] = useState(false);\n  const [refreshing, setRefreshing] = useState(false);\n  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
+  const [installing, setInstalling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -71,7 +73,8 @@ function TechnicianPage() {
       if (next.tecnico_id === actor?.id || previous.tecnico_id === actor?.id) {
         await load();
         if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id)) {
-          if (next.id) setNewOrderIds((current) => new Set(current).add(next.id as string));\n          toast.success("Nova OS enviada para você.");
+          if (next.id) setNewOrderIds((current) => new Set(current).add(next.id as string));
+          toast.success("Nova OS enviada para você.");
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
         }
@@ -80,9 +83,29 @@ function TechnicianPage() {
     return () => { window.removeEventListener("beforeinstallprompt", onInstallPrompt); window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
-  const counts = useMemo(() => ({\n    pendente: orders.filter((o) => o.status === "pendente").length,\n    em_andamento: orders.filter((o) => o.status === "em_andamento").length,\n    concluida: orders.filter((o) => o.status === "concluida").length,\n  }), [orders]);\n\n  const visible = useMemo(() => {\n    const filtered = tab === "todas" ? orders : orders.filter(o => o.status === tab);\n    return [...filtered].sort((a, b) => {\n      const aNew = newOrderIds.has(a.id) ? 0 : 1;\n      const bNew = newOrderIds.has(b.id) ? 0 : 1;\n      if (aNew !== bNew) return aNew - bNew;\n      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();\n    });\n  }, [orders, tab, newOrderIds]);
+  const counts = useMemo(() => ({
+    pendente: orders.filter((o) => o.status === "pendente").length,
+    em_andamento: orders.filter((o) => o.status === "em_andamento").length,
+    concluida: orders.filter((o) => o.status === "concluida").length,
+  }), [orders]);
 
-  async function refreshOrders() {\n    setRefreshing(true);\n    await load();\n    setRefreshing(false);\n  }\n\n  async function installApp() {
+  const visible = useMemo(() => {
+    const filtered = tab === "todas" ? orders : orders.filter(o => o.status === tab);
+    return [...filtered].sort((a, b) => {
+      const aNew = newOrderIds.has(a.id) ? 0 : 1;
+      const bNew = newOrderIds.has(b.id) ? 0 : 1;
+      if (aNew !== bNew) return aNew - bNew;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [orders, tab, newOrderIds]);
+
+  async function refreshOrders() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  async function installApp() {
     if (!installEvent) return;
     setInstalling(true);
     await installEvent.prompt();
