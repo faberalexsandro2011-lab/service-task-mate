@@ -172,14 +172,19 @@ function Dashboard() {
   const data = dashboardQuery.data;
   const isManager = data?.role === "gestor";
   const userId = data?.user.id;
+  const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
-  // Técnico: "minhas" = atribuídas a si; "fila" = pendentes sem técnico
+  // Técnico: aceita atribuição pelo ID ou pelo e-mail para não perder OS
+  // antigas/importadas que foram gravadas sem tecnico_id.
   const orders = useMemo(() => {
     if (isManager) return allOrders;
     return scope === "minhas"
-      ? allOrders.filter((o) => o.tecnico_id === userId)
-      : allOrders.filter((o) => !o.tecnico_id && o.status === "pendente");
-  }, [allOrders, isManager, scope, userId]);
+      ? allOrders.filter((o) =>
+          o.tecnico_id === userId ||
+          (userEmail && o.tecnico_email?.trim().toLowerCase() === userEmail)
+        )
+      : allOrders.filter((o) => !o.tecnico_id && !o.tecnico_email && o.status === "pendente");
+  }, [allOrders, isManager, scope, userId, userEmail]);
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
     if (!term) return orders;
