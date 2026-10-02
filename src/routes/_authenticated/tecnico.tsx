@@ -79,10 +79,18 @@ function TechnicianPage() {
     setActor(nextActor);
     await saveOfflineActor(nextActor);
 
-    const { data, error } = await supabase.from("ordens_servico").select("*").eq("tecnico_id", auth.user.id).order("created_at", { ascending: false });
+    const email = auth.user.email ?? nextActor.email;
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .select("*")
+      .or(`tecnico_id.eq.${auth.user.id},tecnico_email.eq.${email}`)
+      .order("created_at", { ascending: false });
+
     if (!error) {
-      setOrders(data ?? []);
-      await saveOfflineOrders(data ?? []);
+      const unique = new Map<string, Ordem>();
+      for (const item of data ?? []) unique.set(item.id, item);
+      setOrders([...unique.values()]);
+      await saveOfflineOrders([...unique.values()]);
     } else if (cachedOrders.length) {
       setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
     }
@@ -210,20 +218,37 @@ function TechnicianPage() {
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
 
-    const channel = supabase.channel("tecnico_ordens_live").on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
-      const next = payload.new as Partial<Ordem>;
-      const previous = payload.old as Partial<Ordem>;
-      if (next.tecnico_id === actor?.id || previous.tecnico_id === actor?.id) {
-        await load();
-        if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id)) {
-          toast.success("Nova OS enviada para você.");
-          try { playFieldAlert(); } catch {}
-          if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
+    const channel = supabase
+      .channel("tecnico_ordens_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
+        const next = payload.new as Partial<Ordem>;
+        const previous = payload.old as Partial<Ordem>;
+        const technicianMatch =
+          next.tecnico_id === actor?.id ||
+          previous.tecnico_id === actor?.id ||
+          next.tecnico_email === actor?.email ||
+          previous.tecnico_email === actor?.email;
+
+        if (technicianMatch || payload.eventType === "INSERT") {
+          await load();
+          if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id) || (next.tecnico_email === actor?.email && previous.tecnico_email !== actor?.email)) {
+            toast.success("Nova OS enviada para você.");
+            try { playFieldAlert(); } catch {}
+            if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
+          }
         }
-      }
-    }).subscribe();
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") void load();
+      });
+
+    // Fallback: consulta periódica para garantir a entrega mesmo quando o canal realtime demora a atualizar.
+    const poll = window.setInterval(() => {
+      if (navigator.onLine) void load();
+    }, 5000);
 
     return () => {
+      window.clearInterval(poll);
       window.removeEventListener("online", onlineHandler);
       window.removeEventListener("offline", offlineHandler);
       supabase.removeChannel(channel);
