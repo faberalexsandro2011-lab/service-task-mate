@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -43,6 +43,7 @@ function TechnicianPage() {
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -112,9 +113,41 @@ function TechnicianPage() {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
   }
 
+  async function signOut() {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
+
+  const menuItems = [
+    { label: "Início", href: "/tecnico", icon: Home },
+    { label: "Minhas OS", href: "/tecnico", icon: ClipboardList },
+    { label: "Histórico", href: "/historico", icon: History },
+  ];
+
   return <main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
+    <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity md:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={() => setMenuOpen(false)} />
+    <aside className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--agri-field)] text-white shadow-2xl transition-transform duration-300 ease-out md:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <div className="flex h-20 items-center justify-between border-b border-white/10 px-5">
+        <div className="flex items-center gap-3">
+          <div className="grid size-11 place-items-center rounded-2xl bg-[var(--agri-wheat)] text-[var(--agri-earth)] shadow-lg"><Tractor className="size-6" /></div>
+          <div><div className="font-black tracking-tight">Central OS</div><div className="text-[10px] font-bold uppercase tracking-widest text-white/50">Área do técnico</div></div>
+        </div>
+        <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
+      </div>
+      <nav className="flex-1 space-y-2 p-4">
+        {menuItems.map(item => { const Icon = item.icon; return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className="flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><Icon className="size-5" />{item.label}</a>; })}
+        <div className="my-4 border-t border-white/10" />
+        <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
+        <button type="button" onClick={() => setMenuOpen(false)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
+      </nav>
+      <div className="border-t border-white/10 p-4">
+        <button type="button" onClick={signOut} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><LogOut className="size-5" />Sair</button>
+      </div>
+    </aside>
+    <div className="md:pl-[280px]">
     <header className="sticky top-0 z-20 border-b border-white/10 bg-[var(--agri-field)]/95 text-white shadow-lg backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <button type="button" className="grid size-10 shrink-0 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(true)} aria-label="Abrir menu"><Menu className="size-5" /></button>
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--agri-wheat)] text-[var(--agri-earth)] shadow-lg"><Tractor className="size-6" /></div>
           <div className="min-w-0">
@@ -182,5 +215,6 @@ function TechnicianPage() {
     <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); } }}>
       <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
+    </div>
   </main>;
 }
