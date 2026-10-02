@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut } from "lucide-react";
 import { toast } from "sonner";
@@ -63,8 +63,11 @@ function TechnicianPage() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  const loadRequestRef = useRef(0);
+  const syncRunningRef = useRef(false);
 
   async function load() {
+    const requestId = ++loadRequestRef.current;
     const { data: auth } = await supabase.auth.getSession();
     if (!auth.user) return;
 
@@ -72,7 +75,11 @@ function TechnicianPage() {
     const cachedOrders = await getOfflineOrders<Ordem>();
 
     if (!navigator.onLine) {
-      if (cachedActor) setActor(cachedActor);
+      if (requestId !== loadRequestRef.current) return;
+      if (cachedActor) {
+        setActor(cachedActor);
+        setProfileName(cachedActor.name);
+      }
       if (cachedOrders.length) setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
       return;
     }
@@ -113,6 +120,7 @@ function TechnicianPage() {
       email: sessionEmail || profile?.email?.trim().toLowerCase() || "",
       name: resolvedName || sessionEmail || "Técnico",
     };
+    if (requestId !== loadRequestRef.current) return;
     setActor(nextActor);
     setProfileName(nextActor.name);
     await saveOfflineActor(nextActor);
@@ -133,11 +141,17 @@ function TechnicianPage() {
     for (const item of byId.data ?? []) unique.set(item.id, item);
     for (const item of byEmail.data ?? []) unique.set(item.id, item);
 
+    // Uma das consultas pode falhar por uma política/RLS específica. Se a outra
+    // trouxe OS válidas, não descartamos esses dados e mostramos o que conseguimos.
+    const successfulRows = (byId.data?.length ?? 0) + (byEmail.data?.length ?? 0);
     const queryError = byId.error || byEmail.error;
-    if (!queryError) {
+    if (requestId !== loadRequestRef.current) return;
+
+    if (successfulRows > 0 || (!byId.error && !byEmail.error)) {
       const result = [...unique.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
       setOrders(result);
       await saveOfflineOrders(result);
+      if (queryError) console.warn("[Técnico] Uma consulta de sincronização falhou; usando a outra:", queryError);
     } else if (cachedOrders.length) {
       setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
       console.warn("[Técnico] Falha ao sincronizar OS; usando cache:", queryError);
@@ -254,6 +268,7 @@ function TechnicianPage() {
         })
         .catch((error) => console.warn("Service worker offline:", error));
     }
+
     setOnline(navigator.onLine);
     void load();
     void syncOffline();
@@ -262,44 +277,74 @@ function TechnicianPage() {
       setOnline(true);
       toast.success("Internet restaurada. Sincronizando alterações...");
       void syncOffline();
+      void load();
     };
     const offlineHandler = () => {
       setOnline(false);
       toast.info("Você está offline. As alterações ficarão salvas no aparelho.");
     };
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void load();
+        void syncOffline();
+      }
+    };
 
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
+    document.addEventListener("visibilitychange", visibilityHandler);
+
+    const actorId = actor?.id;
+    const actorEmail = actor?.email?.trim().toLowerCase() || "";
 
     const channel = supabase
-      .channel("tecnico_ordens_live")
+      .channel(`tecnico_ordens_live_${actorId || "pending"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
         const next = payload.new as Partial<Ordem>;
         const previous = payload.old as Partial<Ordem>;
-        const technicianMatch =
-          next.tecnico_id === actor?.id ||
-          previous.tecnico_id === actor?.id ||
-          next.tecnico_email === actor?.email ||
-          previous.tecnico_email === actor?.email;
+        const nextEmail = String(next.tecnico_email ?? "").trim().toLowerCase();
+        const previousEmail = String(previous.tecnico_email ?? "").trim().toLowerCase();
 
-        if (technicianMatch) {
-          await load();
-          if (
-            payload.eventType === "INSERT" ||
-            (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id) ||
-            (next.tecnico_email === actor?.email && previous.tecnico_email !== actor?.email)
-          ) {
-            toast.success("Nova OS enviada para você.");
-            try { playFieldAlert(); } catch {}
-            if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
-          }
+        const technicianMatch =
+          next.tecnico_id === actorId ||
+          previous.tecnico_id === actorId ||
+          (!!actorEmail && (nextEmail === actorEmail || previousEmail === actorEmail));
+
+        if (!technicianMatch) return;
+
+        const assignedToTechnician =
+          next.tecnico_id === actorId ||
+          (!!actorEmail && nextEmail === actorEmail);
+
+        // O payload do Realtime é apenas o gatilho. A fonte de verdade é uma
+        // nova consulta ao banco, evitando depender de RLS/payload parcial.
+        void load();
+
+        if (
+          payload.eventType === "INSERT" ||
+          (assignedToTechnician && (
+            previous.tecnico_id !== actorId &&
+            previousEmail !== actorEmail
+          ))
+        ) {
+          toast.success("Nova OS enviada para você.");
+          try { playFieldAlert(); } catch {}
+          if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
         }
       })
       .subscribe((status) => {
-        if (status === "SUBSCRIBED") void load();
+        if (status === "SUBSCRIBED") {
+          void load();
+          void syncOffline();
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[Técnico] Realtime indisponível:", status);
+          // O polling abaixo continua garantindo a atualização.
+        }
       });
 
-    // Fallback: consulta periódica para garantir a entrega mesmo quando o canal realtime demora a atualizar.
+    // Fallback permanente: mesmo que o Realtime não esteja disponível, o técnico
+    // consulta o banco periodicamente. Também reduz o risco de perder um INSERT.
     const poll = window.setInterval(() => {
       if (navigator.onLine) void load();
     }, 3000);
@@ -308,9 +353,10 @@ function TechnicianPage() {
       window.clearInterval(poll);
       window.removeEventListener("online", onlineHandler);
       window.removeEventListener("offline", offlineHandler);
+      document.removeEventListener("visibilitychange", visibilityHandler);
       supabase.removeChannel(channel);
     };
-  }, [actor?.id]);
+  }, [actor?.id, actor?.email]);
 
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
