@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -42,6 +42,8 @@ function TechnicianPage() {
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installing, setInstalling] = useState(false);
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -53,6 +55,12 @@ function TechnicianPage() {
   }
 
   useEffect(() => {
+    const onInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallEvent(event as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onInstallPrompt);
+    window.addEventListener("appinstalled", () => setInstallEvent(null));
     load();
     const onlineHandler = () => setOnline(true);
     const offlineHandler = () => setOnline(false);
@@ -69,10 +77,19 @@ function TechnicianPage() {
         }
       }
     }).subscribe();
-    return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
+    return () => { window.removeEventListener("beforeinstallprompt", onInstallPrompt); window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
   const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
+
+  async function installApp() {
+    if (!installEvent) return;
+    setInstalling(true);
+    await installEvent.prompt();
+    await installEvent.userChoice;
+    setInstalling(false);
+    setInstallEvent(null);
+  }
 
   async function start(order: Ordem) {
     if (!actor) return undefined;
@@ -106,7 +123,7 @@ function TechnicianPage() {
     <header className="sticky top-0 z-10 border-b bg-[var(--agri-field)] text-white shadow-md">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-xl bg-[var(--agri-wheat)] text-[var(--agri-earth)]"><Tractor /></div><div><h1 className="text-xl font-black">Área do Técnico</h1><p className="text-xs opacity-80">{actor?.name || "Carregando..."} · OS em tempo real</p></div></div>
-        <div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div>
+        <div className="flex items-center gap-2">{installEvent && <Button type="button" size="sm" variant="secondary" disabled={installing} onClick={() => void installApp()}><Smartphone className="size-4" /> {installing ? "Instalando..." : "Instalar app"}</Button>}<div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div></div>
       </div>
     </header>
     <section className="mx-auto max-w-5xl px-3 py-4">
@@ -128,4 +145,12 @@ function TechnicianPage() {
       <DialogContent><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" onClick={() => setFinish(null)}>Voltar</Button><Button onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
   </main>;
+}
+
+
+declare global {
+  interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  }
 }
