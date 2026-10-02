@@ -45,6 +45,12 @@ function playFieldAlert() {
   }
 }
 
+function isNetworkError(error: unknown) {
+  if (!navigator.onLine) return true;
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? "").toLowerCase();
+  return message.includes("failed to fetch") || message.includes("networkerror") || message.includes("network error") || message.includes("load failed") || message.includes("fetch failed");
+}
+
 function TechnicianPage() {
   const [orders, setOrders] = useState<Ordem[]>([]);
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
@@ -103,10 +109,22 @@ function TechnicianPage() {
             .select("id");
 
           if (error) throw error;
-          const alreadyStarted = !data?.length
-            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status === "em_andamento"
-            : true;
-          if (alreadyStarted) {
+
+          const current = !data?.length
+            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status
+            : "em_andamento";
+
+          if (current !== "em_andamento") throw new Error("A OS não está disponível para sincronização.");
+
+          const { data: history } = await supabase
+            .from("historico_edicoes")
+            .select("id")
+            .eq("os_id", action.orderId)
+            .eq("acao", "iniciada")
+            .eq("usuario_id", action.actorId)
+            .limit(1);
+
+          if (!history?.length) {
             await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "iniciada",
@@ -128,10 +146,22 @@ function TechnicianPage() {
             .select("id");
 
           if (error) throw error;
-          const alreadyFinished = !data?.length
-            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status === "concluida"
-            : true;
-          if (alreadyFinished) {
+
+          const current = !data?.length
+            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status
+            : "concluida";
+
+          if (current !== "concluida") throw new Error("A OS não está disponível para sincronização.");
+
+          const { data: history } = await supabase
+            .from("historico_edicoes")
+            .select("id")
+            .eq("os_id", action.orderId)
+            .eq("acao", "finalizada")
+            .eq("usuario_id", action.actorId)
+            .limit(1);
+
+          if (!history?.length) {
             await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "finalizada",
@@ -211,8 +241,15 @@ function TechnicianPage() {
     if (!actor) return;
     const startedAt = new Date().toISOString();
 
-    if (!navigator.onLine) {
-      const updated = { ...order, status: "em_andamento", data_inicio: startedAt, tecnico_nome: actor.name, tecnico_email: actor.email, updated_at: startedAt } as Ordem;
+    const queueAction = async () => {
+      const updated = {
+        ...order,
+        status: "em_andamento",
+        data_inicio: startedAt,
+        tecnico_nome: actor.name,
+        tecnico_email: actor.email,
+        updated_at: startedAt,
+      } as Ordem;
       setOrders(current => current.map(item => item.id === order.id ? updated : item));
       await saveOfflineOrders([updated]);
       await queueOfflineAction({
@@ -225,12 +262,57 @@ function TechnicianPage() {
         createdAt: startedAt,
       });
       toast.success("Atendimento iniciado offline. Será sincronizado quando a internet voltar.");
+    };
+
+    if (!navigator.onLine) {
+      await queueAction();
       return;
     }
 
-    const { data, error } = await supabase.from("ordens_servico").update({ status: "em_andamento", data_inicio: startedAt, tecnico_nome: actor.name, tecnico_email: actor.email }).eq("id", order.id).eq("status", "pendente").select("id");
-    if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
-    await supabase.from("historico_edicoes").insert({ os_id: order.id, acao: "iniciada", detalhe: `Atendimento iniciado por ${actor.email}`, usuario_id: actor.id, usuario_email: actor.email });
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .update({
+        status: "em_andamento",
+        data_inicio: startedAt,
+        tecnico_nome: actor.name,
+        tecnico_email: actor.email,
+      })
+      .eq("id", order.id)
+      .eq("status", "pendente")
+      .select("id");
+
+    if (error) {
+      if (isNetworkError(error)) {
+        await queueAction();
+        return;
+      }
+      return toast.error(error.message || "Não foi possível iniciar a OS.");
+    }
+
+    if (!data?.length) return toast.error("A OS já foi alterada.");
+
+    const { error: historyError } = await supabase.from("historico_edicoes").insert({
+      os_id: order.id,
+      acao: "iniciada",
+      detalhe: `Atendimento iniciado por ${actor.email}`,
+      usuario_id: actor.id,
+      usuario_email: actor.email,
+    });
+
+    if (historyError && isNetworkError(historyError)) {
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "start",
+        orderId: order.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorName: actor.name,
+        createdAt: startedAt,
+      });
+      toast.success("Atendimento iniciado. O histórico será sincronizado quando a internet voltar.");
+      return;
+    }
+
     toast.success("Atendimento iniciado.");
     await load();
   }
@@ -240,32 +322,75 @@ function TechnicianPage() {
     const solution = notes.trim();
     if (!solution) return toast.error("Informe o serviço realizado.");
     const finishedAt = new Date().toISOString();
+    const orderToFinish = finish;
 
-    if (!navigator.onLine) {
-      const updated = { ...finish, status: "concluida", notas_fecho: solution, concluida_em: finishedAt, updated_at: finishedAt } as Ordem;
-      setOrders(current => current.map(item => item.id === finish.id ? updated : item));
+    const queueAction = async () => {
+      const updated = {
+        ...orderToFinish,
+        status: "concluida",
+        notas_fecho: solution,
+        concluida_em: finishedAt,
+        updated_at: finishedAt,
+      } as Ordem;
+      setOrders(current => current.map(item => item.id === orderToFinish.id ? updated : item));
       await saveOfflineOrders([updated]);
       await queueOfflineAction({
         id: makeOfflineId(),
         type: "finish",
-        orderId: finish.id,
+        orderId: orderToFinish.id,
         actorId: actor.id,
         actorEmail: actor.email,
         notes: solution,
         createdAt: finishedAt,
       });
-      toast.success("Serviço finalizado offline. Será sincronizado quando a internet voltar.");
       setFinish(null);
       setNotes("");
+      toast.success("Serviço finalizado offline. Será sincronizado quando a internet voltar.");
+    };
+
+    if (!navigator.onLine) {
+      await queueAction();
       return;
     }
 
-    const { data, error } = await supabase.from("ordens_servico").update({ status: "concluida", notas_fecho: solution, concluida_em: finishedAt }).eq("id", finish.id).eq("status", "em_andamento").select("id");
-    if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
-    await supabase.from("historico_edicoes").insert({ os_id: finish.id, acao: "finalizada", detalhe: `Finalizada por ${actor.email}: ${solution}`, usuario_id: actor.id, usuario_email: actor.email });
-    toast.success("Serviço finalizado.");
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .update({
+        status: "concluida",
+        notas_fecho: solution,
+        concluida_em: finishedAt,
+      })
+      .eq("id", orderToFinish.id)
+      .eq("status", "em_andamento")
+      .select("id");
+
+    if (error) {
+      if (isNetworkError(error)) {
+        await queueAction();
+        return;
+      }
+      return toast.error(error.message || "Não foi possível finalizar a OS.");
+    }
+
+    if (!data?.length) return toast.error("A OS já foi alterada.");
+
+    const { error: historyError } = await supabase.from("historico_edicoes").insert({
+      os_id: orderToFinish.id,
+      acao: "finalizada",
+      detalhe: `Finalizada por ${actor.email}: ${solution}`,
+      usuario_id: actor.id,
+      usuario_email: actor.email,
+    });
+
     setFinish(null);
     setNotes("");
+
+    if (historyError && isNetworkError(historyError)) {
+      toast.success("Serviço finalizado. O histórico será sincronizado quando a internet voltar.");
+      return;
+    }
+
+    toast.success("Serviço finalizado.");
     await load();
   }
 
