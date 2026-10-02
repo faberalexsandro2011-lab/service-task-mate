@@ -277,6 +277,54 @@ function Dashboard() {
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />
+
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2">
+                      <ClipboardList className="size-4" /> Gestão de OS
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>Gestão de ordens de serviço</DialogTitle>
+                      <DialogDescription>
+                        Escolha como deseja adicionar novas ordens ao sistema.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Button
+                        type="button"
+                        className="h-auto min-h-28 flex-col gap-2 rounded-xl p-4"
+                        onClick={() => setCreateOpen(true)}
+                      >
+                        <Plus className="size-7" />
+                        <span className="font-bold">Criar OS</span>
+                        <span className="text-xs font-normal opacity-80">Cadastrar uma ordem</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-auto min-h-28 flex-col gap-2 rounded-xl p-4"
+                        onClick={() => setImportOpen(true)}
+                      >
+                        <Upload className="size-7" />
+                        <span className="font-bold">Importar planilha</span>
+                        <span className="text-xs font-normal text-muted-foreground">Excel ou CSV</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-auto min-h-28 flex-col gap-2 rounded-xl p-4"
+                        onClick={() => setPasteOpen(true)}
+                      >
+                        <ClipboardPaste className="size-7" />
+                        <span className="font-bold">Colar planilha</span>
+                        <span className="text-xs font-normal text-muted-foreground">Copiar e colar do Excel</span>
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <PasteOrdersDialog open={pasteOpen} onOpenChange={setPasteOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
