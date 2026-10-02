@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getOfflineActor, getOfflineOrders, getOfflineQueue, makeOfflineId, queueOfflineAction, removeOfflineAction, saveOfflineActor, saveOfflineOrders } from "@/lib/offline";
 
 export const Route = createFileRoute("/_authenticated/tecnico")({ component: TechnicianPage });
 type Ordem = Tables<"ordens_servico">;
@@ -48,18 +49,111 @@ function TechnicianPage() {
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
+
+    const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
+    const cachedOrders = await getOfflineOrders<Ordem>();
+
+    if (!navigator.onLine) {
+      if (cachedActor) setActor(cachedActor);
+      if (cachedOrders.length) setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      return;
+    }
+
     const { data: profile } = await supabase.from("profiles").select("nome,email").eq("id", auth.user.id).maybeSingle();
-    setActor({ id: auth.user.id, email: auth.user.email ?? "", name: profile?.nome || auth.user.email || "Técnico" });
+    const nextActor = { id: auth.user.id, email: auth.user.email ?? "", name: profile?.nome || auth.user.email || "Técnico" };
+    setActor(nextActor);
+    await saveOfflineActor(nextActor);
+
     const { data, error } = await supabase.from("ordens_servico").select("*").eq("tecnico_id", auth.user.id).order("created_at", { ascending: false });
-    if (!error) setOrders(data ?? []);
+    if (!error) {
+      setOrders(data ?? []);
+      await saveOfflineOrders(data ?? []);
+    } else if (cachedOrders.length) {
+      setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+    }
+  }
+
+  async function syncOffline() {
+    if (!navigator.onLine) return;
+    const queue = await getOfflineQueue();
+    if (!queue.length) return;
+
+    for (const action of queue) {
+      try {
+        if (action.type === "start") {
+          const { data, error } = await supabase
+            .from("ordens_servico")
+            .update({
+              status: "em_andamento",
+              data_inicio: action.createdAt,
+              tecnico_nome: action.actorName,
+              tecnico_email: action.actorEmail,
+            })
+            .eq("id", action.orderId)
+            .eq("status", "pendente")
+            .select("id");
+
+          if (error) throw error;
+          if (data?.length) {
+            await supabase.from("historico_edicoes").insert({
+              os_id: action.orderId,
+              acao: "iniciada",
+              detalhe: `Atendimento iniciado por ${action.actorEmail} (sincronizado offline)`,
+              usuario_id: action.actorId,
+              usuario_email: action.actorEmail,
+            });
+          }
+        } else {
+          const { data, error } = await supabase
+            .from("ordens_servico")
+            .update({
+              status: "concluida",
+              notas_fecho: action.notes,
+              concluida_em: action.createdAt,
+            })
+            .eq("id", action.orderId)
+            .eq("status", "em_andamento")
+            .select("id");
+
+          if (error) throw error;
+          if (data?.length) {
+            await supabase.from("historico_edicoes").insert({
+              os_id: action.orderId,
+              acao: "finalizada",
+              detalhe: `Finalizada por ${action.actorEmail} (sincronizado offline): ${action.notes}`,
+              usuario_id: action.actorId,
+              usuario_email: action.actorEmail,
+            });
+          }
+        }
+
+        await removeOfflineAction(action.id);
+      } catch (error) {
+        console.error("Falha ao sincronizar ação offline:", error);
+        break;
+      }
+    }
+
+    await load();
   }
 
   useEffect(() => {
-    load();
-    const onlineHandler = () => setOnline(true);
-    const offlineHandler = () => setOnline(false);
+    setOnline(navigator.onLine);
+    void load();
+
+    const onlineHandler = () => {
+      setOnline(true);
+      toast.success("Internet restaurada. Sincronizando alterações...");
+      void syncOffline();
+    };
+    const offlineHandler = () => {
+      setOnline(false);
+      toast.info("Você está offline. As alterações ficarão salvas no aparelho.");
+    };
+
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
+
     const channel = supabase.channel("tecnico_ordens_live").on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
       const next = payload.new as Partial<Ordem>;
       const previous = payload.old as Partial<Ordem>;
@@ -72,6 +166,7 @@ function TechnicianPage() {
         }
       }
     }).subscribe();
+
     return () => {
       window.removeEventListener("online", onlineHandler);
       window.removeEventListener("offline", offlineHandler);
@@ -88,7 +183,26 @@ function TechnicianPage() {
 
   async function start(order: Ordem) {
     if (!actor) return;
-    const { data, error } = await supabase.from("ordens_servico").update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_nome: actor.name, tecnico_email: actor.email }).eq("id", order.id).eq("status", "pendente").select("id");
+    const startedAt = new Date().toISOString();
+
+    if (!navigator.onLine) {
+      const updated = { ...order, status: "em_andamento", data_inicio: startedAt, tecnico_nome: actor.name, tecnico_email: actor.email, updated_at: startedAt } as Ordem;
+      setOrders(current => current.map(item => item.id === order.id ? updated : item));
+      await saveOfflineOrders([updated]);
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "start",
+        orderId: order.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorName: actor.name,
+        createdAt: startedAt,
+      });
+      toast.success("Atendimento iniciado offline. Será sincronizado quando a internet voltar.");
+      return;
+    }
+
+    const { data, error } = await supabase.from("ordens_servico").update({ status: "em_andamento", data_inicio: startedAt, tecnico_nome: actor.name, tecnico_email: actor.email }).eq("id", order.id).eq("status", "pendente").select("id");
     if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
     await supabase.from("historico_edicoes").insert({ os_id: order.id, acao: "iniciada", detalhe: `Atendimento iniciado por ${actor.email}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Atendimento iniciado.");
@@ -99,7 +213,28 @@ function TechnicianPage() {
     if (!actor || !finish) return;
     const solution = notes.trim();
     if (!solution) return toast.error("Informe o serviço realizado.");
-    const { data, error } = await supabase.from("ordens_servico").update({ status: "concluida", notas_fecho: solution, concluida_em: new Date().toISOString() }).eq("id", finish.id).eq("status", "em_andamento").select("id");
+    const finishedAt = new Date().toISOString();
+
+    if (!navigator.onLine) {
+      const updated = { ...finish, status: "concluida", notas_fecho: solution, concluida_em: finishedAt, updated_at: finishedAt } as Ordem;
+      setOrders(current => current.map(item => item.id === finish.id ? updated : item));
+      await saveOfflineOrders([updated]);
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "finish",
+        orderId: finish.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        notes: solution,
+        createdAt: finishedAt,
+      });
+      toast.success("Serviço finalizado offline. Será sincronizado quando a internet voltar.");
+      setFinish(null);
+      setNotes("");
+      return;
+    }
+
+    const { data, error } = await supabase.from("ordens_servico").update({ status: "concluida", notas_fecho: solution, concluida_em: finishedAt }).eq("id", finish.id).eq("status", "em_andamento").select("id");
     if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
     await supabase.from("historico_edicoes").insert({ os_id: finish.id, acao: "finalizada", detalhe: `Finalizada por ${actor.email}: ${solution}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Serviço finalizado.");
@@ -156,7 +291,7 @@ function TechnicianPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="hidden items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold sm:flex">{online ? <Wifi className="size-3.5 text-[var(--agri-wheat)]" /> : <WifiOff className="size-3.5" />}{online ? "Online" : "Offline"}</div>
+          <div className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold">{online ? <Wifi className="size-3.5 text-[var(--agri-wheat)]" /> : <WifiOff className="size-3.5 text-[var(--agri-wheat)]" />}{online ? "Online" : "Offline"}</div>
           <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Notificações"><Bell className="size-4" /></button>
         </div>
       </div>
