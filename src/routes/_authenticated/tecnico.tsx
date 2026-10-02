@@ -43,7 +43,7 @@ function TechnicianPage() {
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(navigator.onLine);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installing, setInstalling] = useState(false);
+  const [installing, setInstalling] = useState(false);\n  const [refreshing, setRefreshing] = useState(false);\n  const [newOrderIds, setNewOrderIds] = useState<Set<string>>(new Set());
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -71,7 +71,7 @@ function TechnicianPage() {
       if (next.tecnico_id === actor?.id || previous.tecnico_id === actor?.id) {
         await load();
         if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id)) {
-          toast.success("Nova OS enviada para você.");
+          if (next.id) setNewOrderIds((current) => new Set(current).add(next.id as string));\n          toast.success("Nova OS enviada para você.");
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
         }
@@ -82,7 +82,7 @@ function TechnicianPage() {
 
   const visible = useMemo(() => tab === "todas" ? orders : orders.filter(o => o.status === tab), [orders, tab]);
 
-  async function installApp() {
+  async function refreshOrders() {\n    setRefreshing(true);\n    await load();\n    setRefreshing(false);\n  }\n\n  async function installApp() {
     if (!installEvent) return;
     setInstalling(true);
     await installEvent.prompt();
@@ -123,14 +123,14 @@ function TechnicianPage() {
     <header className="sticky top-0 z-10 border-b bg-[var(--agri-field)] text-white shadow-md">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3"><div className="grid size-11 place-items-center rounded-xl bg-[var(--agri-wheat)] text-[var(--agri-earth)]"><Tractor /></div><div><h1 className="text-xl font-black">Área do Técnico</h1><p className="text-xs opacity-80">{actor?.name || "Carregando..."} · OS em tempo real</p></div></div>
-        <div className="flex items-center gap-2">{installEvent && <Button type="button" size="sm" variant="secondary" disabled={installing} onClick={() => void installApp()}><Smartphone className="size-4" /> {installing ? "Instalando..." : "Instalar app"}</Button>}<div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div></div>
+        <div className="flex items-center gap-2"><Button type="button" size="sm" variant="secondary" disabled={refreshing} onClick={() => void refreshOrders()}><Clock3 className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> {refreshing ? "Atualizando..." : "Atualizar"}</Button>{installEvent && <Button type="button" size="sm" variant="secondary" disabled={installing} onClick={() => void installApp()}><Smartphone className="size-4" /> {installing ? "Instalando..." : "Instalar app"}</Button>}<div className="flex items-center gap-1 text-xs">{online ? <><Wifi className="size-4" /> Online</> : <><WifiOff className="size-4" /> Offline</>}</div></div>
       </div>
     </header>
     <section className="mx-auto max-w-5xl px-3 py-4">
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-12 w-full grid-cols-4 rounded-xl"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
       <div className="mt-4 grid gap-4">
-        {visible.map(order => <article key={order.id} className="rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99]">
-          <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
+        {visible.map(order => <article key={order.id} className={`rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99] ${newOrderIds.has(order.id) ? "ring-4 ring-[var(--agri-wheat)]" : ""}`} onClick={() => { if (newOrderIds.has(order.id)) setNewOrderIds((current) => { const next = new Set(current); next.delete(order.id); return next; }); }}>
+          <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="flex items-center gap-2">{newOrderIds.has(order.id) && <span className="rounded-full bg-[var(--agri-wheat)] px-3 py-1 text-xs font-black text-[var(--agri-earth)]">NOVA</span>}<div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
           <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-3">{order.descricao || "Sem descrição do problema."}</p></div>
           <div className="mt-4 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
