@@ -137,7 +137,6 @@ function Dashboard() {
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [technicianOpen, setTechnicianOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("todas");
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
@@ -275,8 +274,7 @@ function Dashboard() {
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2">
-                <TechnicianDialog open={technicianOpen} onOpenChange={setTechnicianOpen} onCreated={refresh} />
-                <TeamDialog team={data.team} actor={actor} onChanged={refresh} />
+                <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />
                 <ImportDialog open={importOpen} onOpenChange={setImportOpen} technicians={data.technicians} creator={actor} onImported={refresh} />
                 <CreateDialog open={createOpen} onOpenChange={setCreateOpen} technicians={data.technicians} creator={actor} onCreated={refresh} />
               </div>
@@ -589,70 +587,13 @@ function StatusBadge({ status }: { status: Status }) {
   return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
-function TeamDialog({ team, actor, onChanged }: { team: TeamMember[]; actor: Actor; onChanged: () => Promise<void> }) {
+function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[]; actor: Actor; onChanged: () => Promise<void> }) {
   const [open, setOpen] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const canManage = actor.email.toLowerCase() === OWNER_ADMIN_EMAIL;
-
-  async function changeRole(member: TeamMember) {
-    if (!canManage || member.profile.email.toLowerCase() !== OWNER_ADMIN_EMAIL) {
-      toast.error("Somente o e-mail autorizado pode alterar privilégios de administrador.");
-      return;
-    }
-    const nextRole = member.role === "gestor" ? "tecnico" : "gestor";
-    if (!confirm(`${nextRole === "gestor" ? "Promover" : "Retirar administrador de"} ${member.profile.nome || member.profile.email}?`)) return;
-    setBusyId(member.profile.id);
-    const { error } = await supabase.from("user_roles").update({ role: nextRole }).eq("user_id", member.profile.id);
-    setBusyId(null);
-    if (error) { toast.error(friendlyError(error, "Não foi possível alterar a função.")); return; }
-    toast.success(nextRole === "gestor" ? "Administrador ativado." : "Acesso de administrador removido.");
-    await onChanged();
-  }
-
-  async function removeAccess(member: TeamMember) {
-    if (!canManage) { toast.error("Somente o administrador autorizado pode excluir contas."); return; }
-    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) { toast.error("A conta principal não pode ser excluída."); return; }
-    if (!confirm(`Excluir o acesso de ${member.profile.nome || member.profile.email}? A conta de autenticação continuará existente, mas ficará sem acesso ao sistema.`)) return;
-    setBusyId(member.profile.id);
-    const { error: roleError } = await supabase.from("user_roles").delete().eq("user_id", member.profile.id);
-    if (roleError) { setBusyId(null); toast.error(friendlyError(roleError, "Não foi possível remover a função.")); return; }
-    const { error: profileError } = await supabase.from("profiles").delete().eq("id", member.profile.id);
-    setBusyId(null);
-    if (profileError) { toast.error(friendlyError(profileError, "A função foi removida, mas o perfil não pôde ser excluído.")); return; }
-    toast.success("Acesso removido do sistema.");
-    await onChanged();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button variant="outline"><UserRound /> Lista de técnicos</Button></DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader><DialogTitle>Equipa de técnicos</DialogTitle><DialogDescription>Consulte os técnicos e gerencie o acesso.</DialogDescription></DialogHeader>
-        <div className="space-y-2">
-          {!team.length && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum técnico cadastrado.</div>}
-          {team.map((member) => {
-            const isOwner = member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL;
-            const busy = busyId === member.profile.id;
-            return <div key={member.profile.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0"><div className="flex items-center gap-2 font-semibold"><UserRound className="size-4 text-primary" /><span className="truncate">{member.profile.nome || member.profile.email}</span>{member.role === "gestor" && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">ADMIN</span>}</div><div className="mt-1 truncate text-xs text-muted-foreground">{member.profile.email}</div></div>
-              <div className="flex flex-wrap gap-2">
-                {isOwner && <Button size="sm" variant="outline" disabled={busy || !canManage} onClick={() => void changeRole(member)}><ShieldCheck /> {member.role === "gestor" ? "Retirar AD" : "Tornar AD"}</Button>}
-                {!isOwner && <span className="self-center text-xs text-muted-foreground">Técnico</span>}
-                <Button size="sm" variant="destructive" disabled={busy || !canManage || isOwner} onClick={() => void removeAccess(member)}><Trash2 /> Excluir acesso</Button>
-              </div>
-            </div>;
-          })}
-        </div>
-        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; onCreated: () => Promise<void> }) {
   const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState("");
   const [adminAccess, setAdminAccess] = useState(false);
+  const canManage = actor.email.toLowerCase() === OWNER_ADMIN_EMAIL;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -683,12 +624,10 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     const newUser = data.user;
     if (!newUser) {
       setSaving(false);
-      toast.error("Não foi possível criar a conta do técnico.");
+      toast.error("Não foi possível criar a conta.");
       return;
     }
 
-    // O signUp pode trocar temporariamente a sessão quando a confirmação de e-mail está desativada.
-    // Restauramos imediatamente a sessão do gestor para que ele continue no painel.
     if (managerSession.session && data.session?.user.id === newUser.id) {
       await supabase.auth.setSession({
         access_token: managerSession.session.access_token,
@@ -698,7 +637,12 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
 
     const { data: existingProfile } = await supabase.from("profiles").select("id").eq("id", newUser.id).maybeSingle();
     if (!existingProfile) {
-      await supabase.from("profiles").insert({ id: newUser.id, email, nome });
+      const { error: profileError } = await supabase.from("profiles").insert({ id: newUser.id, email, nome });
+      if (profileError) {
+        setSaving(false);
+        toast.error(friendlyError(profileError, "A conta foi criada, mas não foi possível criar o perfil."));
+        return;
+      }
     } else {
       await supabase.from("profiles").update({ email, nome }).eq("id", newUser.id);
     }
@@ -711,9 +655,8 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
         role: adminAccess ? "gestor" : "tecnico",
       });
       if (roleError) {
-        console.error("[Cadastro técnico] Falha ao definir função:", roleError);
         setSaving(false);
-        toast.error("Conta criada, mas não foi possível definir a função de técnico. Verifique as permissões do gestor.");
+        toast.error("Conta criada, mas não foi possível definir a função. Verifique as permissões do gestor.");
         return;
       }
     }
@@ -722,30 +665,133 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     event.currentTarget.reset();
     setEmailValue("");
     setAdminAccess(false);
-    onOpenChange(false);
     toast.success(adminAccess ? "Administrador cadastrado." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
-    await onCreated();
+    await onChanged();
+  }
+
+  async function changeRole(member: TeamMember) {
+    if (!canManage) {
+      toast.error("Somente o administrador principal pode alterar privilégios.");
+      return;
+    }
+    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) {
+      toast.error("A conta principal não pode ter o próprio privilégio alterado.");
+      return;
+    }
+    const nextRole = member.role === "gestor" ? "tecnico" : "gestor";
+    if (!confirm(`${nextRole === "gestor" ? "Tornar administrador" : "Retirar administrador de"} ${member.profile.nome || member.profile.email}?`)) return;
+
+    setBusyId(member.profile.id);
+    const { error } = await supabase.from("user_roles").update({ role: nextRole }).eq("user_id", member.profile.id);
+    setBusyId(null);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível alterar a função."));
+      return;
+    }
+    toast.success(nextRole === "gestor" ? "Técnico promovido a administrador." : "Administrador voltou a ser técnico.");
+    await onChanged();
+  }
+
+  async function removeAccess(member: TeamMember) {
+    if (!canManage) {
+      toast.error("Somente o administrador principal pode excluir acessos.");
+      return;
+    }
+    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) {
+      toast.error("A conta principal não pode ser excluída.");
+      return;
+    }
+    if (!confirm(`Excluir o acesso de ${member.profile.nome || member.profile.email}? A conta de autenticação continuará existente, mas ficará sem acesso ao sistema.`)) return;
+
+    setBusyId(member.profile.id);
+    const { error: roleError } = await supabase.from("user_roles").delete().eq("user_id", member.profile.id);
+    if (roleError) {
+      setBusyId(null);
+      toast.error(friendlyError(roleError, "Não foi possível remover a função."));
+      return;
+    }
+    const { error: profileError } = await supabase.from("profiles").delete().eq("id", member.profile.id);
+    setBusyId(null);
+    if (profileError) {
+      toast.error(friendlyError(profileError, "A função foi removida, mas o perfil não pôde ser excluído."));
+      return;
+    }
+    toast.success("Acesso removido do sistema.");
+    await onChanged();
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild><Button variant="outline"><UserRound /> Cadastrar técnico</Button></DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="outline"><UserRound /> Técnicos</Button></DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Cadastrar técnico</DialogTitle>
-          <DialogDescription>Crie o acesso do técnico sem sair da conta do gestor.</DialogDescription>
+          <DialogTitle>Técnicos e administradores</DialogTitle>
+          <DialogDescription>Cadastre novos técnicos, veja a equipa e altere o nível de acesso.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="grid gap-4">
-          <Field label="Nome do técnico"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
-          <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" value={emailValue} onChange={(event) => setEmailValue(event.target.value.toLowerCase())} /></Field>
-          <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
-          {emailValue === OWNER_ADMIN_EMAIL && <label className="flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm"><input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="size-4 accent-primary" /><span><strong>Permitir acesso de administrador</strong><span className="ml-1 text-xs text-muted-foreground">(somente este e-mail)</span></span></label>}
-          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada com a função <strong>técnico</strong>. Se a confirmação de e-mail estiver ativa, o técnico receberá a confirmação antes de entrar.</p>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving}>{saving ? "A criar..." : "Cadastrar técnico"}</Button>
-          </DialogFooter>
-        </form>
+
+        <div className="rounded-xl border bg-muted/20 p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <UserRound className="size-5 text-primary" />
+            <div>
+              <h3 className="font-semibold">Cadastrar técnico</h3>
+              <p className="text-xs text-muted-foreground">O novo acesso entra como técnico. Você também pode cadastrá-lo como administrador.</p>
+            </div>
+          </div>
+          <form onSubmit={submit} className="grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Nome"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
+              <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" value={emailValue} onChange={(event) => setEmailValue(event.target.value.toLowerCase())} /></Field>
+              <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
+            </div>
+            {canManage && <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-background p-3 text-sm">
+              <input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="size-4 accent-primary" />
+              <span><strong>Cadastrar como administrador</strong><span className="ml-1 text-xs text-muted-foreground">— terá acesso ao Painel Central</span></span>
+            </label>}
+            <div className="flex justify-end">
+              <Button type="submit" disabled={saving}>{saving ? "A cadastrar..." : "Cadastrar"}</Button>
+            </div>
+          </form>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Lista da equipa</h3>
+              <p className="text-xs text-muted-foreground">{team.length} {team.length === 1 ? "utilizador" : "utilizadores"} cadastrados</p>
+            </div>
+            {canManage && <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase text-primary">Gestão de acesso</span>}
+          </div>
+          {!team.length && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum técnico cadastrado.</div>}
+          {team.map((member) => {
+            const isOwner = member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+            const busy = busyId === member.profile.id;
+            return (
+              <div key={member.profile.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <UserRound className="size-4 text-primary" />
+                    <span className="truncate">{member.profile.nome || member.profile.email}</span>
+                    <span className={member.role === "gestor" ? "rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary" : "rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground"}>
+                      {member.role === "gestor" ? "ADMIN" : "TÉCNICO"}
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate text-xs text-muted-foreground">{member.profile.email}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {canManage && !isOwner && <Button size="sm" variant="outline" disabled={busy} onClick={() => void changeRole(member)}>
+                    <ShieldCheck /> {member.role === "gestor" ? "Tornar técnico" : "Tornar ADM"}
+                  </Button>}
+                  {isOwner && <span className="self-center text-xs font-medium text-muted-foreground">Administrador principal</span>}
+                  {!isOwner && <Button size="sm" variant="destructive" disabled={busy || !canManage} onClick={() => void removeAccess(member)}>
+                    <Trash2 /> Excluir acesso
+                  </Button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
