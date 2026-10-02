@@ -584,6 +584,8 @@ function StatusBadge({ status }: { status: Status }) {
 
 function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (value: boolean) => void; onCreated: () => Promise<void> }) {
   const [saving, setSaving] = useState(false);
+  const [emailValue, setEmailValue] = useState("");
+  const [adminAccess, setAdminAccess] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -639,22 +641,32 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     }
 
     const { data: existingRole } = await supabase.from("user_roles").select("user_id").eq("user_id", newUser.id).maybeSingle();
+    const desiredRole = adminAccess ? "gestor" : "tecnico";
     if (!existingRole) {
       const { error: roleError } = await supabase.from("user_roles").insert({
         id: crypto.randomUUID(),
         user_id: newUser.id,
-        role: adminAccess ? "gestor" : "tecnico",
+        role: desiredRole,
       });
       if (roleError) {
         console.error("[Cadastro técnico] Falha ao definir função:", roleError);
         setSaving(false);
-        toast.error("Conta criada, mas não foi possível definir a função de técnico. Verifique as permissões do gestor.");
+        toast.error("Conta criada, mas não foi possível definir a função. Verifique as permissões do gestor.");
+        return;
+      }
+    } else if (adminAccess) {
+      const { error: roleError } = await supabase.from("user_roles").update({ role: "gestor" }).eq("user_id", newUser.id);
+      if (roleError) {
+        console.error("[Cadastro técnico] Falha ao promover para gestor:", roleError);
+        setSaving(false);
+        toast.error("A conta existe, mas não foi possível promover para administrador.");
         return;
       }
     }
 
     setSaving(false);
     event.currentTarget.reset();
+    setEmailValue("");
     onOpenChange(false);
     setAdminAccess(false);
     toast.success(adminAccess ? "Conta de administrador cadastrada." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
@@ -671,7 +683,7 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <Field label="Nome do técnico"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
-          <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" /></Field>
+          <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" value={emailValue} onChange={(event) => setEmailValue(event.target.value.toLowerCase())} /></Field>
           <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
           {email === OWNER_ADMIN_EMAIL && (
             <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
