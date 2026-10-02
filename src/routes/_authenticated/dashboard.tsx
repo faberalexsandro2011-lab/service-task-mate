@@ -858,19 +858,16 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
 
 function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImported }: { open: boolean; onOpenChange: (value: boolean) => void; technicians: Perfil[]; creator: Actor; onImported: () => Promise<void> }) {
   const [text, setText] = useState("");
-  const [rows, setRows] = useState<ImportRow[]>([]);
   const [saving, setSaving] = useState(false);
-  const validRows = rows.filter((row) => row.valid);
 
-  function parseText(value: string) {
-    setText(value);
-    const lines = value.split(/\\r?\\n/).filter((line) => line.trim());
+  async function importPastedRows(value: string) {
+    const lines = value.split(/\r?\n/).filter((line) => line.trim());
     if (!lines.length) {
-      setRows([]);
+      toast.error("Cole primeiro as linhas do Excel.");
       return;
     }
 
-    const matrix = lines.map((line) => line.split("\\t").map((cell) => cell.trim()));
+    const matrix = lines.map((line) => line.split("\t").map((cell) => cell.trim()));
     const first = matrix[0] ?? [];
     const normalizedHeaders = first.map((cell) => normKey(cell));
     const hasHeader = normalizedHeaders.some((key) => key.includes("frota") || key.includes("numero") || key === "os");
@@ -878,16 +875,17 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       ? first.map((cell, index) => cell || `col_${index}`)
       : ["numero_os", "frota", "localizacao", "descricao", "tecnico_email"];
     const dataRows = hasHeader ? matrix.slice(1) : matrix;
-
     const records = dataRows
       .filter((row) => row.some((cell) => cell.trim()))
       .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+    const rows = records.map((record) => normalizeImportRow(record, technicians));
+    const validRows = rows.filter((row) => row.valid);
 
-    setRows(records.map((record) => normalizeImportRow(record, technicians)));
-  }
+    if (!validRows.length) {
+      toast.error("Nenhuma linha válida. Confira o número da OS e a frota.");
+      return;
+    }
 
-  async function importPastedRows() {
-    if (!validRows.length) return;
     setSaving(true);
     const payload = validRows.map((row) => {
       const technician = technicians.find((item) => item.email.toLowerCase() === row.tecnico_email.toLowerCase());
@@ -924,7 +922,6 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
 
     toast.success(`${payload.length} ${payload.length === 1 ? "OS adicionada" : "OS adicionadas"} com sucesso.`);
     setText("");
-    setRows([]);
     onOpenChange(false);
     await onImported();
   }
@@ -934,65 +931,38 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       <DialogTrigger asChild>
         <Button variant="outline"><ClipboardPaste /> Colar OS do Excel</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Adicionar OS copiadas do Excel</DialogTitle>
+          <DialogTitle>Colar OS do Excel</DialogTitle>
           <DialogDescription>
-            No Excel, selecione as linhas e pressione Ctrl+C. Depois cole aqui com Ctrl+V. As colunas devem ser: Número da OS, Frota, Localização, Descrição e Técnico.
+            No Excel: selecione as linhas, pressione Ctrl+C e depois cole aqui. Não precisa montar arquivo nem preencher os campos um por um.
           </DialogDescription>
         </DialogHeader>
 
         <Textarea
           autoFocus
           value={text}
-          onChange={(event) => parseText(event.target.value)}
+          onChange={(event) => setText(event.target.value)}
           onPaste={(event) => {
             const pasted = event.clipboardData.getData("text");
             if (pasted) {
               event.preventDefault();
-              parseText(pasted);
+              setText(pasted);
             }
           }}
-          rows={8}
-          placeholder={"Cole aqui diretamente do Excel...\\n\\nExemplo:\\n12345\\tTR-001\\tFazenda Norte\\tMotor sem força\\ttecnico@empresa.com"}
+          rows={10}
+          placeholder={"Cole aqui as linhas copiadas do Excel...\n\nExemplo:\n12345\tTR-001\tFazenda Norte\tMotor sem força\ttecnico@empresa.com"}
           className="font-mono text-sm"
         />
 
-        {rows.length > 0 && (
-          <div className="rounded-xl border">
-            <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
-              <div>
-                <p className="font-semibold">Pré-visualização</p>
-                <p className="text-xs text-muted-foreground">{validRows.length} válidas · {rows.length - validRows.length} com problemas</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => { setText(""); setRows([]); }}>Limpar</Button>
-            </div>
-            <div className="max-h-72 overflow-auto">
-              <table className="w-full min-w-[760px] text-left text-xs">
-                <thead className="sticky top-0 bg-muted">
-                  <tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Localização</th><th className="p-2">Técnico</th><th className="p-2">Observação</th></tr>
-                </thead>
-                <tbody className="divide-y">
-                  {rows.slice(0, 100).map((row, index) => (
-                    <tr key={`paste-${row.numero_os}-${index}`}>
-                      <td className="p-2">{row.valid ? <CheckCircle2 className="size-4 text-primary" /> : <X className="size-4 text-destructive" />}</td>
-                      <td className="p-2 font-medium">{row.numero_os || "—"}</td>
-                      <td className="p-2">{row.frota || "—"}</td>
-                      <td className="p-2">{row.localizacao || "—"}</td>
-                      <td className="p-2">{row.tecnico_email || "—"}</td>
-                      <td className="p-2 text-muted-foreground">{row.reason || "Pronta"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          Ordem das colunas: <strong>Número da OS → Frota → Localização → Descrição → Técnico</strong>
+        </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button disabled={!validRows.length || saving} onClick={() => void importPastedRows()}>
-            {saving ? "Adicionando..." : `Adicionar ${validRows.length ? validRows.length : ""} OS`}
+          <Button variant="outline" onClick={() => { setText(""); onOpenChange(false); }}>Cancelar</Button>
+          <Button disabled={!text.trim() || saving} onClick={() => void importPastedRows(text)}>
+            {saving ? "Adicionando..." : "Colar e adicionar OS"}
           </Button>
         </DialogFooter>
       </DialogContent>
