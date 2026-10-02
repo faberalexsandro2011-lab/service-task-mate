@@ -17,6 +17,15 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "CACHE_ASSETS" || !Array.isArray(event.data.urls)) return;
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(event.data.urls.filter((url) => typeof url === "string" && url.startsWith(self.location.origin)))
+    )
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
