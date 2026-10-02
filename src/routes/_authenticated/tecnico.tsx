@@ -134,7 +134,7 @@ function TechnicianPage() {
     // quando uma ordem antiga foi gravada por e-mail em vez do ID.
     const [byId, byEmail] = await Promise.all([
       supabase.from("ordens_servico").select("*").eq("tecnico_id", auth.user.id).order("created_at", { ascending: false }),
-      email ? supabase.from("ordens_servico").select("*").eq("tecnico_email", email).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
+      email ? supabase.from("ordens_servico").select("*").ilike("tecnico_email", email).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
     ]);
 
     const unique = new Map<string, Ordem>();
