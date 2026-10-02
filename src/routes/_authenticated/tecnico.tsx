@@ -41,7 +41,8 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
-  const [online, setOnline] = useState(navigator.onLine);\n  const [search, setSearch] = useState("");
+  const [online, setOnline] = useState(navigator.onLine);
+  const [search, setSearch] = useState("");
 
   async function load() {
     const { data: auth } = await supabase.auth.getUser();
@@ -72,7 +73,12 @@ function TechnicianPage() {
     return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
   }, [actor?.id]);
 
-  const visible = useMemo(() => {\n    const term = search.trim().toLocaleLowerCase("pt");\n    const base = tab === "todas" ? orders : orders.filter(o => o.status === tab);\n    if (!term) return base;\n    return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));\n  }, [orders, tab, search]);
+  const visible = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt");
+    const base = tab === "todas" ? orders : orders.filter(o => o.status === tab);
+    if (!term) return base;
+    return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
+  }, [orders, tab, search]);
 
   async function start(order: Ordem) {
     if (!actor) return;
@@ -169,4 +175,4 @@ function TechnicianPage() {
     <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); } }}>
       <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
-  </main>;\n
+  </main>;
