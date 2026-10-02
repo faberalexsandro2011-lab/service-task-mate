@@ -681,64 +681,28 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
     }
 
     setSaving(true);
-    const { data: managerSession } = await supabase.auth.getSession();
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { nome }, emailRedirectTo: window.location.origin },
+
+    const { data, error } = await supabase.functions.invoke("create-user", {
+      body: { nome, email, password, adminAccess },
     });
 
     if (error) {
       setSaving(false);
-      toast.error(error.message.toLowerCase().includes("already registered") ? "Este e-mail já possui uma conta." : error.message);
+      toast.error(error.message || "Não foi possível cadastrar o usuário.");
       return;
     }
 
-    const newUser = data.user;
-    if (!newUser) {
+    if (!data?.user) {
       setSaving(false);
-      toast.error("Não foi possível criar a conta.");
+      toast.error("O servidor não confirmou a criação da conta.");
       return;
-    }
-
-    if (managerSession.session && data.session?.user.id === newUser.id) {
-      await supabase.auth.setSession({
-        access_token: managerSession.session.access_token,
-        refresh_token: managerSession.session.refresh_token,
-      });
-    }
-
-    const { data: existingProfile } = await supabase.from("profiles").select("id").eq("id", newUser.id).maybeSingle();
-    if (!existingProfile) {
-      const { error: profileError } = await supabase.from("profiles").insert({ id: newUser.id, email, nome });
-      if (profileError) {
-        setSaving(false);
-        toast.error(friendlyError(profileError, "A conta foi criada, mas não foi possível criar o perfil."));
-        return;
-      }
-    } else {
-      await supabase.from("profiles").update({ email, nome }).eq("id", newUser.id);
-    }
-
-    const { data: existingRole } = await supabase.from("user_roles").select("user_id").eq("user_id", newUser.id).maybeSingle();
-    if (!existingRole) {
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        id: crypto.randomUUID(),
-        user_id: newUser.id,
-        role: adminAccess ? "gestor" : "tecnico",
-      });
-      if (roleError) {
-        setSaving(false);
-        toast.error("Conta criada, mas não foi possível definir a função. Verifique as permissões do gestor.");
-        return;
-      }
     }
 
     setSaving(false);
     event.currentTarget.reset();
     setEmailValue("");
     setAdminAccess(false);
-    toast.success(adminAccess ? "Administrador cadastrado." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
+    toast.success(adminAccess ? "Administrador cadastrado." : "Técnico cadastrado e pronto para acesso.");
     await onChanged();
   }
 
