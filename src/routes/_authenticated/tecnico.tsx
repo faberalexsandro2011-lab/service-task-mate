@@ -127,15 +127,15 @@ function TechnicianPage() {
       </div>
     </header>
     <section className="mx-auto max-w-5xl px-3 py-4">
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-12 w-full grid-cols-4 rounded-xl"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}><TabsList className="grid h-14 w-full grid-cols-4 rounded-xl bg-white/90 p-1 shadow-sm"><TabsTrigger value="todas">Todas</TabsTrigger><TabsTrigger value="pendente">Pendentes</TabsTrigger><TabsTrigger value="em_andamento">Em andamento</TabsTrigger><TabsTrigger value="concluida">Concluídas</TabsTrigger></TabsList></Tabs>
       <div className="mt-4 grid gap-4">
         {visible.map(order => <article key={order.id} className={`rounded-2xl border bg-card p-5 shadow-sm transition-transform active:scale-[.99] ${newOrderIds.has(order.id) ? "ring-4 ring-[var(--agri-wheat)]" : ""}`} onClick={() => { if (newOrderIds.has(order.id)) setNewOrderIds((current) => { const next = new Set(current); next.delete(order.id); return next; }); }}>
           <div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black">OS {order.numero_os}</h2></div><div className="flex items-center gap-2">{newOrderIds.has(order.id) && <span className="rounded-full bg-[var(--agri-wheat)] px-3 py-1 text-xs font-black text-[var(--agri-earth)]">NOVA</span>}<div className="rounded-full bg-accent px-3 py-1 text-xs font-bold">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div></div>
-          <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-3">{order.descricao || "Sem descrição do problema."}</p></div>
+          <div className="mt-4 grid gap-2 text-sm"><div className="flex gap-2"><MapPin className="size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div><p className="rounded-xl bg-muted p-4 text-base font-medium leading-6">{order.descricao || "Sem descrição do problema."}</p></div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {order.localizacao && <Button variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
-            {order.status === "pendente" && <Button size="lg" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
-            {order.status === "em_andamento" && <Button size="lg" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.localizacao && <Button className="min-h-12 text-base" variant="outline" size="lg" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
+            {order.status === "pendente" && <Button className="min-h-12 text-base" size="lg" onClick={() => start(order)}><Play /> Iniciar atendimento</Button>}
+            {order.status === "em_andamento" && <Button className="min-h-12 text-base" size="lg" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
         {!visible.length && <div className="rounded-2xl border border-dashed bg-card p-12 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-8" />Nenhuma OS nesta categoria.</div>}
