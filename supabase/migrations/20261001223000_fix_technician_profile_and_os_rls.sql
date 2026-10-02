@@ -77,3 +77,22 @@ WITH CHECK (
       AND public.has_role(auth.uid(), 'tecnico')
   )
 );
+
+
+-- O login por nome acontece antes da autenticação, então não pode depender
+-- das políticas RLS de profiles. A função devolve somente o e-mail exato
+-- correspondente ao nome informado.
+CREATE OR REPLACE FUNCTION public.lookup_email_by_username(p_nome text)
+RETURNS text
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT p.email
+  FROM public.profiles p
+  WHERE lower(trim(coalesce(p.nome, ''))) = lower(trim(coalesce(p_nome, '')))
+  LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.lookup_email_by_username(text) TO anon, authenticated;
