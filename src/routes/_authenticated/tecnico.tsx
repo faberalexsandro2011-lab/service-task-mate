@@ -60,6 +60,9 @@ function TechnicianPage() {
   const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   async function load() {
     const { data: auth } = await supabase.auth.getSession();
@@ -74,44 +77,40 @@ function TechnicianPage() {
       return;
     }
 
-    const { data: profile } = await supabase.from("profiles").select("nome,email").eq("id", auth.user.id).maybeSingle();
-    const nextActor = { id: auth.user.id, email: auth.user.email ?? "", name: profile?.nome || auth.user.email || "Técnico" };
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("nome,email").eq("id", auth.user.id).maybeSingle();
+    const metadataName = String(auth.user.user_metadata?.nome ?? auth.user.user_metadata?.name ?? "").trim();
+    const nextActor = {
+      id: auth.user.id,
+      email: auth.user.email ?? profile?.email ?? "",
+      name: profile?.nome || metadataName || auth.user.email || "Técnico",
+    };
     setActor(nextActor);
+    setProfileName(nextActor.name);
     await saveOfflineActor(nextActor);
 
-    const email = auth.user.email ?? nextActor.email;
+    const email = nextActor.email;
+    // Consulta pelas duas chaves e junta os resultados. Isso evita perder OS
+    // quando uma ordem antiga foi gravada por e-mail em vez do ID.
+    const [byId, byEmail] = await Promise.all([
+      supabase.from("ordens_servico").select("*").eq("tecnico_id", auth.user.id).order("created_at", { ascending: false }),
+      email ? supabase.from("ordens_servico").select("*").eq("tecnico_email", email).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
+    ]);
 
-    // Primeiro usa o ID do usuário, que é a chave oficial da atribuição.
-    // Se houver OS antigas atribuídas somente pelo e-mail, tenta também o e-mail.
-    const primary = await supabase
-      .from("ordens_servico")
-      .select("*")
-      .eq("tecnico_id", auth.user.id)
-      .order("created_at", { ascending: false });
+    const unique = new Map<string, Ordem>();
+    for (const item of byId.data ?? []) unique.set(item.id, item);
+    for (const item of byEmail.data ?? []) unique.set(item.id, item);
 
-    let data = primary.data ?? [];
-    let error = primary.error;
-
-    if (!error && data.length === 0 && email) {
-      const fallback = await supabase
-        .from("ordens_servico")
-        .select("*")
-        .eq("tecnico_email", email)
-        .order("created_at", { ascending: false });
-      if (!fallback.error) {
-        data = fallback.data ?? [];
-      } else {
-        error = fallback.error;
-      }
-    }
-
-    if (!error) {
-      const unique = new Map<string, Ordem>();
-      for (const item of data) unique.set(item.id, item);
-      setOrders([...unique.values()]);
-      await saveOfflineOrders([...unique.values()]);
+    const queryError = byId.error || byEmail.error;
+    if (!queryError) {
+      const result = [...unique.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      setOrders(result);
+      await saveOfflineOrders(result);
     } else if (cachedOrders.length) {
       setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      console.warn("[Técnico] Falha ao sincronizar OS; usando cache:", queryError);
+    } else {
+      console.error("[Técnico] Falha ao sincronizar OS:", queryError);
+      if (profileError) console.warn("[Técnico] Perfil indisponível:", profileError);
     }
   }
 
@@ -264,7 +263,7 @@ function TechnicianPage() {
     // Fallback: consulta periódica para garantir a entrega mesmo quando o canal realtime demora a atualizar.
     const poll = window.setInterval(() => {
       if (navigator.onLine) void load();
-    }, 5000);
+    }, 3000);
 
     return () => {
       window.clearInterval(poll);
@@ -468,7 +467,7 @@ function TechnicianPage() {
         {menuItems.map(item => { const Icon = item.icon; return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className="flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><Icon className="size-5" />{item.label}</a>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
-        <button type="button" onClick={() => setMenuOpen(false)} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
+        <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
       </nav>
       <div className="border-t border-white/10 p-4">
         <button type="button" onClick={signOut} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><LogOut className="size-5" />Sair</button>
@@ -546,5 +545,38 @@ function TechnicianPage() {
       <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
     </div>
+    <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+      <DialogContent className="rounded-3xl sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Meu perfil</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid size-20 place-items-center rounded-3xl bg-primary/10 text-primary mx-auto"><UserCircle className="size-10" /></div>
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">E-mail de acesso</p>
+            <p className="mt-1 break-all font-semibold">{actor?.email || "—"}</p>
+          </div>
+          <label className="grid gap-2 text-sm font-semibold">
+            Nome
+            <input value={profileName} onChange={(e) => setProfileName(e.target.value)} className="h-11 rounded-xl border bg-background px-3 outline-none focus:ring-2 focus:ring-primary" />
+          </label>
+          <Button disabled={profileSaving || !actor || !profileName.trim()} onClick={async () => {
+            if (!actor) return;
+            setProfileSaving(true);
+            const { error } = await supabase.from("profiles").update({ nome: profileName.trim() }).eq("id", actor.id);
+            setProfileSaving(false);
+            if (error) {
+              toast.error("Não foi possível atualizar o perfil.");
+              return;
+            }
+            const next = { ...actor, name: profileName.trim() };
+            setActor(next);
+            await saveOfflineActor(next);
+            toast.success("Perfil atualizado.");
+            setProfileOpen(false);
+          }}>{profileSaving ? "A guardar..." : "Salvar perfil"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   </main>;
 }
