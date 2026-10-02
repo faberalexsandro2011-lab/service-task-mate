@@ -110,6 +110,7 @@ const STATUS_LABEL: Record<Status, string> = {
   cancelada: "Cancelada",
 };
 type Actor = { id: string; email: string; name: string; isManager: boolean };
+const OWNER_ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
 function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
@@ -520,6 +521,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
 
 function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: boolean; onOpenChange: (v: boolean) => void; order: Ordem; actor: Actor; onDone: () => Promise<void> }) {
   const [saving, setSaving] = useState(false);
+  const [adminAccess, setAdminAccess] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -594,6 +596,10 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
       toast.error("Preencha o nome, um e-mail válido e uma palavra-passe com pelo menos 8 caracteres.");
       return;
     }
+    if (adminAccess && email !== OWNER_ADMIN_EMAIL) {
+      toast.error("Acesso de administrador reservado ao e-mail autorizado.");
+      return;
+    }
 
     setSaving(true);
     const { data: managerSession } = await supabase.auth.getSession();
@@ -637,7 +643,7 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
       const { error: roleError } = await supabase.from("user_roles").insert({
         id: crypto.randomUUID(),
         user_id: newUser.id,
-        role: "tecnico",
+        role: adminAccess ? "gestor" : "tecnico",
       });
       if (roleError) {
         console.error("[Cadastro técnico] Falha ao definir função:", roleError);
@@ -650,7 +656,8 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
     setSaving(false);
     event.currentTarget.reset();
     onOpenChange(false);
-    toast.success(data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
+    setAdminAccess(false);
+    toast.success(adminAccess ? "Conta de administrador cadastrada." : data.session ? "Técnico cadastrado e pronto para acesso." : "Técnico cadastrado. Ele deverá confirmar o e-mail antes do primeiro acesso.");
     await onCreated();
   }
 
@@ -666,7 +673,13 @@ function TechnicianDialog({ open, onOpenChange, onCreated }: { open: boolean; on
           <Field label="Nome do técnico"><Input name="nome" required placeholder="Nome completo" autoComplete="name" /></Field>
           <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" /></Field>
           <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
-          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada com a função <strong>técnico</strong>. Se a confirmação de e-mail estiver ativa, o técnico receberá a confirmação antes de entrar.</p>
+          {email === OWNER_ADMIN_EMAIL && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+              <input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="mt-1 size-4 accent-primary" />
+              <span><span className="block text-sm font-semibold">Permitir acesso de administrador</span><span className="mt-1 block text-xs text-muted-foreground">Esta opção só aparece para o e-mail autorizado e dará acesso ao Painel Central e ao Histórico.</span></span>
+            </label>
+          )}
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">A conta será criada como <strong>{adminAccess ? "administrador (gestor)" : "técnico"}</strong>. Apenas o e-mail autorizado pode receber privilégios de administrador por esta tela.</p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={saving}>{saving ? "A criar..." : "Cadastrar técnico"}</Button>
