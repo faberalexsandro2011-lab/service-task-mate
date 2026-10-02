@@ -63,7 +63,7 @@ function HistoryPage() {
     <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-5">
         <div className="relative md:col-span-2"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar OS, frota, técnico..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <select className="h-10 rounded-md border bg-background px-3 text-sm" value={tech} onChange={e => setTech(e.target.value)}><option value="">Todos os técnicos</option>{technicians.map(t => <option key={t} value={t}>{t}</option>)}</select>
+        <select className="h-10 rounded-md border bg-background px-3 text-sm" value={tech} onChange={e => setTech(e.target.value)}><option value="">Todos os técnicos</option>{technicians.map(t => <option key={t} value={t ?? ""}>{t}</option>)}</select>
         <select className="h-10 rounded-md border bg-background px-3 text-sm" value={status} onChange={e => setStatus(e.target.value)}><option value="">Todos os status</option><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Finalizada</option><option value="cancelada">Cancelada</option></select>
         <div className="flex gap-2"><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
       </div>
