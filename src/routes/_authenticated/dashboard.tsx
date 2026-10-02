@@ -888,7 +888,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
 
     setSaving(true);
     const payload = validRows.map((row) => {
-      const technician = technicians.find((item) => item.email.toLowerCase() === row.tecnico_email.toLowerCase());
+      const technician = findTechnician(row.tecnico_email, technicians);
       return {
         numero_os: row.numero_os,
         frota: row.frota,
@@ -1010,7 +1010,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
     if (!validRows.length) return;
     setSaving(true);
     const payload = validRows.map((row) => {
-      const technician = technicians.find((item) => item.email.toLowerCase() === row.tecnico_email.toLowerCase());
+      const technician = findTechnician(row.tecnico_email, technicians);
       return {
         numero_os: row.numero_os,
         frota: row.frota,
@@ -1076,18 +1076,52 @@ function pick(clean: Record<string, string>, keys: string[], contains?: string[]
   return "";
 }
 
+function normalizePerson(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9@._-]+/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+function findTechnician(value: string, technicians: Perfil[]) {
+  const target = normalizePerson(value);
+  if (!target) return undefined;
+
+  return technicians.find((item) => {
+    const email = normalizePerson(item.email);
+    const name = normalizePerson(item.nome || "");
+    return target === email || target === name;
+  }) ?? technicians.find((item) => {
+    const email = normalizePerson(item.email);
+    const name = normalizePerson(item.nome || "");
+    return target.includes(email) || (name && target.includes(name));
+  });
+}
+
 function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil[]): ImportRow {
   const clean: Record<string, string> = Object.fromEntries(Object.entries(record).map(([key, value]) => [normKey(key), String(value ?? "").trim()]));
   const numero = pick(clean, ["numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os", "ordem", "ordem_servico", "ordem_de_servico"], ["numero", "ordem"]);
   const frota = pick(clean, ["frota", "viatura", "veiculo", "matricula"], ["frota"]);
-  const tecnico = pick(clean, ["tecnico_email", "email_tecnico", "tecnico", "email", "tecnico_atribuido"], ["tecnico", "email"]);
+  const tecnico = pick(clean, ["tecnico_email", "email_tecnico", "tecnico", "email", "tecnico_atribuido", "nome_tecnico", "tecnico_nome", "responsavel", "responsavel_tecnico"], ["tecnico", "responsavel", "email"]);
+  const technician = findTechnician(tecnico, technicians);
   const valid = Boolean(numero && frota);
   let reason = "";
   if (!numero && !frota) reason = "Linha sem número da OS e frota";
   else if (!numero) reason = "Falta o número da OS";
   else if (!frota) reason = "Falta a frota";
-  else if (tecnico && !technicians.some((item) => item.email.toLowerCase() === tecnico.toLowerCase())) reason = "Técnico não encontrado — será importada sem técnico";
-  return { numero_os: numero, frota, localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]), descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]), tecnico_email: tecnico, valid, ...(reason ? { reason } : {}) };
+  else if (tecnico && !technician) reason = "Técnico não encontrado — será importada sem técnico";
+  return {
+    numero_os: numero,
+    frota,
+    localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]),
+    descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]),
+    tecnico_email: technician?.email ?? tecnico,
+    valid,
+    ...(reason ? { reason } : {}),
+  };
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
