@@ -248,7 +248,7 @@ function Dashboard() {
         <UserPanel name={actor.name || "Utilizador"} email={actor.email} role={data.role} onSignOut={signOut} />
       </aside>
 
-      <main className="min-w-0">
+      <main className="min-w-0 dashboard-modern">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-7 lg:hidden">
           <Brand compact />
           <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ function Dashboard() {
             Sem ligação à internet. As alterações serão mostradas quando a ligação voltar.
           </div>
         )}
-        <div className="mx-auto max-w-[1500px] p-4 sm:p-7 lg:p-9">
+        <div className="mx-auto max-w-[1500px] p-4 sm:p-7 lg:p-9 agri-fade-up">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
