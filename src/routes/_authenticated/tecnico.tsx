@@ -184,13 +184,14 @@ function TechnicianPage() {
             .limit(1);
 
           if (!history?.length) {
-            await supabase.from("historico_edicoes").insert({
+            const { error: historyError } = await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "iniciada",
               detalhe: `Atendimento iniciado por ${action.actorEmail} (sincronizado offline)`,
               usuario_id: action.actorId,
               usuario_email: action.actorEmail,
             });
+            if (historyError) throw historyError;
           }
         } else {
           const { data, error } = await supabase
@@ -221,13 +222,14 @@ function TechnicianPage() {
             .limit(1);
 
           if (!history?.length) {
-            await supabase.from("historico_edicoes").insert({
+            const { error: historyError } = await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "finalizada",
               detalhe: `Finalizada por ${action.actorEmail} (sincronizado offline): ${action.notes}`,
               usuario_id: action.actorId,
               usuario_email: action.actorEmail,
             });
+            if (historyError) throw historyError;
           }
         }
 
@@ -280,9 +282,13 @@ function TechnicianPage() {
           next.tecnico_email === actor?.email ||
           previous.tecnico_email === actor?.email;
 
-        if (technicianMatch || payload.eventType === "INSERT") {
+        if (technicianMatch) {
           await load();
-          if (payload.eventType === "INSERT" || (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id) || (next.tecnico_email === actor?.email && previous.tecnico_email !== actor?.email)) {
+          if (
+            payload.eventType === "INSERT" ||
+            (next.tecnico_id === actor?.id && previous.tecnico_id !== actor?.id) ||
+            (next.tecnico_email === actor?.email && previous.tecnico_email !== actor?.email)
+          ) {
             toast.success("Nova OS enviada para você.");
             try { playFieldAlert(); } catch {}
             if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
@@ -375,7 +381,7 @@ function TechnicianPage() {
       usuario_email: actor.email,
     });
 
-    if (historyError && isNetworkError(historyError)) {
+    if (historyError) {
       await queueOfflineAction({
         id: makeOfflineId(),
         type: "start",
@@ -385,7 +391,7 @@ function TechnicianPage() {
         actorName: actor.name,
         createdAt: startedAt,
       });
-      toast.success("Atendimento iniciado. O histórico será sincronizado quando a internet voltar.");
+      toast.warning("Atendimento iniciado, mas o histórico ficou pendente de sincronização.");
       return;
     }
 
@@ -461,8 +467,17 @@ function TechnicianPage() {
     setFinish(null);
     setNotes("");
 
-    if (historyError && isNetworkError(historyError)) {
-      toast.success("Serviço finalizado. O histórico será sincronizado quando a internet voltar.");
+    if (historyError) {
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "finish",
+        orderId: orderToFinish.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        notes: solution,
+        createdAt: finishedAt,
+      });
+      toast.warning("Serviço finalizado, mas o histórico ficou pendente de sincronização.");
       return;
     }
 
