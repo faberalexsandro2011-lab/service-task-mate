@@ -103,7 +103,10 @@ function TechnicianPage() {
             .select("id");
 
           if (error) throw error;
-          if (data?.length) {
+          const alreadyStarted = !data?.length
+            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status === "em_andamento"
+            : true;
+          if (alreadyStarted) {
             await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "iniciada",
@@ -125,7 +128,10 @@ function TechnicianPage() {
             .select("id");
 
           if (error) throw error;
-          if (data?.length) {
+          const alreadyFinished = !data?.length
+            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status === "concluida"
+            : true;
+          if (alreadyFinished) {
             await supabase.from("historico_edicoes").insert({
               os_id: action.orderId,
               acao: "finalizada",
@@ -152,6 +158,7 @@ function TechnicianPage() {
     }
     setOnline(navigator.onLine);
     void load();
+    void syncOffline();
 
     const onlineHandler = () => {
       setOnline(true);
