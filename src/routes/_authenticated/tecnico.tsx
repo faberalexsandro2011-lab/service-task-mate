@@ -154,7 +154,14 @@ function TechnicianPage() {
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => console.warn("Service worker offline:", error));
+      navigator.serviceWorker.register("/sw.js")
+        .then((registration) => {
+          const urls = performance.getEntriesByType("resource")
+            .map((entry) => (entry as PerformanceResourceTiming).name)
+            .filter((url) => url.startsWith(window.location.origin));
+          registration.active?.postMessage({ type: "CACHE_ASSETS", urls });
+        })
+        .catch((error) => console.warn("Service worker offline:", error));
     }
     setOnline(navigator.onLine);
     void load();
