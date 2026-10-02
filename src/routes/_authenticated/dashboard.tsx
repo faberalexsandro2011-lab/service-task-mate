@@ -682,7 +682,18 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
     setSaving(true);
 
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (sessionError || !accessToken) {
+      setSaving(false);
+      toast.error("Sua sessão do gestor expirou. Saia e entre novamente antes de cadastrar o técnico.");
+      return;
+    }
+
     const { data, error } = await supabase.functions.invoke("create-user", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+    },
       body: { nome, email, password, adminAccess },
     });
 
