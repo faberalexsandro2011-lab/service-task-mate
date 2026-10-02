@@ -79,6 +79,29 @@ export async function saveOfflineActor(actor: unknown) {
   db.close();
 }
 
+export async function saveOfflineRole(role: string) {
+  if (typeof indexedDB === "undefined") return;
+  const db = await openDb();
+  const tx = db.transaction(META_STORE, "readwrite");
+  tx.objectStore(META_STORE).put({ key: "role", value: role });
+  await txDone(tx);
+  db.close();
+}
+
+export async function getOfflineRole<T extends string>(): Promise<T | null> {
+  if (typeof indexedDB === "undefined") return null;
+  const db = await openDb();
+  const tx = db.transaction(META_STORE, "readonly");
+  const request = tx.objectStore(META_STORE).get("role");
+  const result = await new Promise<T | null>((resolve, reject) => {
+    request.onsuccess = () => resolve((request.result?.value ?? null) as T | null);
+    request.onerror = () => reject(request.error);
+  });
+  await txDone(tx);
+  db.close();
+  return result;
+}
+
 export async function getOfflineActor<T>(): Promise<T | null> {
   if (typeof indexedDB === "undefined") return null;
   const db = await openDb();
