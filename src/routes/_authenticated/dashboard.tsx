@@ -404,6 +404,7 @@ async function logHistory(osId: string, actor: Actor, acao: string, detalhe: str
 function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const canStart = status === "pendente" && (!order.tecnico_id || isMine);
@@ -446,34 +447,74 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   }
 
   return (
-    <article className="flex flex-col rounded-md border bg-card p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="font-semibold">OS {order.numero_os}</div>
-          <div className="text-xs text-muted-foreground">Frota {order.frota}</div>
+    <>
+      <article
+        className="group flex cursor-pointer flex-col rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-within:border-primary/40"
+        role="button"
+        tabIndex={0}
+        onClick={() => setDetailsOpen(true)}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setDetailsOpen(true); } }}
+        aria-label={`Abrir detalhes da OS ${order.numero_os}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-4" /></div>
+              <div className="min-w-0"><div className="truncate font-bold">OS {order.numero_os}</div><div className="text-xs text-muted-foreground">Frota {order.frota}</div></div>
+            </div>
+          </div>
+          <StatusBadge status={status} />
         </div>
-        <StatusBadge status={status} />
-      </div>
-      <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{order.descricao || "Sem descrição"}</p>
-      <dl className="mt-3 space-y-1 text-xs">
-        <div className="flex items-center gap-2"><MapPin className="size-3.5 text-muted-foreground" />{order.localizacao || "—"}</div>
-        <div className="flex items-center gap-2"><UserRound className="size-3.5 text-muted-foreground" />{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</div>
-        <div className="text-muted-foreground">Aberta: {fmtDate(order.created_at)}{order.data_inicio && ` · Início: ${fmtDate(order.data_inicio)}`}{order.concluida_em && ` · Fim: ${fmtDate(order.concluida_em)}`}</div>
-      </dl>
-      {status === "concluida" && order.notas_fecho && (
-        <div className="mt-3 space-y-1 rounded-md bg-muted/60 p-3 text-xs">
-          {order.notas_fecho && <p><span className="font-semibold">Solução:</span> {order.notas_fecho}</p>}
+        <p className="mt-4 line-clamp-2 text-sm leading-6 text-muted-foreground">{order.descricao || "Sem descrição"}</p>
+        <div className="mt-4 grid gap-2 text-xs">
+          <div className="flex min-w-0 items-center gap-2"><MapPin className="size-3.5 shrink-0 text-primary" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
+          <div className="flex min-w-0 items-center gap-2"><UserRound className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</span></div>
         </div>
-      )}
-      {(canStart || canFinish || canCancel) && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t pt-3">
-          {canStart && <Button size="sm" disabled={busy} onClick={start}><Play /> Iniciar atendimento</Button>}
-          {canFinish && <Button size="sm" disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
-          {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={cancel}><Ban /> Cancelar</Button>}
+        <div className="mt-4 flex items-center justify-between border-t pt-3">
+          <span className="text-[11px] text-muted-foreground">Aberta {fmtDate(order.created_at)}</span>
+          <span className="text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">Ver detalhes →</span>
         </div>
-      )}
+        {(canStart || canFinish || canCancel) && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {canStart && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}><Play /> Iniciar</Button>}
+            {canFinish && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}><CheckCircle2 /> Finalizar</Button>}
+            {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}><Ban /> Cancelar</Button>}
+          </div>
+        )}
+      </article>
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-3 pr-6">
+              <div><DialogTitle className="text-xl">OS {order.numero_os}</DialogTitle><DialogDescription className="mt-1">Detalhes completos da ordem de serviço</DialogDescription></div>
+              <StatusBadge status={status} />
+            </div>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-[11px] font-semibold uppercase text-muted-foreground">Frota</p><p className="mt-1 font-semibold">{order.frota}</p></div>
+              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-[11px] font-semibold uppercase text-muted-foreground">Técnico</p><p className="mt-1 truncate font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p></div>
+            </div>
+            <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
+            <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Abertura</p><p className="mt-1 text-xs font-medium">{fmtDate(order.created_at)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Início</p><p className="mt-1 text-xs font-medium">{fmtDate(order.data_inicio)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Conclusão</p><p className="mt-1 text-xs font-medium">{fmtDate(order.concluida_em)}</p></div>
+            </div>
+            {status === "concluida" && order.notas_fecho && <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><p className="text-xs font-semibold uppercase text-primary">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap text-sm">{order.notas_fecho}</p></div>}
+            {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
+            {(canStart || canFinish || canCancel) && <div className="flex flex-wrap gap-2 border-t pt-4">
+              {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
+              {canFinish && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
+              {canCancel && <Button variant="outline" disabled={busy} onClick={() => void cancel()}><Ban /> Cancelar OS</Button>}
+            </div>}
+          </div>
+        </DialogContent>
+      </Dialog>
       <FinishDialog open={finishOpen} onOpenChange={setFinishOpen} order={order} actor={actor} onDone={onChanged} />
-    </article>
+    </>
   );
 }
 
