@@ -41,7 +41,10 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
-  const [online, setOnline] = useState(() => {\n    if (typeof navigator === "undefined") return true;\n    return navigator.onLine;\n  });
+  const [online, setOnline] = useState(() => {
+    if (typeof navigator === "undefined") return true;
+    return navigator.onLine;
+  });
   const [search, setSearch] = useState("");
 
   async function load() {
