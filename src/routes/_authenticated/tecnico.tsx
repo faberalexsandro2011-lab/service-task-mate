@@ -41,10 +41,7 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
-  const [online, setOnline] = useState(() => {
-    if (typeof navigator === "undefined") return true;
-    return navigator.onLine;
-  });
+  const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
 
   async function load() {
@@ -60,7 +57,8 @@ function TechnicianPage() {
     load();
     const onlineHandler = () => setOnline(true);
     const offlineHandler = () => setOnline(false);
-    window.addEventListener("online", onlineHandler); window.addEventListener("offline", offlineHandler);
+    window.addEventListener("online", onlineHandler);
+    window.addEventListener("offline", offlineHandler);
     const channel = supabase.channel("tecnico_ordens_live").on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
       const next = payload.new as Partial<Ordem>;
       const previous = payload.old as Partial<Ordem>;
@@ -73,7 +71,11 @@ function TechnicianPage() {
         }
       }
     }).subscribe();
-    return () => { window.removeEventListener("online", onlineHandler); window.removeEventListener("offline", offlineHandler); supabase.removeChannel(channel); };
+    return () => {
+      window.removeEventListener("online", onlineHandler);
+      window.removeEventListener("offline", offlineHandler);
+      supabase.removeChannel(channel);
+    };
   }, [actor?.id]);
 
   const visible = useMemo(() => {
@@ -100,7 +102,9 @@ function TechnicianPage() {
     if (error || !data?.length) return toast.error(error?.message || "A OS já foi alterada.");
     await supabase.from("historico_edicoes").insert({ os_id: finish.id, acao: "finalizada", detalhe: `Finalizada por ${actor.email}: ${solution}`, usuario_id: actor.id, usuario_email: actor.email });
     toast.success("Serviço finalizado.");
-    setFinish(null); setNotes(""); await load();
+    setFinish(null);
+    setNotes("");
+    await load();
   }
 
   function openMap(location: string | null) {
@@ -179,3 +183,4 @@ function TechnicianPage() {
       <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
   </main>;
+}
