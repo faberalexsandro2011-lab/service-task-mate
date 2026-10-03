@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const OWNER_EMAIL = "faber.alexsandro2011@hotmail.com";
+const OWNER_EMAIL = "faber.alexsandro2011@gmail.com";
 
 // Cadastro de técnicos/gestores pelo Painel Central. Só gestores podem usar.
 export const createTeamUser = createServerFn({ method: "POST" })
