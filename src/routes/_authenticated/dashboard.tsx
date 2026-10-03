@@ -1178,6 +1178,29 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
     }
   }
 
+  async function upsertImportedOrders(payload: Array<Record<string, unknown>>) {
+    let updatedCount = 0;
+    let createdCount = 0;
+    for (const item of payload) {
+      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) {
+        const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
+        if (error) throw error;
+        updatedCount++;
+        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação" + (item.tecnico_nome ? " e transferida para " + item.tecnico_nome : ""));
+        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) await logHistory(existing.id, creator, "enviada", "Transferida para " + (item.tecnico_nome || item.tecnico_email));
+      } else {
+        const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
+        if (error) throw error;
+        createdCount++;
+        await logHistory(created.id, creator, "aberta", "OS aberta por " + creator.email + " via importação");
+        if (created.tecnico_email) await logHistory(created.id, creator, "enviada", "Enviada para " + (created.tecnico_nome || created.tecnico_email));
+      }
+    }
+    return { updatedCount, createdCount };
+  }
+
   async function importRows() {
     if (!validRows.length) return;
     setSaving(true);
