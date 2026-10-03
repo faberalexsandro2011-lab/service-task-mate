@@ -1260,22 +1260,45 @@ function findTechnician(value: string, technicians: Perfil[]) {
 }
 
 function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil[]): ImportRow {
-  const clean: Record<string, string> = Object.fromEntries(Object.entries(record).map(([key, value]) => [normKey(key), String(value ?? "").trim()]));
-  const numero = pick(clean, ["numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os", "ordem", "ordem_servico", "ordem_de_servico"], ["numero", "ordem"]);
-  const frota = pick(clean, ["frota", "viatura", "veiculo", "matricula"], ["frota"]);
-  const tecnico = pick(clean, ["tecnico_email", "email_tecnico", "tecnico", "email", "tecnico_atribuido", "nome_tecnico", "tecnico_nome", "responsavel", "responsavel_tecnico"], ["tecnico", "responsavel", "email"]);
+  // A importação nunca depende da posição das colunas: primeiro normalizamos os nomes
+  // e depois procuramos cada campo por aliases. Assim "Frota | OS | Técnico" funciona
+  // exatamente como "OS | Técnico | Frota".
+  const clean: Record<string, string> = Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [normKey(key), String(value ?? "").trim()]),
+  );
+
+  const numero = pick(clean, [
+    "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os",
+    "ordem", "ordem_servico", "ordem_de_servico", "ordem_servico_numero",
+  ], ["numero_os", "numero", "ordem", "_os", "os_"]);
+
+  const frota = pick(clean, [
+    "frota", "frota_numero", "numero_frota", "viatura", "veiculo", "veiculo_frota",
+    "matricula", "prefixo", "equipamento",
+  ], ["frota", "veiculo", "viatura", "matricula", "prefixo"]);
+
+  const tecnico = pick(clean, [
+    "tecnico_email", "email_tecnico", "tecnico", "tecnico_atribuido",
+    "nome_tecnico", "tecnico_nome", "responsavel", "responsavel_tecnico",
+    "responsavel_nome", "mecanico", "mecanico_nome", "executor",
+  ], ["tecnico", "responsavel", "mecanico", "executor"]);
+
   const technician = findTechnician(tecnico, technicians);
   const valid = Boolean(numero && frota);
   let reason = "";
-  if (!numero && !frota) reason = "Linha sem número da OS e frota";
-  else if (!numero) reason = "Falta o número da OS";
-  else if (!frota) reason = "Falta a frota";
+  if (!numero && !frota) reason = "Não foi possível identificar OS e frota";
+  else if (!numero) reason = "Não foi possível identificar a coluna de OS";
+  else if (!frota) reason = "Não foi possível identificar a coluna de frota";
   else if (tecnico && !technician) reason = "Técnico não encontrado — será importada sem técnico";
+
   return {
     numero_os: numero,
     frota,
-    localizacao: pick(clean, ["localizacao", "local", "morada"], ["local"]),
-    descricao: pick(clean, ["descricao", "descricao_do_problema", "descricao_problema", "problema", "observacoes"], ["descri", "problema"]),
+    localizacao: pick(clean, ["localizacao", "local", "morada", "endereco", "fazenda"], ["local", "endereco", "fazenda"]),
+    descricao: pick(clean, [
+      "descricao", "descricao_do_problema", "descricao_problema", "problema",
+      "observacoes", "observacao", "servico", "servico_descricao",
+    ], ["descri", "problema", "observ", "servico"]),
     tecnico_email: technician?.email ?? tecnico,
     valid,
     ...(reason ? { reason } : {}),
