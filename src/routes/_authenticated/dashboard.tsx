@@ -882,7 +882,6 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild><Button><Plus /> Nova OS</Button></DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader><DialogTitle>Abrir ordem de serviço</DialogTitle><DialogDescription>Registe o trabalho e atribua-o a um técnico.</DialogDescription></DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
@@ -969,9 +968,6 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline"><ClipboardPaste /> Colar OS do Excel</Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Colar OS do Excel</DialogTitle>
@@ -1083,7 +1079,6 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild><Button variant="outline"><Upload /> Importar ficheiro</Button></DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader><DialogTitle>Importar ordens em lote</DialogTitle><DialogDescription>Use Excel ou CSV com as colunas numero_os, frota, localizacao, descricao e tecnico_email.</DialogDescription></DialogHeader>
         {!rows.length ? (
