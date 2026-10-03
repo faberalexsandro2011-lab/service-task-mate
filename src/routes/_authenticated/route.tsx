@@ -41,5 +41,14 @@ export const Route = createFileRoute("/_authenticated")({
     if (role === "gestor" && location.pathname.endsWith("/tecnico")) throw redirect({ to: "/dashboard", replace: true });
     return { user: data.session.user, role };
   },
-  component: () => <Outlet />,
+  component: () => (
+    <div className="flex min-h-screen flex-col">
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <footer className="border-t bg-muted/20 px-4 py-3 text-center text-xs text-muted-foreground">
+        Desenvolvido por: <span className="font-semibold text-foreground">ALEX FABER</span>
+      </footer>
+    </div>
+  ),
 });
