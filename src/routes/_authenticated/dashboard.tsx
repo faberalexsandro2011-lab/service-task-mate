@@ -671,7 +671,8 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     const nome = String(form.get("nome") ?? "").trim();
     const email = String(form.get("email") ?? "").trim().toLowerCase();
     const password = String(form.get("password") ?? "");
@@ -700,7 +701,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
     }
 
     setSaving(false);
-    event.currentTarget.reset();
+    formEl.reset();
     setEmailValue("");
     setAdminAccess(false);
     toast.success(adminAccess ? "Administrador cadastrado." : "Técnico cadastrado e pronto para acesso.");
