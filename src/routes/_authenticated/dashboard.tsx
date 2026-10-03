@@ -346,10 +346,10 @@ function Dashboard() {
           )}
 
           <section className="mt-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <Metric label="Pendentes" value={orders.filter((o) => o.status === "pendente").length} icon={<Clock />} />
-            <Metric label="Em andamento" value={orders.filter((o) => o.status === "em_andamento").length} icon={<Wrench />} accent />
-            <Metric label="Concluídas" value={orders.filter((o) => o.status === "concluida").length} icon={<CheckCircle2 />} />
-            <Metric label="Canceladas" value={orders.filter((o) => o.status === "cancelada").length} icon={<Ban />} />
+            <Metric label="Pendentes" value={orders.filter((o) => o.status === "pendente").length} icon={<Clock />} tone="pending" />
+            <Metric label="Em andamento" value={orders.filter((o) => o.status === "em_andamento").length} icon={<Wrench />} tone="progress" />
+            <Metric label="Concluídas" value={orders.filter((o) => o.status === "concluida").length} icon={<CheckCircle2 />} tone="done" />
+            <Metric label="Canceladas" value={orders.filter((o) => o.status === "cancelada").length} icon={<Ban />} tone="cancelled" />
           </section>
 
           <section className="mt-7 overflow-hidden rounded-xl border bg-card shadow-sm">
@@ -438,11 +438,33 @@ function UserPanel({ name, email, role, onSignOut }: { name: string; email: stri
   );
 }
 
-function Metric({ label, value, icon, accent = false }: { label: string; value: number; icon: React.ReactNode; accent?: boolean }) {
+function Metric({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: "pending" | "progress" | "done" | "cancelled" }) {
+  const styles = {
+    pending: {
+      card: "border-amber-200/70 bg-amber-50/70 dark:border-amber-900/40 dark:bg-amber-950/20",
+      icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    },
+    progress: {
+      card: "border-blue-200/70 bg-blue-50/70 dark:border-blue-900/40 dark:bg-blue-950/20",
+      icon: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+    },
+    done: {
+      card: "border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/20",
+      icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    },
+    cancelled: {
+      card: "border-rose-200/70 bg-rose-50/70 dark:border-rose-900/40 dark:bg-rose-950/20",
+      icon: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+    },
+  }[tone];
+
   return (
-    <div className="flex items-center justify-between rounded-md border bg-card p-4 shadow-sm">
-      <div><p className="text-xs font-medium uppercase text-muted-foreground">{label}</p><p className="mt-2 text-3xl font-bold tabular-nums">{value}</p></div>
-      <div className={accent ? "grid size-10 place-items-center rounded-md bg-primary text-primary-foreground [&_svg]:size-5" : "grid size-10 place-items-center rounded-md bg-muted text-muted-foreground [&_svg]:size-5"}>{icon}</div>
+    <div className={`flex min-h-16 items-center justify-between rounded-xl border px-3 py-2.5 shadow-sm transition-transform hover:-translate-y-0.5 ${styles.card}`}>
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-0.5 text-xl font-extrabold tabular-nums">{value}</p>
+      </div>
+      <div className={`grid size-8 shrink-0 place-items-center rounded-lg ${styles.icon} [&_svg]:size-4`}>{icon}</div>
     </div>
   );
 }
