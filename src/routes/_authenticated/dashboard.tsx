@@ -12,6 +12,7 @@ import {
   MapPin,
   Play,
   Plus,
+  Pencil,
   Search,
   Upload,
   UserRound,
@@ -28,7 +29,7 @@ import { read, utils } from "xlsx";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { createTeamUser, deleteTeamUser } from "@/lib/users.functions";
+import { createTeamUser, deleteTeamUser, updateTeamUser } from "@/lib/users.functions";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -789,6 +790,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
   const [busyId, setBusyId] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState("");
   const [adminAccess, setAdminAccess] = useState(false);
+  const [editMember, setEditMember] = useState<TeamMember | null>(null);
   const canManage = actor.email.toLowerCase() === OWNER_ADMIN_EMAIL;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -851,6 +853,41 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
     }
     toast.success(nextRole === "gestor" ? "Técnico promovido a administrador." : "Administrador voltou a ser técnico.");
     await onChanged();
+  }
+
+  async function editTechnician(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editMember || !canManage) return;
+    const form = new FormData(event.currentTarget);
+    const nome = String(form.get("edit_nome") ?? "").trim();
+    const password = String(form.get("edit_password") ?? "").trim();
+    if (!nome) {
+      toast.error("Informe o nome do técnico.");
+      return;
+    }
+    if (password && password.length < 8) {
+      toast.error("A nova senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+
+    setBusyId(editMember.profile.id);
+    try {
+      const result = await updateTeamUser({
+        data: { userId: editMember.profile.id, nome, password },
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(password ? "Nome e senha do técnico atualizados." : "Nome do técnico atualizado.");
+      setEditMember(null);
+      await onChanged();
+    } catch (error) {
+      console.error("[updateTeamUser]", error);
+      toast.error(error instanceof Error ? error.message : "Não foi possível editar o técnico.");
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function removeAccess(member: TeamMember) {
@@ -939,6 +976,9 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
                   <div className="mt-1 truncate text-xs text-muted-foreground">{member.profile.email}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {canManage && !isOwner && <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditMember(member)}>
+                    <Pencil /> Editar
+                  </Button>}
                   {canManage && !isOwner && <Button size="sm" variant="outline" disabled={busy} onClick={() => void changeRole(member)}>
                     <ShieldCheck /> {member.role === "gestor" ? "Tornar técnico" : "Tornar ADM"}
                   </Button>}
@@ -953,6 +993,31 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
         </div>
 
         <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
+        <Dialog open={!!editMember} onOpenChange={(value) => { if (!value) setEditMember(null); }}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar técnico</DialogTitle>
+              <DialogDescription>
+                Altere o nome e, se necessário, defina uma nova senha para {editMember?.profile.email}.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={editTechnician} className="grid gap-4">
+              <Field label="Nome do técnico">
+                <Input name="edit_nome" defaultValue={editMember?.profile.nome ?? ""} required autoComplete="name" />
+              </Field>
+              <Field label="Nova senha">
+                <Input name="edit_password" type="password" minLength={8} placeholder="Deixe em branco para manter a senha atual" autoComplete="new-password" />
+              </Field>
+              <p className="text-xs text-muted-foreground">A senha deve ter pelo menos 8 caracteres. O e-mail do técnico não será alterado.</p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditMember(null)}>Cancelar</Button>
+                <Button type="submit" disabled={!!busyId}>{busyId ? "Salvando..." : "Salvar alterações"}</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+
       </DialogContent>
     </Dialog>
   );
