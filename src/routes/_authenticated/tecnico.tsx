@@ -56,6 +56,7 @@ function TechnicianPage() {
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
+  const [details, setDetails] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
   const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
@@ -618,7 +619,7 @@ function TechnicianPage() {
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        {visible.map(order => <article key={order.id} className="group rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl sm:p-6">
+        {visible.map(order => <article key={order.id} role="button" tabIndex={0} onClick={() => setDetails(order)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetails(order); } }} className="group cursor-pointer rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
             <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
@@ -628,14 +629,36 @@ function TechnicianPage() {
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
-            {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={() => openMap(order.localizacao)}><ExternalLink /> Abrir mapa</Button>}
-            {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => start(order)}><Play /> Iniciar serviço</Button>}
-            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={() => setFinish(order)}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
+            {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); void start(order); }}><Play /> Iniciar serviço</Button>}
+            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); setFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
         {!visible.length && <div className="lg:col-span-2 rounded-3xl border border-dashed bg-card p-14 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-9 text-primary" /><p className="font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm">Altere o filtro ou a pesquisa para ver outros serviços.</p></div>}
       </div>
     </section>
+    <Dialog open={!!details} onOpenChange={(open) => { if (!open) setDetails(null); }}>
+      <DialogContent className="rounded-3xl sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Detalhes da OS {details?.numero_os}</DialogTitle>
+        </DialogHeader>
+        {details && <div className="grid gap-3 text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border bg-muted/30 p-3"><p className="text-xs font-bold uppercase text-muted-foreground">OS</p><p className="mt-1 font-bold">{details.numero_os}</p></div>
+            <div className="rounded-2xl border bg-muted/30 p-3"><p className="text-xs font-bold uppercase text-muted-foreground">Frota</p><p className="mt-1 font-bold">{details.frota}</p></div>
+          </div>
+          <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Localização</p><p className="mt-1">{details.localizacao || "Não informada"}</p></div>
+          <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Descrição / Serviço</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.descricao || "Sem descrição."}</p></div>
+          <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Status</p><p className="mt-1 font-semibold">{details.status === "concluida" ? "Finalizada" : details.status === "em_andamento" ? "Em andamento" : "Pendente"}</p></div>
+          {details.notas_fecho && <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho}</p></div>}
+          <div className="flex flex-wrap gap-2 pt-2">
+            {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
+            {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
+            {details.status === "em_andamento" && <Button className="rounded-xl" onClick={() => { setDetails(null); setFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
+          </div>
+        </div>}
+      </DialogContent>
+    </Dialog>
     <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); } }}>
       <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
     </Dialog>
