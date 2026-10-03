@@ -535,8 +535,8 @@ function FleetBadge({ value, compact = false }: { value: string; compact?: boole
     <span
       title={`Frota ${label}`}
       className={compact
-        ? "inline-flex max-w-[150px] items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-extrabold text-primary shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-primary/15"
-        : "inline-flex max-w-[180px] items-center rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-sm font-extrabold text-primary shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-primary/15"}
+        ? "inline-flex max-w-[96px] items-center rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary shadow-sm transition-colors hover:bg-primary/15"
+        : "inline-flex max-w-[120px] items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-bold leading-none text-primary shadow-sm transition-colors hover:bg-primary/15"}
     >
       <span className="mr-1 shrink-0 opacity-70">Frota</span>
       <span className="truncate">{label}</span>
