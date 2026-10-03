@@ -530,38 +530,41 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   return (
     <>
       <article
-        className="group flex cursor-pointer flex-col rounded-xl border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-within:border-primary/40"
+        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20"
         role="button"
         tabIndex={0}
         onClick={() => setDetailsOpen(true)}
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setDetailsOpen(true); } }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-4" /></div>
-              <div className="min-w-0"><div className="truncate font-bold">OS {order.numero_os}</div><div className="text-xs text-muted-foreground">Frota {order.frota}</div></div>
+        <div className="h-1 bg-primary/70 transition-all duration-300 group-hover:h-1.5" />
+        <div className="p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-1"><ClipboardList className="size-5" /></div>
+              <div className="min-w-0"><div className="truncate text-base font-bold">OS {order.numero_os}</div><div className="mt-0.5 text-xs font-medium text-muted-foreground">Frota {order.frota}</div></div>
             </div>
+            <div className="shrink-0 transition-transform duration-300 group-hover:scale-105"><StatusBadge status={status} /></div>
           </div>
-          <StatusBadge status={status} />
-        </div>
-        <p className="mt-4 line-clamp-2 text-sm leading-6 text-muted-foreground">{order.descricao || "Sem descrição"}</p>
-        <div className="mt-4 grid gap-2 text-xs">
-          <div className="flex min-w-0 items-center gap-2"><MapPin className="size-3.5 shrink-0 text-primary" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
-          <div className="flex min-w-0 items-center gap-2"><UserRound className="size-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</span></div>
-        </div>
-        <div className="mt-4 flex items-center justify-between border-t pt-3">
-          <span className="text-[11px] text-muted-foreground">Aberta {fmtDate(order.created_at)}</span>
-          <span className="text-xs font-semibold text-primary transition-transform group-hover:translate-x-0.5">Ver detalhes →</span>
-        </div>
-        {(canStart || canFinish || canCancel) && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {canStart && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}><Play /> Iniciar</Button>}
-            {canFinish && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}><CheckCircle2 /> Finalizar</Button>}
-            {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}><Ban /> Cancelar</Button>}
+          <div className="mt-4 rounded-xl bg-muted/40 p-3 transition-colors group-hover:bg-muted/60">
+            <p className="line-clamp-2 text-sm font-medium leading-6">{order.descricao || "Sem descrição"}</p>
           </div>
-        )}
+          <div className="mt-4 grid gap-2.5 text-xs">
+            <div className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1"><MapPin className="size-4 shrink-0 text-primary" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
+            <div className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1"><UserRound className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</span></div>
+          </div>
+          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
+            <span className="text-[11px] text-muted-foreground">Aberta {fmtDate(order.created_at)}</span>
+            <button type="button" className="shrink-0 text-xs font-bold text-primary transition-all group-hover:translate-x-1" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes <span aria-hidden="true">→</span></button>
+          </div>
+          {(canStart || canFinish || canCancel) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {canStart && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}><Play /> Iniciar</Button>}
+              {canFinish && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}><CheckCircle2 /> Finalizar</Button>}
+              {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}><Ban /> Cancelar</Button>}
+            </div>
+          )}
+        </div>
       </article>
 
       <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
