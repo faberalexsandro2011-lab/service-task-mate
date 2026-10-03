@@ -647,9 +647,9 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       >
         <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-sm font-extrabold">OS {order.numero_os}</p></div>
+            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-base font-black text-primary">Frota {order.frota}</p></div>
           </div>
-          <p className="truncate text-sm font-semibold">{order.frota}</p>
+          <p className="truncate text-xs font-bold text-muted-foreground">OS {order.numero_os}</p>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
             {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
@@ -1022,6 +1022,29 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
 
+  async function upsertImportedOrders(payload: Array<Record<string, unknown>>) {
+    let updatedCount = 0;
+    let createdCount = 0;
+    for (const item of payload) {
+      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).maybeSingle();
+      if (lookupError) throw lookupError;
+      if (existing) {
+        const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
+        if (error) throw error;
+        updatedCount++;
+        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação" + (item.tecnico_nome ? " e transferida para " + item.tecnico_nome : ""));
+        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) await logHistory(existing.id, creator, "enviada", "Transferida para " + (item.tecnico_nome || item.tecnico_email));
+      } else {
+        const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
+        if (error) throw error;
+        createdCount++;
+        await logHistory(created.id, creator, "aberta", "OS aberta por " + creator.email + " via importação");
+        if (created.tecnico_email) await logHistory(created.id, creator, "enviada", "Enviada para " + (created.tecnico_nome || created.tecnico_email));
+      }
+    }
+    return { updatedCount, createdCount };
+  }
+
   async function importPastedRows(value: string) {
     const lines = value.split(/\r?\n/).filter((line) => line.trim());
     if (!lines.length) {
@@ -1064,25 +1087,15 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       };
     });
 
-    const { data: created, error } = await supabase.from("ordens_servico").insert(payload).select("id, tecnico_nome, tecnico_email");
-    setSaving(false);
-
-    if (error) {
-      const msg = error.code === "23505"
-        ? "Já existe uma OS com um destes números."
-        : error.code === "42501"
-          ? "Sem permissão: apenas gestores podem adicionar OS."
-          : error.message;
-      toast.error(`Não foi possível adicionar as OS: ${msg}`);
+    try {
+      const { createdCount, updatedCount } = await upsertImportedOrders(payload);
+      toast.success(createdCount + " nova(s) e " + updatedCount + " atualizada(s). Nenhuma OS duplicada.");
+    } catch (error) {
+      toast.error("A importação falhou: " + (error instanceof Error ? error.message : "erro desconhecido"));
+      setSaving(false);
       return;
     }
-
-    if (created?.length) {
-      await Promise.all(created.map((row) => logHistory(row.id, creator, "aberta", `OS aberta por ${creator.email} via colagem do Excel`)));
-      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, creator, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
-    }
-
-    toast.success(`${payload.length} ${payload.length === 1 ? "OS adicionada" : "OS adicionadas"} com sucesso.`);
+    setSaving(false);
     setText("");
     onOpenChange(false);
     await onImported();
@@ -1180,19 +1193,15 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
         tecnico_nome: technician?.nome ?? technician?.email ?? null,
       };
     });
-    const { data: created, error } = await supabase.from("ordens_servico").insert(payload).select("id, tecnico_nome, tecnico_email");
-    setSaving(false);
-    if (error) {
-      console.error("Import error", error);
-      const msg = error.code === "23505" ? "Já existe uma OS com um destes números." : error.code === "42501" ? "Sem permissão: apenas gestores podem importar." : error.message;
-      toast.error(`A importação falhou: ${msg}`);
+    try {
+      const { createdCount, updatedCount } = await upsertImportedOrders(payload);
+      toast.success(createdCount + " nova(s) e " + updatedCount + " atualizada(s). Nenhuma OS duplicada.");
+    } catch (error) {
+      toast.error("A importação falhou: " + (error instanceof Error ? error.message : "erro desconhecido"));
+      setSaving(false);
       return;
     }
-    if (created?.length) {
-      await Promise.all(created.map((row) => logHistory(row.id, creator, "aberta", `OS aberta por ${creator.email} via importação`)));
-      await Promise.all(created.filter((row) => row.tecnico_email).map((row) => logHistory(row.id, creator, "enviada", `Enviada para ${row.tecnico_nome || row.tecnico_email}`)));
-    }
-    toast.success(`${payload.length} ${payload.length === 1 ? "ordem importada" : "ordens importadas"} e registada no histórico.`);
+    setSaving(false);
     setRows([]);
     setFileName("");
     onOpenChange(false);
