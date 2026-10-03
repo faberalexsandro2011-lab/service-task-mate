@@ -664,10 +664,10 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-extrabold">OS {order.numero_os}</p>
+                <p className="truncate text-base font-black text-primary">Frota {order.frota}</p>
                 <StatusBadge status={status} />
               </div>
-              <p className="mt-1 text-xs font-medium text-muted-foreground">Frota {order.frota}</p>
+              <p className="mt-1 text-xs font-bold text-muted-foreground">OS {order.numero_os}</p>
             </div>
             <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
@@ -971,8 +971,9 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
       return;
     }
     setSaving(true);
-    const { data: created, error } = await supabase.from("ordens_servico").insert({
-      numero_os: String(form.get("numero_os") ?? "").trim(),
+    const numero_os = String(form.get("numero_os") ?? "").trim();
+    const payload = {
+      numero_os,
       frota: String(form.get("frota") ?? "").trim(),
       localizacao: String(form.get("localizacao") ?? "").trim() || null,
       descricao: String(form.get("descricao") ?? "").trim() || null,
@@ -981,22 +982,66 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
       tecnico_nome: technician.nome || technician.email,
       criado_por_email: creator.email,
       status: "pendente",
-    }).select("id");
-    setSaving(false);
-    if (error) {
-      toast.error(error.message.includes("duplicate") ? "Já existe uma OS com esse número." : "Não foi possível criar a ordem.");
+    };
+
+    const { data: existing, error: lookupError } = await supabase
+      .from("ordens_servico")
+      .select("id, tecnico_email, tecnico_nome")
+      .eq("numero_os", numero_os)
+      .maybeSingle();
+
+    if (lookupError) {
+      setSaving(false);
+      toast.error("Não foi possível consultar a OS existente.");
       return;
     }
-    if (created?.[0]?.id) {
+
+    if (existing) {
+      const { error } = await supabase
+        .from("ordens_servico")
+        .update(payload)
+        .eq("id", existing.id);
+
+      setSaving(false);
+      if (error) {
+        toast.error("Não foi possível atualizar a OS.");
+        return;
+      }
+
       try {
-        await logHistory(created[0].id, creator, "aberta", `OS aberta por ${creator.email}`);
-        await logHistory(created[0].id, creator, "enviada", `Enviada para ${technician.nome || technician.email}`);
+        await logHistory(existing.id, creator, "atualizada", `OS ${numero_os} atualizada e atribuída a ${technician.nome || technician.email}`);
+        if (existing.tecnico_email !== technician.email) {
+          await logHistory(existing.id, creator, "enviada", `Transferida para ${technician.nome || technician.email}`);
+        }
+      } catch (historyError) {
+        console.error("[OS] Falha ao registrar histórico:", historyError);
+        toast.warning("OS atualizada, mas o histórico não foi registrado.");
+      }
+
+      toast.success(`OS ${numero_os} atualizada e transferida para ${technician.nome || technician.email}.`);
+    } else {
+      const { data: created, error } = await supabase
+        .from("ordens_servico")
+        .insert(payload)
+        .select("id")
+        .single();
+
+      setSaving(false);
+      if (error) {
+        toast.error("Não foi possível criar a ordem.");
+        return;
+      }
+
+      try {
+        await logHistory(created.id, creator, "aberta", `OS aberta por ${creator.email}`);
+        await logHistory(created.id, creator, "enviada", `Enviada para ${technician.nome || technician.email}`);
       } catch (historyError) {
         console.error("[OS] Falha ao registrar histórico:", historyError);
         toast.warning("OS criada, mas o histórico não foi registrado.");
       }
+
+      toast.success(`OS ${numero_os} criada e enviada para ${technician.nome || technician.email}.`);
     }
-    toast.success(`Enviada para ${technician.nome || technician.email}.`);
     onOpenChange(false);
     setTechnicianId("");
     await onCreated();
