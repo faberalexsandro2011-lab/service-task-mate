@@ -1070,15 +1070,21 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
   async function upsertImportedOrders(payload: Array<Record<string, unknown>>) {
     let updatedCount = 0;
     let createdCount = 0;
-    for (const item of payload) {
-      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).maybeSingle();
+    const unique = new Map<string, Record<string, unknown>>();
+    for (const item of payload) unique.set(String(item.numero_os).trim(), item);
+    for (const item of unique.values()) {
+      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
         const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
         if (error) throw error;
         updatedCount++;
-        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação" + (item.tecnico_nome ? " e transferida para " + item.tecnico_nome : ""));
-        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) await logHistory(existing.id, creator, "enviada", "Transferida para " + (item.tecnico_nome || item.tecnico_email));
+        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação por " + creator.email);
+        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) {
+          const de = existing.tecnico_nome || existing.tecnico_email;
+          const para = String(item.tecnico_nome || item.tecnico_email);
+          await logHistory(existing.id, creator, "transferida", de ? "Transferida de " + de + " para " + para : "Enviada para " + para);
+        }
       } else {
         const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
         if (error) throw error;
@@ -1226,15 +1232,21 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
   async function upsertImportedOrders(payload: Array<Record<string, unknown>>) {
     let updatedCount = 0;
     let createdCount = 0;
-    for (const item of payload) {
-      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).maybeSingle();
+    const unique = new Map<string, Record<string, unknown>>();
+    for (const item of payload) unique.set(String(item.numero_os).trim(), item);
+    for (const item of unique.values()) {
+      const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
         const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
         if (error) throw error;
         updatedCount++;
-        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação" + (item.tecnico_nome ? " e transferida para " + item.tecnico_nome : ""));
-        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) await logHistory(existing.id, creator, "enviada", "Transferida para " + (item.tecnico_nome || item.tecnico_email));
+        await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação por " + creator.email);
+        if (item.tecnico_email && item.tecnico_email !== existing.tecnico_email) {
+          const de = existing.tecnico_nome || existing.tecnico_email;
+          const para = String(item.tecnico_nome || item.tecnico_email);
+          await logHistory(existing.id, creator, "transferida", de ? "Transferida de " + de + " para " + para : "Enviada para " + para);
+        }
       } else {
         const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
         if (error) throw error;
