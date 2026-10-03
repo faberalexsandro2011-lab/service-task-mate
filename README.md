@@ -32,7 +32,11 @@ Continue developing this project in the [Lovable editor](https://lovable.dev/pro
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
 - **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- **Full ownership**: Push to `main` on GitHub and changes sync back into the connected deployment.
+
+## Deployment
+
+The repository is configured for deployment from the `main` branch. This marker commit is used to force a fresh deployment after the latest application changes.
 
 ## Development
 
