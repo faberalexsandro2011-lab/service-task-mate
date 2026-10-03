@@ -469,11 +469,11 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
       </div>
 
       <div className="hidden md:block">
-        <div className="grid grid-cols-[110px_95px_minmax(150px,1.1fr)_minmax(150px,1fr)_120px_92px_185px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
           <span>OS</span>
           <span>Frota</span>
           <span>Técnico</span>
-          <span>Serviço / localização</span>
+          <span>Serviço</span>
           <span>Status</span>
           <span>Abertura</span>
           <span className="text-right">Ações</span>
@@ -623,20 +623,16 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="hidden grid-cols-[110px_95px_minmax(150px,1.1fr)_minmax(150px,1fr)_120px_92px_185px] items-center gap-3 px-4 py-3.5 md:grid">
+        <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <p className="truncate text-sm font-extrabold">OS {order.numero_os}</p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">#{order.id.slice(0, 8)}</p>
+            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-sm font-extrabold">OS {order.numero_os}</p></div>
           </div>
           <p className="truncate text-sm font-semibold">{order.frota}</p>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
             {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{order.descricao || "Sem descrição"}</p>
-            <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground"><MapPin className="size-3" />{order.localizacao || "Localização não informada"}</p>
-          </div>
+          <div className="min-w-0"><p className="truncate text-sm font-semibold">{order.descricao || "Sem descrição"}</p></div>
           <div><StatusBadge status={status} /></div>
           <p className="text-[11px] text-muted-foreground">{fmtDate(order.created_at)}</p>
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
