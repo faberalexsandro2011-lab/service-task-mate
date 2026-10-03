@@ -162,12 +162,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      lookup_email_by_username: {
-        Args: {
-          p_nome: string
-        }
-        Returns: string
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -175,6 +169,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      lookup_email_by_username: { Args: { p_nome: string }; Returns: string }
     }
     Enums: {
       app_role: "gestor" | "tecnico"

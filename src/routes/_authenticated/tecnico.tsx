@@ -68,7 +68,8 @@ function TechnicianPage() {
 
   async function load() {
     const requestId = ++loadRequestRef.current;
-    const { data: auth } = await supabase.auth.getSession();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const auth = { user: sessionData.session?.user };
     if (!auth.user) return;
 
     const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
@@ -87,7 +88,7 @@ function TechnicianPage() {
     // O e-mail vem sempre da sessão do Auth. O perfil é apenas a fonte do nome.
     // Assim, uma falha de RLS em profiles não impede a identificação do técnico.
     const sessionEmail = String(auth.user.email ?? "").trim().toLowerCase();
-    const metadataName = String(auth.user.user_metadata?.nome ?? auth.user.user_metadata?.name ?? "").trim();
+    const metadataName = String(auth.user.user_metadata?.['nome'] ?? auth.user.user_metadata?.['name'] ?? "").trim();
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id,nome,email")
@@ -414,10 +415,10 @@ function TechnicianPage() {
         await queueAction();
         return;
       }
-      return toast.error(error.message || "Não foi possível iniciar a OS.");
+      toast.error(error.message || "Não foi possível iniciar a OS."); return;
     }
 
-    if (!data?.length) return toast.error("A OS já foi alterada.");
+    if (!data?.length) { toast.error("A OS já foi alterada."); return; }
 
     const { error: historyError } = await supabase.from("historico_edicoes").insert({
       os_id: order.id,
@@ -448,7 +449,7 @@ function TechnicianPage() {
   async function finalize() {
     if (!actor || !finish) return;
     const solution = notes.trim();
-    if (!solution) return toast.error("Informe o serviço realizado.");
+    if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const finishedAt = new Date().toISOString();
     const orderToFinish = finish;
 
@@ -497,10 +498,10 @@ function TechnicianPage() {
         await queueAction();
         return;
       }
-      return toast.error(error.message || "Não foi possível finalizar a OS.");
+      toast.error(error.message || "Não foi possível finalizar a OS."); return;
     }
 
-    if (!data?.length) return toast.error("A OS já foi alterada.");
+    if (!data?.length) { toast.error("A OS já foi alterada."); return; }
 
     const { error: historyError } = await supabase.from("historico_edicoes").insert({
       os_id: orderToFinish.id,
@@ -532,7 +533,7 @@ function TechnicianPage() {
   }
 
   function openMap(location: string | null) {
-    if (!location) return toast.info("Esta OS não possui localização.");
+    if (!location) { toast.info("Esta OS não possui localização."); return; }
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
   }
 
