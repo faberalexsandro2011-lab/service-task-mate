@@ -481,6 +481,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   const canStart = status === "pendente" && (!order.tecnico_id || isMine);
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
+  const canDelete = actor.email.trim().toLowerCase() === OWNER_ADMIN_EMAIL;
 
   async function start() {
     setBusy(true);
@@ -527,6 +528,27 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
     await onChanged();
   }
 
+  async function deleteOrder() {
+    if (!canDelete) {
+      toast.error("Somente o administrador principal pode excluir OS.");
+      return;
+    }
+    if (!confirm(`Excluir permanentemente a OS ${order.numero_os}? Esta ação não pode ser desfeita.`)) return;
+
+    setBusy(true);
+    const { error } = await supabase.from("ordens_servico").delete().eq("id", order.id);
+    if (error) {
+      setBusy(false);
+      toast.error(friendlyError(error, "Não foi possível excluir a OS."));
+      return;
+    }
+
+    toast.success(`OS ${order.numero_os} excluída.`);
+    setDetailsOpen(false);
+    setBusy(false);
+    await onChanged();
+  }
+
   return (
     <>
       <article
@@ -557,11 +579,12 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <span className="text-[11px] text-muted-foreground">Aberta {fmtDate(order.created_at)}</span>
             <button type="button" className="shrink-0 text-xs font-bold text-primary transition-all group-hover:translate-x-1" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes <span aria-hidden="true">→</span></button>
           </div>
-          {(canStart || canFinish || canCancel) && (
+          {(canStart || canFinish || canCancel || canDelete) && (
             <div className="mt-3 flex flex-wrap gap-2">
               {canStart && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}><Play /> Iniciar</Button>}
               {canFinish && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}><CheckCircle2 /> Finalizar</Button>}
               {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}><Ban /> Cancelar</Button>}
+              {canDelete && <Button size="sm" variant="destructive" disabled={busy} onClick={(event) => { event.stopPropagation(); void deleteOrder(); }}><Trash2 /> Excluir OS</Button>}
             </div>
           )}
         </div>
@@ -589,10 +612,11 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             </div>
             {status === "concluida" && order.notas_fecho && <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><p className="text-xs font-semibold uppercase text-primary">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap text-sm">{order.notas_fecho}</p></div>}
             {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
-            {(canStart || canFinish || canCancel) && <div className="flex flex-wrap gap-2 border-t pt-4">
+            {(canStart || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
               {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
               {canFinish && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
               {canCancel && <Button variant="outline" disabled={busy} onClick={() => void cancel()}><Ban /> Cancelar OS</Button>}
+              {canDelete && <Button variant="destructive" disabled={busy} onClick={() => void deleteOrder()}><Trash2 /> Excluir OS</Button>}
             </div>}
           </div>
         </DialogContent>
