@@ -690,12 +690,43 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
       return;
     }
 
-    const { data, error } = await supabase.functions.invoke("create-user", {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-    },
-      body: { nome, email, password, adminAccess },
-    });
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      setSaving(false);
+      toast.error("Configuração do Supabase não encontrada.");
+      return;
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: supabaseKey,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ nome, email, password, adminAccess }),
+      });
+    } catch (requestError) {
+      console.error("[create-user] Falha na requisição:", requestError);
+      setSaving(false);
+      toast.error("Não foi possível conectar à Edge Function. Verifique a conexão e tente novamente.");
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setSaving(false);
+      toast.error(String(payload?.error || payload?.message || `Erro ${response.status} ao cadastrar usuário.`));
+      return;
+    }
+
+    const data = payload;
+    const error = null;
 
     if (error) {
       setSaving(false);
