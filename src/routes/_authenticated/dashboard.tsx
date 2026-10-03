@@ -450,13 +450,47 @@ function Metric({ label, value, icon, accent = false }: { label: string; value: 
 const fmtDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
 function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
-  if (orders.length === 0) return <div className="rounded-md border border-dashed py-14 text-center text-sm text-muted-foreground">{empty}</div>;
+  if (orders.length === 0) {
+    return <div className="rounded-xl border border-dashed bg-card py-14 text-center text-sm text-muted-foreground">{empty}</div>;
+  }
+
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {orders.map((order) => (
-        <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
-      ))}
-    </div>
+    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+      <div className="flex flex-col gap-2 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-bold">Ordens de serviço</p>
+          <p className="text-xs text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase text-muted-foreground">
+          <span className="rounded-full bg-accent px-2 py-1 text-accent-foreground">Pendente</span>
+          <span className="rounded-full bg-primary px-2 py-1 text-primary-foreground">Em andamento</span>
+          <span className="rounded-full bg-secondary px-2 py-1 text-secondary-foreground">Finalizada</span>
+        </div>
+      </div>
+
+      <div className="hidden md:block">
+        <div className="grid grid-cols-[110px_95px_minmax(150px,1.1fr)_minmax(150px,1fr)_120px_92px_185px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <span>OS</span>
+          <span>Frota</span>
+          <span>Técnico</span>
+          <span>Serviço / localização</span>
+          <span>Status</span>
+          <span>Abertura</span>
+          <span className="text-right">Ações</span>
+        </div>
+        <div className="divide-y">
+          {orders.map((order) => (
+            <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+          ))}
+        </div>
+      </div>
+
+      <div className="divide-y md:hidden">
+        {orders.map((order) => (
+          <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -549,44 +583,87 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
     await onChanged();
   }
 
+  const actionButtons = (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      {canStart && (
+        <Button size="sm" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}>
+          <Play /> Iniciar
+        </Button>
+      )}
+      {canFinish && (
+        <Button size="sm" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}>
+          <CheckCircle2 /> Finalizar
+        </Button>
+      )}
+      {canCancel && (
+        <Button size="sm" variant="outline" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}>
+          <Ban /> Cancelar
+        </Button>
+      )}
+      {canDelete && (
+        <Button size="sm" variant="destructive" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void deleteOrder(); }}>
+          <Trash2 /> Excluir
+        </Button>
+      )}
+    </div>
+  );
+
   return (
     <>
       <article
-        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20"
+        className="group cursor-pointer transition-colors hover:bg-muted/20"
         role="button"
         tabIndex={0}
         onClick={() => setDetailsOpen(true)}
-        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setDetailsOpen(true); } }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setDetailsOpen(true);
+          }
+        }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="h-1 bg-primary/70 transition-all duration-300 group-hover:h-1.5" />
-        <div className="p-4 sm:p-5">
+        <div className="hidden grid-cols-[110px_95px_minmax(150px,1.1fr)_minmax(150px,1fr)_120px_92px_185px] items-center gap-3 px-4 py-3.5 md:grid">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-extrabold">OS {order.numero_os}</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">#{order.id.slice(0, 8)}</p>
+          </div>
+          <p className="truncate text-sm font-semibold">{order.frota}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
+            {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{order.descricao || "Sem descrição"}</p>
+            <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-muted-foreground"><MapPin className="size-3" />{order.localizacao || "Localização não informada"}</p>
+          </div>
+          <div><StatusBadge status={status} /></div>
+          <p className="text-[11px] text-muted-foreground">{fmtDate(order.created_at)}</p>
+          <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
+        </div>
+
+        <div className="space-y-3 p-4 md:hidden">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-110 group-hover:rotate-1"><ClipboardList className="size-5" /></div>
-              <div className="min-w-0"><div className="truncate text-base font-bold">OS {order.numero_os}</div><div className="mt-0.5 text-xs font-medium text-muted-foreground">Frota {order.frota}</div></div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-extrabold">OS {order.numero_os}</p>
+                <StatusBadge status={status} />
+              </div>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">Frota {order.frota}</p>
             </div>
-            <div className="shrink-0 transition-transform duration-300 group-hover:scale-105"><StatusBadge status={status} /></div>
+            <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
-          <div className="mt-4 rounded-xl bg-muted/40 p-3 transition-colors group-hover:bg-muted/60">
-            <p className="line-clamp-2 text-sm font-medium leading-6">{order.descricao || "Sem descrição"}</p>
+          <div className="grid gap-2.5 text-xs">
+            <div className="flex min-w-0 items-center gap-2"><UserRound className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</span></div>
+            <div className="flex min-w-0 items-center gap-2"><MapPin className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
           </div>
-          <div className="mt-4 grid gap-2.5 text-xs">
-            <div className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1"><MapPin className="size-4 shrink-0 text-primary" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
-            <div className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1"><UserRound className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Sem técnico (fila geral)"}</span></div>
+          <div className="rounded-xl bg-muted/40 p-3">
+            <p className="line-clamp-2 text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p>
           </div>
-          <div className="mt-4 flex items-center justify-between gap-3 border-t pt-3">
-            <span className="text-[11px] text-muted-foreground">Aberta {fmtDate(order.created_at)}</span>
-            <button type="button" className="shrink-0 text-xs font-bold text-primary transition-all group-hover:translate-x-1" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes <span aria-hidden="true">→</span></button>
+          <div className="flex items-center justify-between gap-3 border-t pt-3">
+            <button type="button" className="text-xs font-bold text-primary" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes →</button>
+            <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
           </div>
-          {(canStart || canFinish || canCancel || canDelete) && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {canStart && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}><Play /> Iniciar</Button>}
-              {canFinish && <Button size="sm" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}><CheckCircle2 /> Finalizar</Button>}
-              {canCancel && <Button size="sm" variant="outline" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}><Ban /> Cancelar</Button>}
-              {canDelete && <Button size="sm" variant="destructive" disabled={busy} onClick={(event) => { event.stopPropagation(); void deleteOrder(); }}><Trash2 /> Excluir OS</Button>}
-            </div>
-          )}
         </div>
       </article>
 
