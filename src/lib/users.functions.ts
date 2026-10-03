@@ -71,3 +71,39 @@ export const createTeamUser = createServerFn({ method: "POST" })
 
     return { ok: true as const, createdNew, user: { id: userId, email: data.email, nome: data.nome, role } };
   });
+
+
+// Exclusão definitiva de um usuário do sistema. Somente o administrador principal pode executar.
+export const deleteTeamUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z.object({
+      userId: z.string().uuid("Usuário inválido."),
+    }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const callerEmail = String((context.claims as { email?: string }).email ?? "").trim().toLowerCase();
+    if (callerEmail !== OWNER_EMAIL) {
+      return { ok: false as const, error: "Somente o administrador principal pode excluir técnicos." };
+    }
+    if (data.userId === context.userId) {
+      return { ok: false as const, error: "A conta principal não pode ser excluída." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: target, error: targetError } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (targetError || !target.user) {
+      return { ok: false as const, error: targetError?.message || "Usuário não encontrado." };
+    }
+    if (String(target.user.email ?? "").trim().toLowerCase() === OWNER_EMAIL) {
+      return { ok: false as const, error: "A conta principal não pode ser excluída." };
+    }
+
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
+    if (deleteError) {
+      return { ok: false as const, error: deleteError.message || "Não foi possível excluir o usuário." };
+    }
+
+    return { ok: true as const };
+  });
