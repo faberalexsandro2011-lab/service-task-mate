@@ -647,9 +647,9 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       >
         <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-base font-black text-primary">Frota {order.frota}</p></div>
+            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-lg font-black text-primary">Frota {order.frota}</p></div>
           </div>
-          <p className="truncate text-xs font-bold text-muted-foreground">OS {order.numero_os}</p>
+          <p className="truncate text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
             {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
@@ -664,10 +664,10 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate text-base font-black text-primary">Frota {order.frota}</p>
+                <p className="truncate text-lg font-black text-primary">Frota {order.frota}</p>
                 <StatusBadge status={status} />
               </div>
-              <p className="mt-1 text-xs font-bold text-muted-foreground">OS {order.numero_os}</p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
             </div>
             <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
