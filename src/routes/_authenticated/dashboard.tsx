@@ -535,10 +535,10 @@ function FleetBadge({ value, compact = false }: { value: string; compact?: boole
     <span
       title={`Frota ${label}`}
       className={compact
-        ? "inline-flex max-w-[96px] items-center rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold leading-none text-primary shadow-sm transition-colors hover:bg-primary/15"
-        : "inline-flex max-w-[120px] items-center rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-xs font-bold leading-none text-primary shadow-sm transition-colors hover:bg-primary/15"}
+        ? "inline-flex max-w-[78px] items-center rounded border border-primary/15 bg-primary/10 px-1 py-0.5 text-[9px] font-semibold leading-none text-primary"
+        : "inline-flex max-w-[90px] items-center rounded border border-primary/15 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary"}
     >
-      <span className="mr-1 shrink-0 opacity-70">Frota</span>
+      <span className="mr-0.5 shrink-0 opacity-70">Frota</span>
       <span className="truncate">{label}</span>
     </span>
   );
@@ -663,7 +663,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       >
         <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span><p className="truncate text-lg font-black text-primary">Frota {order.frota}</p></div>
+            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><FleetBadge value={order.frota} /></div>
           </div>
           <p className="truncate text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
           <div className="min-w-0">
@@ -680,7 +680,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="truncate text-lg font-black text-primary">Frota {order.frota}</p>
+                <FleetBadge value={order.frota} compact />
                 <StatusBadge status={status} />
               </div>
               <p className="mt-1 text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
