@@ -529,6 +529,21 @@ async function logHistory(osId: string, actor: Actor, acao: string, detalhe: str
   if (error) throw error;
 }
 
+function FleetBadge({ value, compact = false }: { value: string; compact?: boolean }) {
+  const label = String(value || "—").trim();
+  return (
+    <span
+      title={`Frota ${label}`}
+      className={compact
+        ? "inline-flex max-w-[150px] items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-extrabold text-primary shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-primary/15"
+        : "inline-flex max-w-[180px] items-center rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1.5 text-sm font-extrabold text-primary shadow-sm transition-all duration-200 hover:scale-[1.02] hover:bg-primary/15"}
+    >
+      <span className="mr-1 shrink-0 opacity-70">Frota</span>
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
 function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
