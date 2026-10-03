@@ -239,7 +239,7 @@ function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[248px_1fr]">
+    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[220px_1fr]">
       <aside className="hidden border-r bg-sidebar lg:flex lg:min-h-screen lg:flex-col">
         <Brand />
         <nav className="flex-1 px-3 py-7">
@@ -257,7 +257,7 @@ function Dashboard() {
       </aside>
 
       <main className="min-w-0 dashboard-modern">
-        <header className="flex h-16 items-center justify-between border-b px-4 sm:px-7 lg:hidden">
+        <header className="flex h-14 items-center justify-between border-b px-3 sm:px-5 lg:hidden">
           <Brand compact />
           <div className="flex items-center gap-2">
             <ConnectionPill connected={connected} online={online} />
@@ -269,7 +269,7 @@ function Dashboard() {
             Sem ligação à internet. As alterações serão mostradas quando a ligação voltar.
           </div>
         )}
-        <div className="mx-auto max-w-[1500px] p-4 sm:p-7 lg:p-9 agri-fade-up">
+        <div className="mx-auto w-full max-w-[1800px] p-3 sm:p-5 lg:p-6 agri-fade-up">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
