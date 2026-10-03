@@ -119,7 +119,7 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 type Actor = { id: string; email: string; name: string; isManager: boolean };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" };
-const OWNER_ADMIN_EMAIL = "faber.alexsandro2011@hotmail.com";
+const OWNER_ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
 function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
