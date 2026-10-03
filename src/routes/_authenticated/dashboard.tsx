@@ -28,6 +28,7 @@ import { read, utils } from "xlsx";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { createTeamUser } from "@/lib/users.functions";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -682,71 +683,19 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
     setSaving(true);
 
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    if (sessionError || !accessToken) {
-      setSaving(false);
-      toast.error("Sua sessão do gestor expirou. Saia e entre novamente antes de cadastrar o técnico.");
-      return;
-    }
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      setSaving(false);
-      toast.error("Configuração do Supabase não encontrada.");
-      return;
-    }
-
-    let response: Response;
+    let result: Awaited<ReturnType<typeof createTeamUser>>;
     try {
-      response = await fetch(`${supabaseUrl}/functions/v1/create-user`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseKey,
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ nome, email, password, adminAccess }),
-      });
+      result = await createTeamUser({ data: { nome, email, password, adminAccess } });
     } catch (requestError) {
-      console.error("[create-user] Falha na requisição:", requestError);
+      console.error("[createTeamUser]", requestError);
       setSaving(false);
-      toast.error("Não foi possível conectar à Edge Function. Verifique a conexão e tente novamente.");
+      const msg = requestError instanceof Error ? requestError.message : "";
+      toast.error(msg.includes("Unauthorized") ? "Sua sessão expirou. Saia e entre novamente." : msg || "Não foi possível cadastrar o usuário.");
       return;
     }
-
-    const payload = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
+    if (!result.ok) {
       setSaving(false);
-      toast.error(String(payload?.error || payload?.message || `Erro ${response.status} ao cadastrar usuário.`));
-      return;
-    }
-
-    const data = payload;
-    const error = null;
-
-    if (error) {
-      setSaving(false);
-      let detail = error.message || "Não foi possível cadastrar o usuário.";
-      try {
-        const response = (error as any)?.context;
-        if (response && typeof response.json === "function") {
-          const payload = await response.clone().json();
-          if (payload?.error) detail = String(payload.error);
-        }
-      } catch {
-        // Mantém a mensagem padrão quando a resposta não puder ser lida.
-      }
-      toast.error(detail);
-      return;
-    }
-
-    if (!data?.user) {
-      setSaving(false);
-      toast.error("O servidor não confirmou a criação da conta.");
+      toast.error(result.error);
       return;
     }
 
