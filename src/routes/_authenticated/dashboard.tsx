@@ -28,7 +28,7 @@ import { read, utils } from "xlsx";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
-import { createTeamUser } from "@/lib/users.functions";
+import { createTeamUser, deleteTeamUser } from "@/lib/users.functions";
 import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -770,20 +770,20 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
     if (!confirm(`Excluir o acesso de ${member.profile.nome || member.profile.email}? A conta de autenticação continuará existente, mas ficará sem acesso ao sistema.`)) return;
 
     setBusyId(member.profile.id);
-    const { error: roleError } = await supabase.from("user_roles").delete().eq("user_id", member.profile.id);
-    if (roleError) {
+    try {
+      const result = await deleteTeamUser({ data: { userId: member.profile.id } });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Técnico excluído do sistema.");
+      await onChanged();
+    } catch (error) {
+      console.error("[deleteTeamUser]", error);
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir o técnico.");
+    } finally {
       setBusyId(null);
-      toast.error(friendlyError(roleError, "Não foi possível remover a função."));
-      return;
     }
-    const { error: profileError } = await supabase.from("profiles").delete().eq("id", member.profile.id);
-    setBusyId(null);
-    if (profileError) {
-      toast.error(friendlyError(profileError, "A função foi removida, mas o perfil não pôde ser excluído."));
-      return;
-    }
-    toast.success("Acesso removido do sistema.");
-    await onChanged();
   }
 
   return (
