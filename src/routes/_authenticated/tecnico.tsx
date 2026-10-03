@@ -88,7 +88,7 @@ function TechnicianPage() {
     // O e-mail vem sempre da sessão do Auth. O perfil é apenas a fonte do nome.
     // Assim, uma falha de RLS em profiles não impede a identificação do técnico.
     const sessionEmail = String(auth.user.email ?? "").trim().toLowerCase();
-    const metadataName = String(auth.user.user_metadata?.nome ?? auth.user.user_metadata?.name ?? "").trim();
+    const metadataName = String(auth.user.user_metadata?.['nome'] ?? auth.user.user_metadata?.['name'] ?? "").trim();
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id,nome,email")
