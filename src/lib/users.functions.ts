@@ -73,6 +73,57 @@ export const createTeamUser = createServerFn({ method: "POST" })
   });
 
 
+// Edição de técnico pelo administrador principal: permite alterar nome e/ou senha.
+export const updateTeamUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) =>
+    z.object({
+      userId: z.string().uuid("Usuário inválido."),
+      nome: z.string().trim().min(1, "Informe o nome do usuário.").max(120),
+      password: z.string().max(128).optional().default(""),
+    }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const callerEmail = String((context.claims as { email?: string }).email ?? "").trim().toLowerCase();
+    if (callerEmail !== OWNER_EMAIL) {
+      return { ok: false as const, error: "Somente o administrador principal pode editar técnicos." };
+    }
+    if (data.userId === context.userId) {
+      return { ok: false as const, error: "A conta principal não pode ser editada por esta função." };
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: target, error: targetError } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+    if (targetError || !target.user) {
+      return { ok: false as const, error: targetError?.message || "Usuário não encontrado." };
+    }
+    if (String(target.user.email ?? "").trim().toLowerCase() === OWNER_EMAIL) {
+      return { ok: false as const, error: "A conta principal não pode ser editada por esta função." };
+    }
+
+    const password = data.password.trim();
+    if (password && password.length < 8) {
+      return { ok: false as const, error: "A senha precisa ter pelo menos 8 caracteres." };
+    }
+
+    const updatePayload: { user_metadata: { nome: string }; password?: string } = {
+      user_metadata: { nome: data.nome },
+    };
+    if (password) updatePayload.password = password;
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(data.userId, updatePayload);
+    if (authError) return { ok: false as const, error: authError.message || "Não foi possível atualizar o usuário." };
+
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({ nome: data.nome })
+      .eq("id", data.userId);
+    if (profileError) return { ok: false as const, error: "Não foi possível atualizar o perfil: " + profileError.message };
+
+    return { ok: true as const };
+  });
+
+
 // Exclusão definitiva de um usuário do sistema. Somente o administrador principal pode executar.
 export const deleteTeamUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
