@@ -71,7 +71,6 @@ function TechnicianPage() {
     const { data: sessionData } = await supabase.auth.getSession();
     const auth = { user: sessionData.session?.user };
     if (!auth.user) return;
-    const authUser = auth.user;
 
     const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
     const cachedOrders = await getOfflineOrders<Ordem>();
