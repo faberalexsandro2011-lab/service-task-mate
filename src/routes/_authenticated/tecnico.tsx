@@ -7,6 +7,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getOfflineActor, getOfflineOrders, getOfflineQueue, makeOfflineId, queueOfflineAction, removeOfflineAction, saveOfflineActor, saveOfflineOrders } from "@/lib/offline";
 
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
   component: TechnicianPage,
 });
 type Ordem = Tables<"ordens_servico">;
+type Peca = Tables<"pecas_catalogo">;
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
 function playFieldAlert() {
@@ -58,6 +60,9 @@ function TechnicianPage() {
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [details, setDetails] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
+  const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
+  const [selectedParts, setSelectedParts] = useState<string[]>([]);
+  const [partsCatalog, setPartsCatalog] = useState<Peca[]>([]);
   const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -163,6 +168,20 @@ function TechnicianPage() {
     }
   }
 
+  async function loadPartsCatalog() {
+    if (!navigator.onLine) return;
+    const { data, error } = await supabase.from("pecas_catalogo").select("id,nome,ativo,criado_por_email,created_at,updated_at").eq("ativo", true).order("nome", { ascending: true });
+    if (!error) setPartsCatalog(data ?? []);
+    else console.warn("[Técnico] Catálogo de peças indisponível:", error);
+  }
+
+  function openFinish(order: Ordem) {
+    setFinish(order);
+    setNotes("");
+    setPartsReplaced("nao");
+    setSelectedParts([]);
+  }
+
   async function syncOffline() {
     if (!navigator.onLine) return;
     const queue = await getOfflineQueue();
@@ -215,6 +234,7 @@ function TechnicianPage() {
             .update({
               status: "concluida",
               notas_fecho: action.notes,
+              pecas_utilizadas: action.pieces.length ? action.pieces.join("\n") : null,
               concluida_em: action.createdAt,
             })
             .eq("id", action.orderId)
@@ -451,6 +471,8 @@ function TechnicianPage() {
     if (!actor || !finish) return;
     const solution = notes.trim();
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
+    const pieces = partsReplaced === "sim" ? selectedParts.filter(Boolean) : [];
+    if (partsReplaced === "sim" && !pieces.length) { toast.error("Selecione pelo menos uma peça trocada."); return; }
     const finishedAt = new Date().toISOString();
     const orderToFinish = finish;
 
@@ -459,6 +481,7 @@ function TechnicianPage() {
         ...orderToFinish,
         status: "concluida",
         notas_fecho: solution,
+        pecas_utilizadas: pieces.length ? pieces.join("\n") : null,
         concluida_em: finishedAt,
         updated_at: finishedAt,
       } as Ordem;
@@ -471,6 +494,7 @@ function TechnicianPage() {
         actorId: actor.id,
         actorEmail: actor.email,
         notes: solution,
+        pieces,
         createdAt: finishedAt,
       });
       setFinish(null);
@@ -631,7 +655,7 @@ function TechnicianPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
             {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); void start(order); }}><Play /> Iniciar serviço</Button>}
-            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); setFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </article>)}
         {!visible.length && <div className="lg:col-span-2 rounded-3xl border border-dashed bg-card p-14 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-9 text-primary" /><p className="font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm">Altere o filtro ou a pesquisa para ver outros serviços.</p></div>}
@@ -654,13 +678,38 @@ function TechnicianPage() {
           <div className="flex flex-wrap gap-2 pt-2">
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
-            {details.status === "em_andamento" && <Button className="rounded-xl" onClick={() => { setDetails(null); setFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {details.status === "em_andamento" && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
           </div>
         </div>}
       </DialogContent>
     </Dialog>
-    <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); } }}>
-      <DialogContent className="rounded-3xl sm:max-w-lg"><DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader><Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} /><DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter></DialogContent>
+    <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); setPartsReplaced("nao"); setSelectedParts([]); } }}>
+      <DialogContent className="rounded-3xl sm:max-w-lg">
+        <DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-semibold">Foi trocada alguma peça?</label>
+            <Select value={partsReplaced} onValueChange={(value) => { const next = value as "sim" | "nao"; setPartsReplaced(next); if (next === "nao") setSelectedParts([]); }}>
+              <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent><SelectItem value="nao">Não</SelectItem><SelectItem value="sim">Sim</SelectItem></SelectContent>
+            </Select>
+          </div>
+          {partsReplaced === "sim" && <div className="grid gap-3 rounded-2xl border bg-muted/20 p-3">
+            <div><p className="text-sm font-semibold">Peças substituídas</p><p className="text-xs text-muted-foreground">Selecione as peças cadastradas pelo administrador.</p></div>
+            {!partsCatalog.length && <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">Nenhuma peça cadastrada ainda. Solicite ao administrador que adicione o item ao catálogo.</p>}
+            {selectedParts.map((part, index) => <div key={index} className="flex gap-2">
+              <Select value={part || undefined} onValueChange={(value) => setSelectedParts(current => current.map((item, i) => i === index ? value : item))}>
+                <SelectTrigger className="h-11 flex-1 rounded-xl"><SelectValue placeholder="Selecione a peça" /></SelectTrigger>
+                <SelectContent>{partsCatalog.filter(item => !selectedParts.includes(item.nome) || item.nome === part).map(item => <SelectItem key={item.id} value={item.nome}>{item.nome}</SelectItem>)}</SelectContent>
+              </Select>
+              <Button type="button" variant="outline" className="h-11 rounded-xl px-3" onClick={() => setSelectedParts(current => current.filter((_, i) => i !== index))}>Remover</Button>
+            </div>)}
+            <Button type="button" variant="outline" className="rounded-xl" disabled={!partsCatalog.length || selectedParts.length >= partsCatalog.length} onClick={() => setSelectedParts(current => [...current, ""])}>+ Adicionar outra peça</Button>
+          </div>}
+          <Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} />
+        </div>
+        <DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter>
+      </DialogContent>
     </Dialog>
     </div>
     <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
