@@ -78,8 +78,14 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    const { data: isGestor, error: roleErr } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "gestor",
+    });
+    if (roleErr) return { ok: false as const, error: "Não foi possível verificar a sua função." };
+    if (!isGestor) return { ok: false as const, error: "Somente gestores podem editar usuários." };
     if (data.userId === context.userId) {
-      return { ok: false as const, error: "A conta principal não pode ser editada por esta função." };
+      return { ok: false as const, error: "Você não pode editar a própria conta por esta função." };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -87,10 +93,6 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     if (targetError || !target.user) {
       return { ok: false as const, error: targetError?.message || "Usuário não encontrado." };
     }
-    if (String(target.user.email ?? "").trim().toLowerCase() === OWNER_EMAIL) {
-      return { ok: false as const, error: "A conta principal não pode ser editada por esta função." };
-    }
-
     const password = data.password.trim();
     if (password && password.length < 8) {
       return { ok: false as const, error: "A senha precisa ter pelo menos 8 caracteres." };
@@ -123,8 +125,14 @@ export const deleteTeamUser = createServerFn({ method: "POST" })
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    const { data: isGestor, error: roleErr } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "gestor",
+    });
+    if (roleErr) return { ok: false as const, error: "Não foi possível verificar a sua função." };
+    if (!isGestor) return { ok: false as const, error: "Somente gestores podem excluir usuários." };
     if (data.userId === context.userId) {
-      return { ok: false as const, error: "A conta principal não pode ser excluída." };
+      return { ok: false as const, error: "Você não pode excluir a própria conta." };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -133,10 +141,6 @@ export const deleteTeamUser = createServerFn({ method: "POST" })
     if (targetError || !target.user) {
       return { ok: false as const, error: targetError?.message || "Usuário não encontrado." };
     }
-    if (String(target.user.email ?? "").trim().toLowerCase() === OWNER_EMAIL) {
-      return { ok: false as const, error: "A conta principal não pode ser excluída." };
-    }
-
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (deleteError) {
       return { ok: false as const, error: deleteError.message || "Não foi possível excluir o usuário." };
