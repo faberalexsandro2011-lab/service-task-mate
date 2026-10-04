@@ -560,7 +560,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   const canStart = status === "pendente" && (!order.tecnico_id || isMine);
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
-  const canDelete = actor.email.trim().toLowerCase() === OWNER_ADMIN_EMAIL;
+  const canDelete = actor.isManager;
 
   async function start() {
     setBusy(true);
@@ -819,7 +819,7 @@ function PartsCatalogDialog() {
     const trimmed = name.trim();
     if (!trimmed) { toast.error("Informe o nome da peça."); return; }
     setSaving(true);
-    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: OWNER_ADMIN_EMAIL }).select("*").single();
+    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: actor.email }).select("*").single();
     setSaving(false);
     if (error) {
       toast.error(/duplicate|unique/i.test(error.message) ? "Essa peça já está cadastrada." : "Não foi possível adicionar a peça: " + error.message);
@@ -866,7 +866,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
   const [emailValue, setEmailValue] = useState("");
   const [adminAccess, setAdminAccess] = useState(false);
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
-  const canManage = actor.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+  const canManage = actor.isManager;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -912,7 +912,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
       toast.error("Somente o administrador principal pode alterar privilégios.");
       return;
     }
-    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) {
+    if (member.profile.id === actor.id) {
       toast.error("A conta principal não pode ter o próprio privilégio alterado.");
       return;
     }
@@ -1036,7 +1036,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
           </div>
           {!team.length && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhum técnico cadastrado.</div>}
           {team.map((member) => {
-            const isOwner = member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+            const isOwner = member.profile.id === actor.id;
             const busy = busyId === member.profile.id;
             return (
               <div key={member.profile.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
