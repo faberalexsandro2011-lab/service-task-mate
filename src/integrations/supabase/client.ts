@@ -29,45 +29,53 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
   const viteEnv = import.meta.env as Record<string, string | undefined>;
 
-const serverEnv =
-  typeof process !== 'undefined' && process.env
-    ? process.env
-    : undefined;
+  const serverEnv =
+    typeof process !== 'undefined' && process.env
+      ? process.env
+      : undefined;
 
-const SUPABASE_URL =
-  viteEnv.VITE_SUPABASE_URL ||
-  serverEnv?.SUPABASE_URL;
+  const SUPABASE_URL =
+    viteEnv.VITE_SUPABASE_URL ||
+    serverEnv?.SUPABASE_URL;
 
-const SUPABASE_PUBLISHABLE_KEY =
-  viteEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  serverEnv?.SUPABASE_PUBLISHABLE_KEY;
+  const SUPABASE_PUBLISHABLE_KEY =
+    viteEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    serverEnv?.SUPABASE_PUBLISHABLE_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-  const missing = [
-  ...(!SUPABASE_URL ? ['VITE_SUPABASE_URL / SUPABASE_URL'] : []),
-  ...(!SUPABASE_PUBLISHABLE_KEY
-    ? ['VITE_SUPABASE_PUBLISHABLE_KEY / SUPABASE_PUBLISHABLE_KEY']
-    : []),
-];
+    const missing = [
+      ...(!SUPABASE_URL
+        ? ['VITE_SUPABASE_URL / SUPABASE_URL']
+        : []),
+      ...(!SUPABASE_PUBLISHABLE_KEY
+        ? ['VITE_SUPABASE_PUBLISHABLE_KEY / SUPABASE_PUBLISHABLE_KEY']
+        : []),
+    ];
 
-const message =
-  `Missing Supabase environment variable(s): ${missing.join(', ')}.`;
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    global: {
-      fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+    const message =
+      `Missing Supabase environment variable(s): ${missing.join(', ')}.`;
+
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  return createClient<Database>(
+    SUPABASE_URL,
+    SUPABASE_PUBLISHABLE_KEY,
+    {
+      global: {
+        fetch: createSupabaseFetch(SUPABASE_PUBLISHABLE_KEY),
+      },
+      auth: {
+        storage: brokeredPreviewStorage(),
+        persistSession: true,
+        autoRefreshToken: true,
+      },
     },
-    auth: {
-      storage: brokeredPreviewStorage(),
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  });
+  );
 }
-
 let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 
 // Import the supabase client like this:
