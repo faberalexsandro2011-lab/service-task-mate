@@ -75,6 +75,7 @@ export const updateTeamUser = createServerFn({ method: "POST" })
       userId: z.string().uuid("Usuário inválido."),
       nome: z.string().trim().min(1, "Informe o nome do usuário.").max(120),
       password: z.string().max(128).optional().default(""),
+      role: z.enum(["gestor", "tecnico"]).optional(),
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -111,6 +112,13 @@ export const updateTeamUser = createServerFn({ method: "POST" })
       .update({ nome: data.nome })
       .eq("id", data.userId);
     if (profileError) return { ok: false as const, error: "Não foi possível atualizar o perfil: " + profileError.message };
+
+    if (data.role) {
+      const { error: roleDeleteError } = await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
+      if (roleDeleteError) return { ok: false as const, error: "Não foi possível atualizar a função: " + roleDeleteError.message };
+      const { error: roleInsertError } = await supabaseAdmin.from("user_roles").insert({ user_id: data.userId, role: data.role });
+      if (roleInsertError) return { ok: false as const, error: "Não foi possível definir a função: " + roleInsertError.message };
+    }
 
     return { ok: true as const };
   });
