@@ -917,17 +917,18 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
       return;
     }
     const nextRole = member.role === "gestor" ? "tecnico" : "gestor";
-    if (!confirm(`${nextRole === "gestor" ? "Tornar administrador" : "Retirar administrador de"} ${member.profile.nome || member.profile.email}?`)) return;
+    if (!confirm(nextRole === "gestor" ? "Tornar administrador " + (member.profile.nome || member.profile.email) + "?" : "Retirar administrador de " + (member.profile.nome || member.profile.email) + "?")) return;
 
     setBusyId(member.profile.id);
-    const { error } = await supabase.from("user_roles").update({ role: nextRole }).eq("user_id", member.profile.id);
-    setBusyId(null);
-    if (error) {
-      toast.error(friendlyError(error, "Não foi possível alterar a função."));
-      return;
-    }
-    toast.success(nextRole === "gestor" ? "Técnico promovido a administrador." : "Administrador voltou a ser técnico.");
-    await onChanged();
+    try {
+      const result = await updateTeamUser({ data: { userId: member.profile.id, nome: member.profile.nome || member.profile.email || "Usuário", password: "", role: nextRole } });
+      if (!result.ok) { toast.error(result.error); return; }
+      toast.success(nextRole === "gestor" ? "Técnico promovido a administrador." : "Administrador voltou a ser técnico.");
+      await onChanged();
+    } catch (error) {
+      console.error("[changeRole]", error);
+      toast.error(error instanceof Error ? error.message : "Não foi possível alterar a função.");
+    } finally { setBusyId(null); }
   }
 
   async function editTechnician(event: React.FormEvent<HTMLFormElement>) {
