@@ -515,6 +515,7 @@ function TechnicianPage() {
       .update({
         status: "concluida",
         notas_fecho: solution,
+        pecas_utilizadas: pieces.length ? pieces.join("\n") : null,
         concluida_em: finishedAt,
       })
       .eq("id", orderToFinish.id)
@@ -550,6 +551,7 @@ function TechnicianPage() {
         actorId: actor.id,
         actorEmail: actor.email,
         notes: solution,
+        pieces,
         createdAt: finishedAt,
       });
       toast.warning("Serviço finalizado, mas o histórico ficou pendente de sincronização.");
