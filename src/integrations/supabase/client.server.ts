@@ -18,19 +18,21 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
       new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     }
 
-    // New Supabase API keys are opaque strings, not bearer JWTs.
-    if (isNewSupabaseApiKey(supabaseKey) && headers.get('Authorization') === `Bearer ${supabaseKey}`) {
+    // Supabase publishable/secret keys are opaque API keys, not JWTs.
+    // They must be sent through the apikey header and never as
+    // Authorization: Bearer <sb_...>.
+    if (isNewSupabaseApiKey(supabaseKey)) {
       headers.delete('Authorization');
+      headers.set('apikey', supabaseKey);
     }
 
-    headers.set('apikey', supabaseKey);
     return fetch(input, { ...init, headers });
   };
 }
 
 function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL'];
-  const SUPABASE_SECRET_KEY = process.env['SUPABASE_SECRET_KEY'];
+  const SUPABASE_URL = (process.env['SUPABASE_URL'] || process.env['VITE_SUPABASE_URL'])?.trim();
+  const SUPABASE_SECRET_KEY = process.env['SUPABASE_SECRET_KEY']?.trim();
 
   if (!SUPABASE_URL || !SUPABASE_SECRET_KEY) {
     const missing = [
@@ -50,7 +52,8 @@ function createSupabaseAdminClient() {
       storage: undefined,
       persistSession: false,
       autoRefreshToken: false,
-    }
+      detectSessionInUrl: false,
+    },
   });
 }
 
