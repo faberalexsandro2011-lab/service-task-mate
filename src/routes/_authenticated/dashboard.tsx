@@ -535,8 +535,8 @@ function FleetBadge({ value, compact = false }: { value: string; compact?: boole
     <span
       title={`Frota ${label}`}
       className={compact
-        ? "inline-flex max-w-[78px] items-center rounded border border-primary/15 bg-primary/10 px-1 py-0.5 text-[9px] font-semibold leading-none text-primary"
-        : "inline-flex max-w-[90px] items-center rounded border border-primary/15 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary"}
+        ? "inline-flex max-w-[85px] items-center rounded border border-primary/15 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary"
+        : "inline-flex max-w-[100px] items-center rounded border border-primary/15 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold leading-none text-primary"}
     >
       <span className="mr-0.5 shrink-0 opacity-70">Frota</span>
       <span className="truncate">{label}</span>
@@ -665,7 +665,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div className="min-w-0">
             <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><FleetBadge value={order.frota} /></div>
           </div>
-          <p className="truncate text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
+          <p className="truncate text-[13px] font-semibold text-muted-foreground">OS {order.numero_os}</p>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
             {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
@@ -683,7 +683,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
                 <FleetBadge value={order.frota} compact />
                 <StatusBadge status={status} />
               </div>
-              <p className="mt-1 text-xs font-medium text-muted-foreground">OS {order.numero_os}</p>
+              <p className="mt-1 text-[11px] font-semibold text-muted-foreground">OS {order.numero_os}</p>
             </div>
             <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
