@@ -703,7 +703,7 @@ function TechnicianPage() {
             <div><p className="text-sm font-semibold">Peças substituídas</p><p className="text-xs text-muted-foreground">Selecione as peças cadastradas pelo administrador.</p></div>
             {!partsCatalog.length && <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">Nenhuma peça cadastrada ainda. Solicite ao administrador que adicione o item ao catálogo.</p>}
             {selectedParts.map((part, index) => <div key={index} className="flex gap-2">
-              <Select value={part || undefined} onValueChange={(value) => setSelectedParts(current => current.map((item, i) => i === index ? value : item))}>
+              <Select value={part || ""} onValueChange={(value) => setSelectedParts(current => current.map((item, i) => i === index ? value : item))}>
                 <SelectTrigger className="h-11 flex-1 rounded-xl"><SelectValue placeholder="Selecione a peça" /></SelectTrigger>
                 <SelectContent>{partsCatalog.filter(item => !selectedParts.includes(item.nome) || item.nome === part).map(item => <SelectItem key={item.id} value={item.nome}>{item.nome}</SelectItem>)}</SelectContent>
               </Select>
