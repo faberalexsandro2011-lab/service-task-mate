@@ -244,7 +244,7 @@ function Dashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[220px_1fr]">
+    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[190px_1fr]">
       <aside className="hidden border-r bg-sidebar lg:flex lg:min-h-screen lg:flex-col">
         <Brand />
         <nav className="flex-1 px-3 py-7">
