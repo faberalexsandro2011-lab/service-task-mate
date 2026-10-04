@@ -512,10 +512,12 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
         </div>
       </div>
 
-      <div className="divide-y md:hidden">
-        {orders.map((order) => (
-          <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
-        ))}
+      <div className="overflow-x-auto md:hidden">
+        <div className="min-w-[920px] divide-y">
+          {orders.map((order) => (
+            <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -679,28 +681,21 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
 
-        <div className="space-y-3 p-4 md:hidden">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <FleetBadge value={order.frota} compact />
-                <StatusBadge status={status} />
-              </div>
-              <p className="mt-1 text-sm font-bold text-foreground">{order.numero_os}</p>
-            </div>
-            <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(order.created_at)}</span>
+        <div className="grid grid-cols-[130px_110px_190px_260px_125px_120px_220px] items-center gap-3 px-4 py-3.5 md:hidden">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span>
+            <p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p>
           </div>
-          <div className="grid gap-2.5 text-sm">
-            <div className="flex min-w-0 items-center gap-2"><UserRound className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</span></div>
-            <div className="flex min-w-0 items-center gap-2"><MapPin className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
+          <FleetBadge value={order.frota} compact />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
           </div>
-          <div className="rounded-xl bg-muted/40 p-3">
-            <p className="line-clamp-2 text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{order.descricao || "Sem descrição"}</p>
           </div>
-          <div className="flex items-center justify-between gap-3 border-t pt-3">
-            <button type="button" className="text-sm font-bold text-primary transition-colors hover:underline" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes →</button>
-            <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
-          </div>
+          <div><StatusBadge status={status} /></div>
+          <p className="text-xs text-muted-foreground">{fmtDate(order.created_at)}</p>
+          <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
       </article>
 
