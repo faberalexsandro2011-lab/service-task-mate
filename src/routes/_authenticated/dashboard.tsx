@@ -248,12 +248,12 @@ function Dashboard() {
       <aside className="hidden border-r bg-sidebar lg:flex lg:min-h-screen lg:flex-col">
         <Brand />
         <nav className="flex-1 px-3 py-7">
-          <div className="mb-2 px-3 text-[11px] font-semibold uppercase text-muted-foreground">Área de trabalho</div>
-          <div className="flex items-center gap-3 rounded-md bg-sidebar-accent px-3 py-2.5 text-sm font-medium text-sidebar-accent-foreground">
+          <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Área de trabalho</div>
+          <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent px-3 py-2.5 text-sm font-semibold transition-colors text-sidebar-accent-foreground">
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
           {isManager && (
-            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
               <History className="size-4" /> Histórico
             </button>
           )}
@@ -279,11 +279,11 @@ function Dashboard() {
             <div>
               <div className="flex items-center gap-3">
                 <Tractor className="size-5 text-[var(--agri-leaf)]" />
-                <p className="text-sm font-medium text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
+                <p className="text-sm font-semibold text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
                 <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>
               </div>
-              <h1 className="mt-1 text-2xl font-bold tracking-normal sm:text-3xl">Ordens de serviço</h1>
-              <p className="mt-2 text-sm text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">Ordens de serviço</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2">
@@ -291,7 +291,7 @@ function Dashboard() {
 
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button className="gap-2">
+                    <Button className="gap-2 text-sm font-semibold transition-all">
                       <ClipboardList className="size-4" /> Gestão de OS
                     </Button>
                   </DialogTrigger>
@@ -309,8 +309,8 @@ function Dashboard() {
                         onClick={() => setCreateOpen(true)}
                       >
                         <Plus className="size-7" />
-                        <span className="font-bold">Criar OS</span>
-                        <span className="text-xs font-normal opacity-80">Cadastrar uma ordem</span>
+                        <span className="text-sm font-bold">Criar OS</span>
+                        <span className="text-xs leading-5 opacity-80">Cadastrar uma ordem</span>
                       </Button>
                       <Button
                         type="button"
@@ -319,8 +319,8 @@ function Dashboard() {
                         onClick={() => setImportOpen(true)}
                       >
                         <Upload className="size-7" />
-                        <span className="font-bold">Importar planilha</span>
-                        <span className="text-xs font-normal text-muted-foreground">Excel ou CSV</span>
+                        <span className="text-sm font-bold">Importar planilha</span>
+                        <span className="text-xs leading-5 text-muted-foreground">Excel ou CSV</span>
                       </Button>
                       <Button
                         type="button"
@@ -329,8 +329,8 @@ function Dashboard() {
                         onClick={() => setPasteOpen(true)}
                       >
                         <ClipboardPaste className="size-7" />
-                        <span className="font-bold">Colar planilha</span>
-                        <span className="text-xs font-normal text-muted-foreground">Copiar e colar do Excel</span>
+                        <span className="text-sm font-bold">Colar planilha</span>
+                        <span className="text-xs leading-5 text-muted-foreground">Copiar e colar do Excel</span>
                       </Button>
                     </div>
                   </DialogContent>
@@ -382,7 +382,7 @@ function Dashboard() {
                     onClick={() => setActiveTab(t.value)}
                     className={activeTab === t.value ? "group rounded-lg border border-primary bg-primary p-3 text-left text-primary-foreground shadow-md transition-all duration-200" : "group rounded-lg border bg-background/80 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"}
                   >
-                    <span className="block text-[11px] font-semibold uppercase tracking-wide opacity-80">{t.label}</span>
+                    <span className="block text-xs font-semibold uppercase tracking-wide opacity-80">{t.label}</span>
                     <span className="mt-1 block text-2xl font-bold tabular-nums">{t.list.length}</span>
                   </button>
                 ))}
@@ -396,8 +396,8 @@ function Dashboard() {
                 <TabsContent key={t.value} value={t.value} className="m-0 p-4 sm:p-6">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold">{t.label}</p>
-                      <p className="text-xs text-muted-foreground">Mostrando {t.list.length} {t.list.length === 1 ? "registro" : "registros"}</p>
+                      <p className="text-sm font-bold">{t.label}</p>
+                      <p className="text-sm text-muted-foreground">Mostrando {t.list.length} {t.list.length === 1 ? "registro" : "registros"}</p>
                     </div>
                     {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
                   </div>
@@ -414,7 +414,7 @@ function Dashboard() {
 
 function ConnectionPill({ connected, online }: { connected: boolean; online: boolean }) {
   return (
-    <span className={connected ? "inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary" : "inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"}>
+    <span className={connected ? "inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary" : "inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"}>
       {connected ? <Wifi className="size-3.5" /> : <WifiOff className="size-3.5" />}
       {connected ? "Online" : online ? "A ligar…" : "Offline"}
     </span>
@@ -435,7 +435,7 @@ function UserPanel({ name, email, role, onSignOut }: { name: string; email: stri
     <div className="border-t p-4">
       <div className="flex items-center gap-3">
         <div className="grid size-9 shrink-0 place-items-center rounded-full bg-muted"><UserRound className="size-4" /></div>
-        <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{name}</div><div className="truncate text-xs text-muted-foreground">{email}</div></div>
+        <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold">{name}</div><div className="truncate text-xs text-muted-foreground">{email}</div></div>
         <Button variant="ghost" size="icon" onClick={onSignOut} title="Terminar sessão"><LogOut /></Button>
       </div>
       <div className="mt-3 inline-flex rounded-sm bg-secondary px-2 py-1 text-[11px] font-semibold uppercase text-secondary-foreground">{role}</div>
@@ -466,8 +466,8 @@ function Metric({ label, value, icon, tone }: { label: string; value: number; ic
   return (
     <div className={`flex min-h-16 items-center justify-between rounded-xl border px-3 py-2.5 shadow-sm transition-transform hover:-translate-y-0.5 ${styles.card}`}>
       <div className="min-w-0">
-        <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-xl font-extrabold tabular-nums">{value}</p>
+        <p className="truncate text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="mt-0.5 text-2xl font-extrabold tabular-nums">{value}</p>
       </div>
       <div className={`grid size-8 shrink-0 place-items-center rounded-lg ${styles.icon} [&_svg]:size-4`}>{icon}</div>
     </div>
@@ -485,10 +485,10 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
     <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
       <div className="flex flex-col gap-2 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-bold">Ordens de serviço</p>
-          <p className="text-xs text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
+          <p className="text-base font-bold">Ordens de serviço</p>
+          <p className="text-sm text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-semibold uppercase text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <span className="rounded-full bg-accent px-2 py-1 text-accent-foreground">Pendente</span>
           <span className="rounded-full bg-primary px-2 py-1 text-primary-foreground">Em andamento</span>
           <span className="rounded-full bg-secondary px-2 py-1 text-secondary-foreground">Finalizada</span>
@@ -652,7 +652,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   return (
     <>
       <article
-        className="group cursor-pointer transition-colors hover:bg-muted/20"
+        className="group cursor-pointer transition-all duration-200 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset active:bg-muted/40"
         role="button"
         tabIndex={0}
         onClick={() => setDetailsOpen(true)}
@@ -666,16 +666,16 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       >
         <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-[13px] font-semibold text-muted-foreground">{order.numero_os}</p></div>
+            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p></div>
           </div>
           <FleetBadge value={order.frota} />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
-            {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
+            <p className="truncate text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
+            {order.tecnico_email && <p className="mt-0.5 truncate text-xs text-muted-foreground">{order.tecnico_email}</p>}
           </div>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold">{order.descricao || "Sem descrição"}</p></div>
+          <div className="min-w-0"><p className="truncate text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p></div>
           <div><StatusBadge status={status} /></div>
-          <p className="text-[11px] text-muted-foreground">{fmtDate(order.created_at)}</p>
+          <p className="text-xs text-muted-foreground">{fmtDate(order.created_at)}</p>
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
 
@@ -688,9 +688,9 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
               </div>
               <p className="mt-1 text-[11px] font-semibold text-muted-foreground">{order.numero_os}</p>
             </div>
-            <span className="shrink-0 text-[10px] text-muted-foreground">{fmtDate(order.created_at)}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
-          <div className="grid gap-2.5 text-xs">
+          <div className="grid gap-2.5 text-sm">
             <div className="flex min-w-0 items-center gap-2"><UserRound className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</span></div>
             <div className="flex min-w-0 items-center gap-2"><MapPin className="size-4 shrink-0 text-muted-foreground" /><span className="truncate">{order.localizacao || "Localização não informada"}</span></div>
           </div>
@@ -698,7 +698,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <p className="line-clamp-2 text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p>
           </div>
           <div className="flex items-center justify-between gap-3 border-t pt-3">
-            <button type="button" className="text-xs font-bold text-primary" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes →</button>
+            <button type="button" className="text-sm font-bold text-primary transition-colors hover:underline" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>Ver detalhes →</button>
             <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
           </div>
         </div>
@@ -708,21 +708,21 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <div className="flex items-center justify-between gap-3 pr-6">
-              <div><DialogTitle className="text-xl">OS {order.numero_os}</DialogTitle><DialogDescription className="mt-1">Detalhes completos da ordem de serviço</DialogDescription></div>
+              <div><DialogTitle className="text-2xl">OS {order.numero_os}</DialogTitle><DialogDescription className="mt-1">Detalhes completos da ordem de serviço</DialogDescription></div>
               <StatusBadge status={status} />
             </div>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-[11px] font-semibold uppercase text-muted-foreground">Frota</p><p className="mt-1 font-semibold">{order.frota}</p></div>
-              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-[11px] font-semibold uppercase text-muted-foreground">Técnico</p><p className="mt-1 truncate font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p></div>
+              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frota</p><p className="mt-1 text-sm font-bold">{order.frota}</p></div>
+              <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Técnico</p><p className="mt-1 truncate font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p></div>
             </div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Abertura</p><p className="mt-1 text-xs font-medium">{fmtDate(order.created_at)}</p></div>
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Início</p><p className="mt-1 text-xs font-medium">{fmtDate(order.data_inicio)}</p></div>
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-[11px] uppercase text-muted-foreground">Conclusão</p><p className="mt-1 text-xs font-medium">{fmtDate(order.concluida_em)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura</p><p className="mt-1 text-sm font-medium">{fmtDate(order.created_at)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início</p><p className="mt-1 text-sm font-medium">{fmtDate(order.data_inicio)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusão</p><p className="mt-1 text-sm font-medium">{fmtDate(order.concluida_em)}</p></div>
             </div>
             {status === "concluida" && order.notas_fecho && <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><p className="text-xs font-semibold uppercase text-primary">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap text-sm">{order.notas_fecho}</p></div>}
             {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
@@ -799,7 +799,7 @@ function StatusBadge({ status }: { status: Status }) {
     concluida: "bg-secondary text-secondary-foreground",
     cancelada: "bg-destructive/10 text-destructive",
   };
-  return <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
+  return <span className={`shrink-0 rounded-sm px-2 py-1 text-xs font-semibold ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
 function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[]; actor: Actor; onChanged: () => Promise<void> }) {
@@ -991,7 +991,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
                       {member.role === "gestor" ? "ADMIN" : "TÉCNICO"}
                     </span>
                   </div>
-                  <div className="mt-1 truncate text-xs text-muted-foreground">{member.profile.email}</div>
+                  <div className="mt-1 truncate text-sm text-muted-foreground">{member.profile.email}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {canManage && !isOwner && <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditMember(member)}>
