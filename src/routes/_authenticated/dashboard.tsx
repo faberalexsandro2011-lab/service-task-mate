@@ -253,7 +253,7 @@ function Dashboard() {
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
           {isManager && (
-            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
               <History className="size-4" /> Histórico
             </button>
           )}
@@ -496,7 +496,7 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
       </div>
 
       <div className="hidden md:block">
-        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           <span>OS</span>
           <span>Frota</span>
           <span>Técnico</span>
@@ -686,7 +686,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
                 <FleetBadge value={order.frota} compact />
                 <StatusBadge status={status} />
               </div>
-              <p className="mt-1 text-[11px] font-semibold text-muted-foreground">{order.numero_os}</p>
+              <p className="mt-1 text-sm font-bold text-foreground">{order.numero_os}</p>
             </div>
             <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(order.created_at)}</span>
           </div>
