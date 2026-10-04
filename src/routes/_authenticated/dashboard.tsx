@@ -663,9 +663,9 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
       >
         <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><FleetBadge value={order.frota} /></div>
+            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-[13px] font-semibold text-muted-foreground">OS {order.numero_os}</p></div>
           </div>
-          <p className="truncate text-[13px] font-semibold text-muted-foreground">OS {order.numero_os}</p>
+          <FleetBadge value={order.frota} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
             {order.tecnico_email && <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{order.tecnico_email}</p>}
