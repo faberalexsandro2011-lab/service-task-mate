@@ -93,12 +93,16 @@ async function getDashboardData() {
   if (roleResult.error) throw roleResult.error;
 
   const role = roleResult.data.find((item) => item.user_id === authData.user.id)?.role ?? "tecnico";
-  const technicians = profileResult.data.filter((profile) =>
-    roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"),
-  );
-  const me = profileResult.data.find((profile) => profile.id === authData.user.id);
+  const technicians = profileResult.data
+    .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
+    .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
+  const meRaw = profileResult.data.find((profile) => profile.id === authData.user.id);
+  const me = meRaw && meRaw.nome?.trim().toLowerCase() === "alex" ? { ...meRaw, nome: "Alexsandro Faber" } : meRaw;
   const team = profileResult.data
-    .map((profile) => ({ profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" }))
+    .map((rawProfile) => {
+      const profile = rawProfile.nome?.trim().toLowerCase() === "alex" ? { ...rawProfile, nome: "Alexsandro Faber" } : rawProfile;
+      return { profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" };
+    })
     .filter((item) => item.profile.id !== authData.user.id);
 
   return {
@@ -226,7 +230,7 @@ function Dashboard() {
   const actor: Actor = {
     id: data.user.id,
     email: data.user.email ?? "",
-    name: data.me?.nome ?? data.user.email ?? "",
+    name: data.me?.nome?.trim().toLowerCase() === "alex" ? "Alexsandro Faber" : (data.me?.nome ?? data.user.email ?? ""),
     isManager,
   };
   const connected = online && live;
@@ -530,7 +534,7 @@ async function logHistory(osId: string, actor: Actor, acao: string, detalhe: str
 }
 
 function FleetBadge({ value, compact = false }: { value: string; compact?: boolean }) {
-  const label = String(value || "—").trim();
+  const label = String(value || "—").replace(/^\s*frota\s*[:#-]?\s*/i, "").trim() || "—";
   return (
     <span
       title={`Frota ${label}`}
@@ -1444,7 +1448,9 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
   const frota = pick(clean, [
     "frota", "frota_numero", "numero_frota", "viatura", "veiculo", "veiculo_frota",
     "matricula", "prefixo", "equipamento",
-  ], ["frota", "veiculo", "viatura", "matricula", "prefixo"]);
+  ], ["frota", "veiculo", "viatura", "matricula", "prefixo"])
+    .replace(/^\s*frota\s*[:#-]?\s*/i, "")
+    .trim();
 
   const tecnico = pick(clean, [
     "tecnico_email", "email_tecnico", "tecnico", "tecnico_atribuido",
