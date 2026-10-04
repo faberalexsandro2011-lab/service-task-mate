@@ -2,8 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const OWNER_EMAIL = "faber.alexsandro2011@gmail.com";
-
 // Cadastro de técnicos/gestores pelo Painel Central. Só gestores podem usar.
 export const createTeamUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -25,10 +23,6 @@ export const createTeamUser = createServerFn({ method: "POST" })
     if (roleErr) return { ok: false as const, error: "Não foi possível verificar a sua função." };
     if (!isGestor) return { ok: false as const, error: "Somente gestores podem cadastrar usuários." }
 
-    const callerEmail = String((context.claims as { email?: string }).email ?? "").trim().toLowerCase();
-    if (callerEmail !== OWNER_EMAIL) {
-      return { ok: false as const, error: "Somente o administrador principal pode adicionar novos usuários e técnicos." };
-    }
     const role = data.adminAccess ? "gestor" : "tecnico";
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -84,10 +78,6 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const callerEmail = String((context.claims as { email?: string }).email ?? "").trim().toLowerCase();
-    if (callerEmail !== OWNER_EMAIL) {
-      return { ok: false as const, error: "Somente o administrador principal pode editar técnicos." };
-    }
     if (data.userId === context.userId) {
       return { ok: false as const, error: "A conta principal não pode ser editada por esta função." };
     }
@@ -133,10 +123,6 @@ export const deleteTeamUser = createServerFn({ method: "POST" })
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const callerEmail = String((context.claims as { email?: string }).email ?? "").trim().toLowerCase();
-    if (callerEmail !== OWNER_EMAIL) {
-      return { ok: false as const, error: "Somente o administrador principal pode excluir técnicos." };
-    }
     if (data.userId === context.userId) {
       return { ok: false as const, error: "A conta principal não pode ser excluída." };
     }
