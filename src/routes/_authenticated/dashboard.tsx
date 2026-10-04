@@ -1071,7 +1071,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
     let updatedCount = 0;
     let createdCount = 0;
     const unique = new Map<string, any>();
-    for (const item of payload) unique.set(String(item.numero_os).trim(), item);
+    for (const item of payload) unique.set(String(item["numero_os"]).trim(), item);
     for (const item of unique.values()) {
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
@@ -1233,7 +1233,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
     let updatedCount = 0;
     let createdCount = 0;
     const unique = new Map<string, any>();
-    for (const item of payload) unique.set(String(item.numero_os).trim(), item);
+    for (const item of payload) unique.set(String(item["numero_os"]).trim(), item);
     for (const item of unique.values()) {
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
