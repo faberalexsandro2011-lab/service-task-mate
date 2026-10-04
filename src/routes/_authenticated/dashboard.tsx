@@ -23,6 +23,7 @@ import {
   Wifi,
   WifiOff,
   Wrench,
+  PackagePlus,
   X,
 } from "lucide-react";
 import { read, utils } from "xlsx";
@@ -54,6 +55,7 @@ import {
 } from "@/components/ui/select";
 
 type Ordem = Tables<"ordens_servico">;
+type Peca = Tables<"pecas_catalogo">;
 type Perfil = Tables<"profiles">;
 type ImportRow = {
   numero_os: string;
@@ -288,6 +290,7 @@ function Dashboard() {
             {isManager && (
               <div className="flex flex-wrap gap-2">
                 {userEmail === OWNER_ADMIN_EMAIL && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
+                {userEmail === OWNER_ADMIN_EMAIL && <PartsCatalogDialog />}
 
                 <Dialog>
                   <DialogTrigger asChild>
@@ -795,6 +798,66 @@ function StatusBadge({ status }: { status: Status }) {
     cancelada: "bg-destructive/10 text-destructive",
   };
   return <span className={`shrink-0 rounded-sm px-2 py-1 text-xs font-semibold ${styles[status] ?? styles.pendente}`}>{STATUS_LABEL[status] ?? status}</span>;
+}
+
+function PartsCatalogDialog() {
+  const [open, setOpen] = useState(false);
+  const [parts, setParts] = useState<Peca[]>([]);
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function loadParts() {
+    setLoading(true);
+    const { data, error } = await supabase.from("pecas_catalogo").select("*").order("nome", { ascending: true });
+    setLoading(false);
+    if (error) { toast.error("Não foi possível carregar o catálogo de peças."); return; }
+    setParts(data ?? []);
+  }
+
+  async function addPart(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) { toast.error("Informe o nome da peça."); return; }
+    setSaving(true);
+    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: OWNER_ADMIN_EMAIL }).select("*").single();
+    setSaving(false);
+    if (error) {
+      toast.error(/duplicate|unique/i.test(error.message) ? "Essa peça já está cadastrada." : "Não foi possível adicionar a peça: " + error.message);
+      return;
+    }
+    setParts(current => [...current, data].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+    setName("");
+    toast.success("Peça adicionada ao catálogo.");
+  }
+
+  async function removePart(part: Peca) {
+    const { error } = await supabase.from("pecas_catalogo").delete().eq("id", part.id);
+    if (error) { toast.error("Não foi possível excluir a peça."); return; }
+    setParts(current => current.filter(item => item.id !== part.id));
+    toast.success("Peça removida do catálogo.");
+  }
+
+  return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) void loadParts(); }}>
+    <DialogTrigger asChild><Button variant="outline"><PackagePlus /> Peças</Button></DialogTrigger>
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogHeader>
+        <DialogTitle>Catálogo de peças</DialogTitle>
+        <DialogDescription>Adicione os nomes das peças que ficarão disponíveis para todos os técnicos selecionarem ao finalizar uma OS.</DialogDescription>
+      </DialogHeader>
+      <form onSubmit={addPart} className="flex gap-2">
+        <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Correia do alternador" className="h-11" />
+        <Button type="submit" disabled={saving || !name.trim()} className="h-11">{saving ? "Adicionando..." : "Adicionar"}</Button>
+      </form>
+      <div className="rounded-xl border bg-muted/20 p-3">
+        <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold">Peças cadastradas</h3><span className="text-xs text-muted-foreground">{parts.length} item(ns)</span></div>
+        {loading && <p className="py-6 text-center text-sm text-muted-foreground">Carregando catálogo...</p>}
+        {!loading && !parts.length && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma peça cadastrada.</p>}
+        {!loading && parts.length > 0 && <div className="max-h-72 space-y-2 overflow-y-auto">{parts.map(part => <div key={part.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2"><span className="min-w-0 truncate text-sm font-medium">{part.nome}</span><Button type="button" variant="ghost" size="sm" className="shrink-0 text-destructive" onClick={() => void removePart(part)}>Excluir</Button></div>)}</div>}
+      </div>
+      <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
+    </DialogContent>
+  </Dialog>;
 }
 
 function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[]; actor: Actor; onChanged: () => Promise<void> }) {
