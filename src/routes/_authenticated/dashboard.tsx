@@ -970,7 +970,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
       toast.error("Somente o administrador principal pode excluir acessos.");
       return;
     }
-    if (member.profile.email.toLowerCase() === OWNER_ADMIN_EMAIL) {
+    if (member.profile.id === actor.id) {
       toast.error("A conta principal não pode ser excluída.");
       return;
     }
