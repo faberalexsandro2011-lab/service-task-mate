@@ -234,7 +234,7 @@ function TechnicianPage() {
             .update({
               status: "concluida",
               notas_fecho: action.notes,
-              pecas_utilizadas: action.pieces.length ? action.pieces.join("\n") : null,
+              pecas_utilizadas: (action.pieces ?? []).length ? (action.pieces ?? []).join("\n") : null,
               concluida_em: action.createdAt,
             })
             .eq("id", action.orderId)
@@ -293,6 +293,7 @@ function TechnicianPage() {
 
     setOnline(navigator.onLine);
     void load();
+    void loadPartsCatalog();
     void syncOffline();
 
     const onlineHandler = () => {
@@ -308,6 +309,7 @@ function TechnicianPage() {
     const visibilityHandler = () => {
       if (document.visibilityState === "visible" && navigator.onLine) {
         void load();
+        void loadPartsCatalog();
         void syncOffline();
       }
     };
@@ -357,6 +359,7 @@ function TechnicianPage() {
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           void load();
+          void loadPartsCatalog();
           void syncOffline();
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
