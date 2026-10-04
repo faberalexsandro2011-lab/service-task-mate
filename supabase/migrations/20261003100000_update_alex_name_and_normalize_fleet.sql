@@ -16,7 +16,7 @@ WHERE u.id IN (
 UPDATE public.ordens_servico
 SET
   tecnico_nome = 'Alexsandro Faber',
-  frota = trim(regexp_replace(frota, '^\\s*frota\\s*[:#-]?\\s*', '', 'i'))
+  frota = trim(regexp_replace(frota, '^[[:space:]]*[Ff][Rr][Oo][Tt][Aa][[:space:]:#-]*', ''))
 WHERE
   lower(trim(coalesce(tecnico_nome, ''))) = 'alex'
   OR frota ~* '^\\s*frota\\s*[:#-]?\\s*';
