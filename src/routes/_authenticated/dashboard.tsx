@@ -495,8 +495,8 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
         </div>
       </div>
 
-      <div className="hidden md:block">
-        <div className="grid grid-cols-[minmax(100px,0.8fr)_minmax(80px,0.6fr)_minmax(140px,1fr)_minmax(180px,1.5fr)_minmax(105px,0.8fr)_minmax(175px,1.15fr)_minmax(190px,1.3fr)] items-start gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+      <div className="hidden xl:block">
+        <div className="grid grid-cols-[minmax(100px,0.75fr)_minmax(80px,0.55fr)_minmax(140px,1fr)_minmax(190px,1.45fr)_minmax(105px,0.8fr)_minmax(180px,1.2fr)_minmax(240px,1.4fr)] items-start gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           <span>OS</span>
           <span>Frota</span>
           <span>Técnico</span>
@@ -512,8 +512,8 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
         </div>
       </div>
 
-      <div className="overflow-x-auto md:hidden">
-        <div className="min-w-[920px] divide-y">
+      <div className="xl:hidden">
+        <div className="divide-y">
           {orders.map((order) => (
             <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
           ))}
@@ -666,7 +666,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-start gap-3 px-4 py-3.5 md:grid">
+        <div className="hidden grid-cols-[minmax(100px,0.75fr)_minmax(80px,0.55fr)_minmax(140px,1fr)_minmax(190px,1.45fr)_minmax(105px,0.8fr)_minmax(180px,1.2fr)_minmax(240px,1.4fr)] items-start gap-3 px-4 py-3.5 xl:grid">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p></div>
           </div>
@@ -685,25 +685,39 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
 
-        <div className="grid grid-cols-[130px_110px_190px_260px_125px_190px_220px] items-center gap-3 px-4 py-3.5 md:hidden">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span>
-            <p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p>
+        <div className="grid gap-4 px-4 py-4 sm:px-5 xl:hidden">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span>
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-bold text-foreground">OS {order.numero_os}</p>
+                  <div className="mt-1"><FleetBadge value={order.frota} compact /></div>
+                </div>
+              </div>
+              <StatusBadge status={status} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="min-w-0 rounded-lg border bg-muted/20 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Técnico</p>
+                <p className="mt-1 break-words text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
+                {order.tecnico_email && <p className="mt-0.5 break-all text-xs text-muted-foreground">{order.tecnico_email}</p>}
+              </div>
+              <div className="min-w-0 rounded-lg border bg-muted/20 p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Serviço</p>
+                <p className="mt-1 break-words text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p>
+              </div>
+            </div>
+            <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-3">
+              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.created_at)}</span></div>
+              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Início</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.data_inicio)}</span></div>
+              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Fechamento</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.concluida_em)}</span></div>
+            </div>
+            <div onClick={(event) => event.stopPropagation()} className="border-t pt-3">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Ações</p>
+              <div className="w-full">{actionButtons}</div>
+            </div>
           </div>
-          <FleetBadge value={order.frota} compact />
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{order.descricao || "Sem descrição"}</p>
-          </div>
-          <div><StatusBadge status={status} /></div>
-          <div className="grid gap-0.5 text-[11px] leading-4 text-muted-foreground">
-            <span><strong className="font-semibold text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
-            <span><strong className="font-semibold text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
-            <span><strong className="font-semibold text-foreground/70">Fechamento:</strong> {fmtDate(order.concluida_em)}</span>
-          </div>
-          <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
       </article>
 
