@@ -76,6 +76,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // O sistema usa autenticação, PWA e APIs do navegador; a renderização inicial fica no cliente.
+  ssr: false,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
