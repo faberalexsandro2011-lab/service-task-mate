@@ -55,11 +55,9 @@ function isNetworkError(error: unknown) {
 
 function ReplacedParts({
   value,
-  compact = false,
   showEmpty = false,
 }: {
   value: string | null;
-  compact?: boolean;
   showEmpty?: boolean;
 }) {
   const parts = (value ?? "")
@@ -70,26 +68,9 @@ function ReplacedParts({
   if (!parts.length && !showEmpty) return null;
 
   return (
-    <div className={compact
-      ? "rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
-      : "rounded-2xl border bg-muted/30 p-4"}
-    >
-      <p className="text-xs font-bold uppercase text-muted-foreground">Peças substituídas</p>
-      {parts.length ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {parts.map((part, index) => (
-            <span
-              key={part + index}
-              className="inline-flex max-w-full items-center whitespace-normal break-words rounded-full border border-emerald-200 bg-background px-2.5 py-1 text-xs font-semibold leading-5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
-            >
-              {part}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-1 text-sm text-muted-foreground">Nenhuma peça registrada nesta OS.</p>
-      )}
-    </div>
+    <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+      Peças substituídas: {parts.length ? parts.join(", ") : "Nenhuma peça registrada nesta OS."}
+    </p>
   );
 }
 
@@ -697,7 +678,7 @@ function TechnicianPage() {
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
             {order.status === "concluida" && order.pecas_utilizadas?.trim() && (
-              <ReplacedParts value={order.pecas_utilizadas} compact />
+              <ReplacedParts value={order.pecas_utilizadas} />
             )}
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
