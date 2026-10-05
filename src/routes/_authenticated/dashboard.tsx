@@ -508,12 +508,12 @@ function Metric({ label, value, icon, tone }: { label: string; value: number; ic
   );
 }
 
-const fmtDate = (value: string | null) =>
-
 function getReplacedParts(value: string | null | undefined) {
   if (!value?.trim()) return [];
   return value.split(/\n/).map((part) => part.trim()).filter(Boolean).map((nome) => ({ nome, quantidade: 1 }));
 }
+
+const fmtDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
 function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
   if (orders.length === 0) {
