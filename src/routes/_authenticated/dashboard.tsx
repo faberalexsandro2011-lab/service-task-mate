@@ -627,24 +627,24 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   }
 
   const actionButtons = (
-    <div className="flex flex-wrap items-start justify-start gap-1.5 lg:justify-end">
+    <div className="grid w-full min-w-0 grid-cols-2 gap-2">
       {canStart && (
-        <Button size="sm" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}>
+        <Button size="sm" className="h-9 w-full min-w-0 px-2" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}>
           <Play /> Iniciar
         </Button>
       )}
       {canFinish && (
-        <Button size="sm" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}>
+        <Button size="sm" className="h-9 w-full min-w-0 px-2" disabled={busy} onClick={(event) => { event.stopPropagation(); setFinishOpen(true); }}>
           <CheckCircle2 /> Finalizar
         </Button>
       )}
       {canCancel && (
-        <Button size="sm" variant="outline" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}>
+        <Button size="sm" variant="outline" className="h-9 w-full min-w-0 px-2" disabled={busy} onClick={(event) => { event.stopPropagation(); void cancel(); }}>
           <Ban /> Cancelar
         </Button>
       )}
       {canDelete && (
-        <Button size="sm" variant="destructive" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void deleteOrder(); }}>
+        <Button size="sm" variant="destructive" className="h-9 w-full min-w-0 px-2" disabled={busy} onClick={(event) => { event.stopPropagation(); void deleteOrder(); }}>
           <Trash2 /> Excluir
         </Button>
       )}
@@ -682,7 +682,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <span><strong className="font-semibold text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
             <span><strong className="font-semibold text-foreground/70">Fechamento:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
-          <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
+          <div className="min-w-0" onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
 
         <div className="grid gap-4 px-4 py-4 sm:px-5 xl:hidden">
