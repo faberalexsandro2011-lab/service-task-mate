@@ -496,13 +496,13 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
       </div>
 
       <div className="hidden md:block">
-        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_190px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           <span>OS</span>
           <span>Frota</span>
           <span>Técnico</span>
           <span>Serviço</span>
           <span>Status</span>
-          <span>Abertura</span>
+          <span>Datas do atendimento</span>
           <span className="text-right">Ações</span>
         </div>
         <div className="divide-y">
@@ -677,11 +677,15 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
           </div>
           <div className="min-w-0"><p className="truncate text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p></div>
           <div><StatusBadge status={status} /></div>
-          <p className="text-xs text-muted-foreground">{fmtDate(order.created_at)}</p>
+          <div className="grid gap-0.5 text-[11px] leading-4 text-muted-foreground">
+            <span><strong className="font-semibold text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
+            <span><strong className="font-semibold text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
+            <span><strong className="font-semibold text-foreground/70">Fechamento:</strong> {fmtDate(order.concluida_em)}</span>
+          </div>
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
 
-        <div className="grid grid-cols-[130px_110px_190px_260px_125px_120px_220px] items-center gap-3 px-4 py-3.5 md:hidden">
+        <div className="grid grid-cols-[130px_110px_190px_260px_125px_190px_220px] items-center gap-3 px-4 py-3.5 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span>
             <p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p>
@@ -694,7 +698,11 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <p className="truncate text-sm font-medium">{order.descricao || "Sem descrição"}</p>
           </div>
           <div><StatusBadge status={status} /></div>
-          <p className="text-xs text-muted-foreground">{fmtDate(order.created_at)}</p>
+          <div className="grid gap-0.5 text-[11px] leading-4 text-muted-foreground">
+            <span><strong className="font-semibold text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
+            <span><strong className="font-semibold text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
+            <span><strong className="font-semibold text-foreground/70">Fechamento:</strong> {fmtDate(order.concluida_em)}</span>
+          </div>
           <div onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
         </div>
       </article>
