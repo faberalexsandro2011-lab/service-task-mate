@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ClipboardList,
+  CheckCircle2,
   ClipboardPaste,
   FileSpreadsheet,
   LogOut,
@@ -16,6 +17,8 @@ import {
   ShieldCheck,
   Trash2,
   Tractor,
+  Wrench,
+  Ban,
   History,
   Wifi,
   WifiOff,
