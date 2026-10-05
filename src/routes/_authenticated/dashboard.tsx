@@ -509,6 +509,11 @@ function Metric({ label, value, icon, tone }: { label: string; value: number; ic
 }
 
 const fmtDate = (value: string | null) =>
+
+function getReplacedParts(value: string | null | undefined) {
+  if (!value?.trim()) return [];
+  return value.split(/\n/).map((part) => part.trim()).filter(Boolean).map((nome) => ({ nome, quantidade: 1 }));
+}
   value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
 function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
   if (orders.length === 0) {
@@ -754,6 +759,21 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusão</p><p className="mt-1 text-sm font-medium">{fmtDate(order.concluida_em)}</p></div>
             </div>
             {status === "concluida" && order.notas_fecho && <div className="rounded-lg border border-primary/20 bg-primary/5 p-4"><p className="text-xs font-semibold uppercase text-primary">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap text-sm">{order.notas_fecho}</p></div>}
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <p className="text-xs font-semibold uppercase text-muted-foreground">Peças trocadas pelo técnico</p>
+              {getReplacedParts(order.pecas_utilizadas).length ? (
+                <div className="mt-2 grid gap-2">
+                  {getReplacedParts(order.pecas_utilizadas).map((part, index) => (
+                    <div key={`${part.nome}-${index}`} className="flex items-center justify-between rounded-lg border bg-background px-3 py-2">
+                      <span className="text-sm font-medium">{part.nome}</span>
+                      <span className="text-xs text-muted-foreground">Qtd.: {part.quantidade}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">Nenhuma peça trocada</p>
+              )}
+            </div>
             {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
             {(canStart || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
               {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
