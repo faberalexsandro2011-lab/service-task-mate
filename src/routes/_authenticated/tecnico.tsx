@@ -69,7 +69,7 @@ function ReplacedParts({
 
   return (
     <p className="whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-      Peças substituídas: {parts.length ? parts.join(", ") : "Nenhuma peça registrada nesta OS."}
+      <strong className="font-bold">Peças substituídas:</strong> {parts.length ? parts.join(", ") : "Nenhuma peça registrada nesta OS."}
     </p>
   );
 }
