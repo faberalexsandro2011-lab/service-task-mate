@@ -25,6 +25,25 @@ type Ordem = Tables<"ordens_servico">;
 type Peca = Tables<"pecas_catalogo">;
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
+function formatDateTime(value: string | null | undefined, emptyLabel: string) {
+  if (!value) return emptyLabel;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return emptyLabel;
+  return date.toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function getReplacedParts(value: string | null | undefined) {
+  if (!value?.trim()) return [];
+  return value
+    .split(/\n/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((nome) => ({ nome, quantidade: 1 }));
+}
+
 function playFieldAlert() {
   try {
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -656,6 +675,11 @@ function TechnicianPage() {
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
+            <div className="grid gap-2 rounded-2xl border bg-muted/30 p-3 sm:grid-cols-3">
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura</p><p className="mt-1 font-semibold">{formatDateTime(order.created_at, "—")}</p></div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
+            </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
@@ -679,6 +703,29 @@ function TechnicianPage() {
           <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Localização</p><p className="mt-1">{details.localizacao || "Não informada"}</p></div>
           <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Descrição / Serviço</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.descricao || "Sem descrição."}</p></div>
           <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Status</p><p className="mt-1 font-semibold">{details.status === "concluida" ? "Finalizada" : details.status === "em_andamento" ? "Em andamento" : "Pendente"}</p></div>
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Horários do atendimento</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatDateTime(details.created_at, "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground">Início do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.data_inicio, "Não iniciado")}</p></div>
+              <div><p className="text-xs text-muted-foreground">Fim do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.concluida_em, details.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
+            </div>
+          </div>
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Peças trocadas</p>
+            {getReplacedParts(details.pecas_utilizadas).length ? (
+              <div className="mt-2 grid gap-2">
+                {getReplacedParts(details.pecas_utilizadas).map((part, index) => (
+                  <div key={`${part.nome}-${index}`} className="flex items-center justify-between rounded-xl border bg-background px-3 py-2">
+                    <span className="font-medium">{part.nome}</span>
+                    <span className="text-sm text-muted-foreground">Qtd.: {part.quantidade}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">Nenhuma peça trocada</p>
+            )}
+          </div>
           {details.notas_fecho && <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho}</p></div>}
           <div className="flex flex-wrap gap-2 pt-2">
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
