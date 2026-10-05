@@ -53,6 +53,46 @@ function isNetworkError(error: unknown) {
   return message.includes("failed to fetch") || message.includes("networkerror") || message.includes("network error") || message.includes("load failed") || message.includes("fetch failed");
 }
 
+function ReplacedParts({
+  value,
+  compact = false,
+  showEmpty = false,
+}: {
+  value: string | null;
+  compact?: boolean;
+  showEmpty?: boolean;
+}) {
+  const parts = (value ?? "")
+    .split(/\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length && !showEmpty) return null;
+
+  return (
+    <div className={compact
+      ? "rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-3 dark:border-emerald-900/40 dark:bg-emerald-950/20"
+      : "rounded-2xl border bg-muted/30 p-4"}
+    >
+      <p className="text-xs font-bold uppercase text-muted-foreground">Peças substituídas</p>
+      {parts.length ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {parts.map((part, index) => (
+            <span
+              key={part + index}
+              className="inline-flex max-w-full items-center whitespace-normal break-words rounded-full border border-emerald-200 bg-background px-2.5 py-1 text-xs font-semibold leading-5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200"
+            >
+              {part}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-sm text-muted-foreground">Nenhuma peça registrada nesta OS.</p>
+      )}
+    </div>
+  );
+}
+
 function TechnicianPage() {
   const [orders, setOrders] = useState<Ordem[]>([]);
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
@@ -656,6 +696,9 @@ function TechnicianPage() {
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
+            {order.status === "concluida" && order.pecas_utilizadas?.trim() && (
+              <ReplacedParts value={order.pecas_utilizadas} compact />
+            )}
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
@@ -680,6 +723,9 @@ function TechnicianPage() {
           <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Descrição / Serviço</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.descricao || "Sem descrição."}</p></div>
           <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Status</p><p className="mt-1 font-semibold">{details.status === "concluida" ? "Finalizada" : details.status === "em_andamento" ? "Em andamento" : "Pendente"}</p></div>
           {details.notas_fecho && <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho}</p></div>}
+          {details.status === "concluida" && (
+            <ReplacedParts value={details.pecas_utilizadas} showEmpty />
+          )}
           <div className="flex flex-wrap gap-2 pt-2">
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
