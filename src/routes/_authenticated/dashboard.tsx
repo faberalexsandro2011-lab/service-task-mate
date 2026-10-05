@@ -238,11 +238,33 @@ function Dashboard() {
 
   const tabs: { value: string; label: string; list: Ordem[] }[] = [
     { value: "todas", label: "Todas", list: filtered },
-    { value: "pendente", label: "Pendentes", list: byStatus("pendente") },
+    { value: "pendente", label: "Pendente", list: byStatus("pendente") },
     { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
     { value: "concluida", label: "Concluídas", list: byStatus("concluida") },
     { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
   ];
+  const statusChipStyles: Record<string, { active: string; inactive: string }> = {
+    todas: {
+      active: "border-blue-600 bg-blue-600 text-white",
+      inactive: "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60",
+    },
+    pendente: {
+      active: "border-amber-500 bg-amber-500 text-amber-950",
+      inactive: "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/60",
+    },
+    em_andamento: {
+      active: "border-violet-600 bg-violet-600 text-white",
+      inactive: "border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-300 dark:hover:bg-violet-950/60",
+    },
+    concluida: {
+      active: "border-emerald-600 bg-emerald-600 text-white",
+      inactive: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/60",
+    },
+    cancelada: {
+      active: "border-rose-600 bg-rose-600 text-white",
+      inactive: "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/60",
+    },
+  };
 
   return (
     <div className="min-h-screen bg-background lg:grid lg:grid-cols-[190px_1fr]">
@@ -376,18 +398,28 @@ function Dashboard() {
                   <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-11 bg-background pl-9 shadow-sm" />
                 </div>
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {tabs.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setActiveTab(t.value)}
-                    className={activeTab === t.value ? "group rounded-lg border border-primary bg-primary p-3 text-left text-primary-foreground shadow-md transition-all duration-200" : "group rounded-lg border bg-background/80 p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"}
-                  >
-                    <span className="block text-xs font-semibold uppercase tracking-wide opacity-80">{t.label}</span>
-                    <span className="mt-1 block text-2xl font-bold tabular-nums">{t.list.length}</span>
-                  </button>
-                ))}
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
+                {tabs.map((t) => {
+                  const selected = activeTab === t.value;
+                  const tone = statusChipStyles[t.value] ?? statusChipStyles.todas;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setActiveTab(t.value)}
+                      className={[
+                        "group flex min-h-12 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
+                        selected ? tone.active : tone.inactive,
+                      ].join(" ")}
+                    >
+                      <span className="min-w-0 truncate">{t.label}</span>
+                      <span className={"inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>
+                        {t.list.length}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
