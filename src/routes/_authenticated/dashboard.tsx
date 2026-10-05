@@ -401,7 +401,7 @@ function Dashboard() {
               <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
                 {tabs.map((t) => {
                   const selected = activeTab === t.value;
-                  const tone = statusChipStyles[t.value] ?? statusChipStyles.todas;
+                  const tone = statusChipStyles[t.value] ?? statusChipStyles["todas"]!;
                   return (
                     <button
                       key={t.value}
@@ -851,7 +851,7 @@ function PartsCatalogDialog() {
     const trimmed = name.trim();
     if (!trimmed) { toast.error("Informe o nome da peça."); return; }
     setSaving(true);
-    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: actor.email }).select("*").single();
+    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: (await supabase.auth.getUser()).data.user?.email ?? null }).select("*").single();
     setSaving(false);
     if (error) {
       toast.error(/duplicate|unique/i.test(error.message) ? "Essa peça já está cadastrada." : "Não foi possível adicionar a peça: " + error.message);
