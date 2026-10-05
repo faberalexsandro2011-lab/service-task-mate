@@ -496,7 +496,7 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
       </div>
 
       <div className="hidden md:block">
-        <div className="grid grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_190px_220px] items-center gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        <div className="grid grid-cols-[minmax(100px,0.8fr)_minmax(80px,0.6fr)_minmax(140px,1fr)_minmax(180px,1.5fr)_minmax(105px,0.8fr)_minmax(175px,1.15fr)_minmax(190px,1.3fr)] items-start gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
           <span>OS</span>
           <span>Frota</span>
           <span>Técnico</span>
@@ -627,7 +627,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   }
 
   const actionButtons = (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
+    <div className="flex flex-wrap items-start justify-start gap-1.5 lg:justify-end">
       {canStart && (
         <Button size="sm" className="h-8 px-2.5" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}>
           <Play /> Iniciar
@@ -666,16 +666,16 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-center gap-3 px-4 py-3.5 md:grid">
+        <div className="hidden grid-cols-[minmax(130px,0.9fr)_minmax(90px,0.6fr)_minmax(170px,1.1fr)_minmax(240px,1.8fr)_minmax(120px,0.8fr)_115px_220px] items-start gap-3 px-4 py-3.5 md:grid">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p></div>
           </div>
           <FleetBadge value={order.frota} />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
-            {order.tecnico_email && <p className="mt-0.5 truncate text-xs text-muted-foreground">{order.tecnico_email}</p>}
+            <p className="break-words text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
+            {order.tecnico_email && <p className="mt-0.5 break-all text-xs text-muted-foreground">{order.tecnico_email}</p>}
           </div>
-          <div className="min-w-0"><p className="truncate text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p></div>
+          <div className="min-w-0"><p className="break-words text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p></div>
           <div><StatusBadge status={status} /></div>
           <div className="grid gap-0.5 text-[11px] leading-4 text-muted-foreground">
             <span><strong className="font-semibold text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
