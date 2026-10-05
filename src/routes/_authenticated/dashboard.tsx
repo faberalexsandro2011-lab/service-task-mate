@@ -2,11 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Ban,
-  CheckCircle2,
   ClipboardList,
   ClipboardPaste,
-  Clock,
   FileSpreadsheet,
   LogOut,
   MapPin,
@@ -22,7 +19,6 @@ import {
   History,
   Wifi,
   WifiOff,
-  Wrench,
   PackagePlus,
   X,
 } from "lucide-react";
@@ -297,15 +293,15 @@ function Dashboard() {
             Sem ligação à internet. As alterações serão mostradas quando a ligação voltar.
           </div>
         )}
-        <div className="mx-auto w-full max-w-[1800px] p-3 sm:p-5 lg:p-6 agri-fade-up">
-          <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div className="mx-auto w-full max-w-[1800px] p-3 sm:p-5 lg:p-8 agri-fade-up">
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
                 <Tractor className="size-5 text-[var(--agri-leaf)]" />
                 <p className="text-sm font-semibold text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
                 <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>
               </div>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">Ordens de serviço</h1>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Ordens de serviço</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
@@ -374,15 +370,8 @@ function Dashboard() {
             </div>
           )}
 
-          <section className="mt-6 grid gap-3 grid-cols-2 lg:grid-cols-4">
-            <Metric label="Pendentes" value={orders.filter((o) => o.status === "pendente").length} icon={<Clock />} tone="pending" />
-            <Metric label="Em andamento" value={orders.filter((o) => o.status === "em_andamento").length} icon={<Wrench />} tone="progress" />
-            <Metric label="Concluídas" value={orders.filter((o) => o.status === "concluida").length} icon={<CheckCircle2 />} tone="done" />
-            <Metric label="Canceladas" value={orders.filter((o) => o.status === "cancelada").length} icon={<Ban />} tone="cancelled" />
-          </section>
-
-          <section className="mt-7 overflow-hidden rounded-xl border bg-card shadow-sm">
-            <div className="border-b bg-gradient-to-r from-primary/10 via-card to-[var(--agri-wheat)]/10 p-4 sm:p-6">
+          <section className="mt-8 overflow-hidden rounded-2xl border bg-card shadow-md">
+            <div className="border-b bg-gradient-to-r from-primary/10 via-card to-[var(--agri-wheat)]/10 p-4 sm:p-6 lg:p-7">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -393,12 +382,12 @@ function Dashboard() {
                     {filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"} · clique numa aba para filtrar rapidamente.
                   </p>
                 </div>
-                <div className="relative w-full lg:max-w-sm">
+                <div className="relative w-full lg:max-w-md">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-11 bg-background pl-9 shadow-sm" />
+                  <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-12 bg-background pl-9 shadow-sm transition-shadow focus-within:shadow-md" />
                 </div>
               </div>
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
+              <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
                 {tabs.map((t) => {
                   const selected = activeTab === t.value;
                   const tone = statusChipStyles[t.value] ?? statusChipStyles["todas"]!;
@@ -409,7 +398,7 @@ function Dashboard() {
                       aria-pressed={selected}
                       onClick={() => setActiveTab(t.value)}
                       className={[
-                        "group flex min-h-12 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
+                        "group flex min-h-14 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
                         selected ? tone.active : tone.inactive,
                       ].join(" ")}
                     >
@@ -473,37 +462,6 @@ function UserPanel({ name, email, role, onSignOut }: { name: string; email: stri
         <Button variant="ghost" size="icon" onClick={onSignOut} title="Terminar sessão"><LogOut /></Button>
       </div>
       <div className="mt-3 inline-flex rounded-sm bg-secondary px-2 py-1 text-[11px] font-semibold uppercase text-secondary-foreground">{role}</div>
-    </div>
-  );
-}
-
-function Metric({ label, value, icon, tone }: { label: string; value: number; icon: React.ReactNode; tone: "pending" | "progress" | "done" | "cancelled" }) {
-  const styles = {
-    pending: {
-      card: "border-amber-200/70 bg-amber-50/70 dark:border-amber-900/40 dark:bg-amber-950/20",
-      icon: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    },
-    progress: {
-      card: "border-blue-200/70 bg-blue-50/70 dark:border-blue-900/40 dark:bg-blue-950/20",
-      icon: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-    },
-    done: {
-      card: "border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-900/40 dark:bg-emerald-950/20",
-      icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-    },
-    cancelled: {
-      card: "border-rose-200/70 bg-rose-50/70 dark:border-rose-900/40 dark:bg-rose-950/20",
-      icon: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
-    },
-  }[tone];
-
-  return (
-    <div className={`flex min-h-16 items-center justify-between rounded-xl border px-3 py-2.5 shadow-sm transition-transform hover:-translate-y-0.5 ${styles.card}`}>
-      <div className="min-w-0">
-        <p className="truncate text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-0.5 text-2xl font-extrabold tabular-nums">{value}</p>
-      </div>
-      <div className={`grid size-8 shrink-0 place-items-center rounded-lg ${styles.icon} [&_svg]:size-4`}>{icon}</div>
     </div>
   );
 }
