@@ -374,6 +374,7 @@ function Dashboard() {
           )}
 
           <div className="mt-8">
+            <div>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
