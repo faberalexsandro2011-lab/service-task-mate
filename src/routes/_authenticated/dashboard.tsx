@@ -21,6 +21,9 @@ import {
   Ban,
   History,
   BarChart3,
+  AlertTriangle,
+  Clock3,
+  UserX,
   Wifi,
   WifiOff,
   PackagePlus,
@@ -203,6 +206,17 @@ function Dashboard() {
     );
   }, [orders, search]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
+  const operationalAlerts = useMemo(() => {
+    if (!isManager) return { stalePending: 0, staleInProgress: 0, unassigned: 0 };
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    const oneDay = 24 * 60 * 60 * 1000;
+    return {
+      stalePending: orders.filter((o) => o.status === "pendente" && now - new Date(o.created_at).getTime() >= sevenDays).length,
+      staleInProgress: orders.filter((o) => o.status === "em_andamento" && o.data_inicio && now - new Date(o.data_inicio).getTime() >= oneDay).length,
+      unassigned: orders.filter((o) => o.status === "pendente" && !o.tecnico_id && !o.tecnico_email).length,
+    };
+  }, [isManager, orders]);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -421,6 +435,32 @@ function Dashboard() {
                 <div className="relative w-full lg:max-w-md">
                   <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-12 bg-background pl-9 shadow-sm transition-shadow focus-within:shadow-md" />
+                </div>
+              </div>
+              <div className="mt-5 border-y py-3">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                  <span className="font-bold uppercase tracking-[0.12em] text-muted-foreground">Monitoramento</span>
+                  {isManager ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5">
+                        <AlertTriangle className={"size-3.5 " + (operationalAlerts.stalePending ? "text-amber-600" : "text-emerald-600")} />
+                        <strong>{operationalAlerts.stalePending}</strong> pendente(s) há mais de 7 dias
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock3 className={"size-3.5 " + (operationalAlerts.staleInProgress ? "text-violet-600" : "text-emerald-600")} />
+                        <strong>{operationalAlerts.staleInProgress}</strong> atendimento(s) há mais de 24 h
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <UserX className={"size-3.5 " + (operationalAlerts.unassigned ? "text-rose-600" : "text-emerald-600")} />
+                        <strong>{operationalAlerts.unassigned}</strong> OS pendente(s) sem técnico
+                      </span>
+                      <button type="button" onClick={() => void navigate({ to: "/analises" })} className="font-semibold text-primary hover:underline">
+                        Abrir análise técnica →
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Acompanhe suas OS e atualizações diretamente nesta tela.</span>
+                  )}
                 </div>
               </div>
               <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
