@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,12 +6,13 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
+  FilePlus2,
   Inbox,
-  PlusCircle,
   RefreshCw,
   Send,
   ShieldAlert,
   UserCircle,
+  Wrench,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -38,7 +39,6 @@ import {
 } from "@/components/ui/select";
 
 type Perfil = Tables<"profiles">;
-type Solicitacao = Tables<"solicitacoes_os">;
 type Ordem = Tables<"ordens_servico">;
 
 export const Route = createFileRoute("/_authenticated/solicitacoes")({
@@ -55,54 +55,44 @@ async function getPageData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: managerByRpc, error: rpcError } = await supabase.rpc("has_role", {
+  const { data: manager, error: managerError } = await supabase.rpc("has_role", {
     _user_id: authData.user.id,
     _role: "gestor",
   });
+  if (managerError) throw managerError;
 
-  let isManager = rpcError ? false : managerByRpc === true;
+  const isManager = manager === true;
+  const email = (authData.user.email ?? "").trim().toLowerCase();
 
-  if (rpcError) {
-    const { data: roleRow } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", authData.user.id)
-      .maybeSingle();
-    isManager = roleRow?.role === "gestor";
-  }
+  const requestsQuery = supabase
+    .from("ordens_servico")
+    .select("*")
+    .eq("solicitacao_os", true)
+    .order("solicitacao_status", { ascending: true })
+    .order("solicitada_em", { ascending: false });
 
   const requestsResult = isManager
-    ? await supabase
-        .from("solicitacoes_os")
-        .select("*")
-        .order("status", { ascending: true })
-        .order("criada_em", { ascending: false })
-    : await supabase
-        .from("solicitacoes_os")
-        .select("*")
-        .eq("solicitante_id", authData.user.id)
-        .order("criada_em", { ascending: false });
+    ? await requestsQuery
+    : await requestsQuery.eq("tecnico_id", authData.user.id);
 
   if (requestsResult.error) throw requestsResult.error;
 
   const techniciansResult = isManager
-    ? await supabase
-        .from("profiles")
-        .select("*")
-        .order("nome", { ascending: true })
+    ? await supabase.from("profiles").select("*").order("nome", { ascending: true })
     : { data: [] as Perfil[], error: null };
 
   if (techniciansResult.error) throw techniciansResult.error;
 
   let technicians = techniciansResult.data ?? [];
   if (isManager) {
-    const { data: roleRows, error: roleError } = await supabase
+    const { data: roles, error: rolesError } = await supabase
       .from("user_roles")
       .select("user_id, role")
       .eq("role", "tecnico");
-    if (roleError) throw roleError;
-    const ids = new Set((roleRows ?? []).map((row) => row.user_id));
-    technicians = technicians.filter((person) => ids.has(person.id));
+    if (rolesError) throw rolesError;
+
+    const technicianIds = new Set((roles ?? []).map((row) => row.user_id));
+    technicians = technicians.filter((person) => technicianIds.has(person.id));
   }
 
   const { data: me } = await supabase
@@ -113,8 +103,9 @@ async function getPageData() {
 
   return {
     user: authData.user,
+    email,
     isManager,
-    requests: requestsResult.data ?? [],
+    requests: (requestsResult.data ?? []) as Ordem[],
     technicians,
     me,
   };
@@ -124,14 +115,27 @@ function SolicitacoesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [openForm, setOpenForm] = useState(false);
-  const [selected, setSelected] = useState<Solicitacao | null>(null);
+  const [selected, setSelected] = useState<Ordem | null>(null);
   const [saving, setSaving] = useState(false);
 
   const query = useQuery({
     queryKey: ["solicitacoes-os"],
     queryFn: getPageData,
-    staleTime: 10_000,
+    staleTime: 5_000,
   });
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("solicitacoes_os_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["solicitacoes-os"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   if (query.isPending) return <Loading />;
   if (query.isError) {
@@ -141,126 +145,87 @@ function SolicitacoesPage() {
           <ShieldAlert className="mx-auto size-9 text-destructive" />
           <h1 className="mt-4 text-lg font-bold">Não foi possível abrir as solicitações</h1>
           <p className="mt-2 text-sm text-muted-foreground">{query.error.message}</p>
-          <Button className="mt-5" onClick={() => void navigate({ to: query.data?.isManager ? "/dashboard" : "/tecnico" })}>
-            Voltar
-          </Button>
+          <Button className="mt-5" onClick={() => void navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
         </div>
       </div>
     );
   }
 
   const data = query.data;
-  const pendingCount = data.requests.filter((request) => request.status === "pendente").length;
-  const handledCount = data.requests.filter((request) => request.status === "atendida").length;
+  const pending = data.requests.filter((item) => item.solicitacao_status === "aguardando_os");
+  const handled = data.requests.filter((item) => item.solicitacao_status === "regularizada");
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["solicitacoes-os"] });
   }
 
-  async function registerAndSend(values: RegisterValues) {
+  async function regularize(values: RegisterValues) {
     if (!data.isManager || !selected || saving) return;
-
     setSaving(true);
+
     try {
-      const { data: existing, error: lookupError } = await supabase
+      const number = values.numero_os.trim();
+      const { data: duplicate, error: duplicateError } = await supabase
         .from("ordens_servico")
-        .select("*")
-        .eq("numero_os", values.numero_os.trim())
-        .order("created_at", { ascending: true })
+        .select("id")
+        .eq("numero_os", number)
+        .neq("id", selected.id)
         .limit(1)
         .maybeSingle();
 
-      if (lookupError) throw lookupError;
+      if (duplicateError) throw duplicateError;
+      if (duplicate) {
+        toast.error("Já existe uma OS com este número. Para não duplicar, informe outro número.");
+        return;
+      }
 
-      let order: Ordem | null = existing ?? null;
       const technician = data.technicians.find((person) => person.id === values.tecnico_id);
+      const now = new Date().toISOString();
 
-      if (existing) {
-        const updatePayload = {
-          frota: values.frota.trim(),
-          localizacao: values.localizacao.trim() || null,
-          descricao: values.descricao.trim() || null,
-          tecnico_id: technician?.id ?? null,
-          tecnico_email: technician?.email ?? values.tecnico_email.trim(),
-          tecnico_nome: technician?.nome ?? values.tecnico_nome.trim() ?? null,
-        };
-
-        const { data: updated, error } = await supabase
-          .from("ordens_servico")
-          .update(updatePayload)
-          .eq("id", existing.id)
-          .select("*")
-          .single();
-
-        if (error) throw error;
-        order = updated;
-      } else {
-        const { data: created, error } = await supabase
-          .from("ordens_servico")
-          .insert({
-            numero_os: values.numero_os.trim(),
-            frota: values.frota.trim(),
-            localizacao: values.localizacao.trim() || null,
-            descricao: values.descricao.trim() || null,
-            tecnico_id: technician?.id ?? null,
-            tecnico_email: technician?.email ?? (values.tecnico_email.trim() || null),
-            tecnico_nome: technician?.nome ?? (values.tecnico_nome.trim() || null),
-            criado_por_email: data.user.email ?? null,
-            status: "pendente",
-          })
-          .select("*")
-          .single();
-
-        if (error) throw error;
-        order = created;
-      }
-
-      if (!order) throw new Error("A OS não foi criada.");
-
-      await supabase.from("historico_edicoes").insert({
-        os_id: order.id,
-        acao: existing ? "atualizada" : "aberta",
-        detalhe: existing
-          ? "OS " + values.numero_os + " vinculada à solicitação do técnico e atualizada pelo gestor."
-          : "OS " + values.numero_os + " criada a partir de solicitação do técnico.",
-        usuario_id: data.user.id,
-        usuario_email: data.user.email ?? null,
-      });
-
-      if (values.tecnico_email.trim()) {
-        await supabase.from("historico_edicoes").insert({
-          os_id: order.id,
-          acao: "enviada",
-          detalhe: "OS enviada novamente para " + (technician?.nome || values.tecnico_email.trim()),
-          usuario_id: data.user.id,
-          usuario_email: data.user.email ?? null,
-        });
-      }
-
-      const { error: requestError } = await supabase
-        .from("solicitacoes_os")
+      const { data: updated, error } = await supabase
+        .from("ordens_servico")
         .update({
-          numero_os: values.numero_os.trim(),
+          numero_os: number,
           frota: values.frota.trim(),
           localizacao: values.localizacao.trim() || null,
           descricao: values.descricao.trim() || null,
           tecnico_id: technician?.id ?? selected.tecnico_id,
-          tecnico_email: technician?.email ?? values.tecnico_email.trim(),
-          tecnico_nome: technician?.nome ?? (values.tecnico_nome.trim() || selected.tecnico_nome || null),
-          status: "atendida",
-          ordem_id: order.id,
-          detalhe_gestor: "OS registrada/reencaminhada pelo gestor " + (data.user.email ?? ""),
-          atendida_em: new Date().toISOString(),
+          tecnico_email: technician?.email ?? selected.tecnico_email,
+          tecnico_nome: technician?.nome ?? selected.tecnico_nome,
+          status: "pendente",
+          solicitacao_os: false,
+          solicitacao_status: "regularizada",
+          regularizada_em: now,
+          regularizada_por_email: data.email,
         })
-        .eq("id", selected.id);
+        .eq("id", selected.id)
+        .eq("solicitacao_os", true)
+        .select("*")
+        .single();
 
-      if (requestError) throw requestError;
+      if (error) throw error;
 
-      toast.success(existing ? "OS existente atualizada e vinculada à solicitação." : "OS registrada e enviada ao técnico.");
+      await supabase.from("historico_edicoes").insert({
+        os_id: updated.id,
+        acao: "regularizada",
+        detalhe: "Solicitação de OS regularizada pelo gestor e enviada novamente ao técnico.",
+        usuario_id: data.user.id,
+        usuario_email: data.email,
+      });
+
+      await supabase.from("historico_edicoes").insert({
+        os_id: updated.id,
+        acao: "enviada",
+        detalhe: "OS " + number + " enviada novamente para " + (technician?.nome || technician?.email || selected.tecnico_email),
+        usuario_id: data.user.id,
+        usuario_email: data.email,
+      });
+
+      toast.success("OS " + number + " regularizada e enviada novamente ao técnico.");
       setSelected(null);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível registrar a OS.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível regularizar a solicitação.");
     } finally {
       setSaving(false);
     }
@@ -277,15 +242,11 @@ function SolicitacoesPage() {
               className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm"
               aria-label="Voltar"
             >
-              <ClipboardList className="size-5" />
+              <Wrench className="size-5" />
             </button>
             <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Central OS
-              </div>
-              <h1 className="truncate text-xl font-bold tracking-tight">
-                {data.isManager ? "Solicitações de OS" : "Solicitar OS"}
-              </h1>
+              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Central OS</div>
+              <h1 className="truncate text-xl font-bold tracking-tight">{data.isManager ? "Solicitações de OS" : "Solicitar OS"}</h1>
             </div>
           </div>
           <Button variant="outline" className="gap-2" onClick={() => void refresh()}>
@@ -301,30 +262,29 @@ function SolicitacoesPage() {
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-primary">
                 <Inbox className="size-4" />
-                {data.isManager ? "Caixa de entrada operacional" : "Trabalho realizado fora da fila"}
+                {data.isManager ? "Caixa de entrada operacional" : "Solicitação de cadastro de OS"}
               </div>
               <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
                 {data.isManager
-                  ? "Receba solicitações dos técnicos, confira os dados e transforme a solicitação em uma OS oficial para o técnico."
-                  : "Registre um trabalho que foi realizado e não apareceu na sua lista de OS. A solicitação será enviada ao gestor para cadastro e reencaminhamento."}
+                  ? "As solicitações são registros de OS provisórios. Confira, informe o número da OS e regularize para enviar novamente ao técnico, sem criar duplicidade."
+                  : "Use esta área quando você realizou um serviço que não apareceu na sua lista. O gestor receberá os dados e colocará a OS na sua fila."}
               </p>
             </div>
-
             {!data.isManager && (
               <Button className="gap-2" onClick={() => setOpenForm(true)}>
-                <PlusCircle className="size-4" /> Solicitar OS
+                <FilePlus2 className="size-4" /> Nova solicitação
               </Button>
             )}
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pendentes</div>
-              <div className="mt-1 text-2xl font-bold">{pendingCount}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aguardando OS</div>
+              <div className="mt-1 text-2xl font-bold">{pending.length}</div>
             </div>
             <div className="rounded-xl border bg-muted/30 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Atendidas</div>
-              <div className="mt-1 text-2xl font-bold">{handledCount}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Regularizadas</div>
+              <div className="mt-1 text-2xl font-bold">{handled.length}</div>
             </div>
           </div>
         </section>
@@ -337,13 +297,7 @@ function SolicitacoesPage() {
       </main>
 
       {!data.isManager && (
-        <RequestForm
-          open={openForm}
-          onOpenChange={setOpenForm}
-          user={data.user}
-          profile={data.me}
-          onCreated={refresh}
-        />
+        <RequestForm open={openForm} onOpenChange={setOpenForm} user={data.user} profile={data.me} onCreated={refresh} />
       )}
 
       {data.isManager && selected && (
@@ -353,7 +307,7 @@ function SolicitacoesPage() {
           open={Boolean(selected)}
           onOpenChange={(open) => !open && setSelected(null)}
           saving={saving}
-          onRegister={registerAndSend}
+          onRegister={regularize}
         />
       )}
     </div>
@@ -366,8 +320,6 @@ type RegisterValues = {
   localizacao: string;
   descricao: string;
   tecnico_id: string;
-  tecnico_email: string;
-  tecnico_nome: string;
 };
 
 function RequestForm({
@@ -390,64 +342,33 @@ function RequestForm({
     if (saving) return;
 
     const form = new FormData(event.currentTarget);
-    const numero_os = String(form.get("numero_os") ?? "").trim();
     const frota = String(form.get("frota") ?? "").trim();
     const localizacao = String(form.get("localizacao") ?? "").trim();
     const descricao = String(form.get("descricao") ?? "").trim();
 
-    if (!numero_os || !frota || !descricao) {
-      toast.error("Preencha Número da OS, Frota e o serviço realizado.");
+    if (!frota || !descricao) {
+      toast.error("Preencha Frota e o serviço realizado.");
       return;
     }
 
     setSaving(true);
     try {
-      const { error: existingError } = await supabase
-        .from("ordens_servico")
-        .select("id")
-        .eq("numero_os", numero_os)
-        .limit(1)
-        .maybeSingle();
-
-      if (!existingError && existingError !== null) {
-        // mantém a consulta em uma única etapa; qualquer erro é tratado abaixo
-      }
-
-      const { count, error: requestError } = await supabase
-        .from("solicitacoes_os")
-        .select("id", { count: "exact", head: true })
-        .eq("numero_os", numero_os)
-        .eq("status", "pendente");
-
-      if (requestError) throw requestError;
-      if ((count ?? 0) > 0) {
-        toast.error("Já existe uma solicitação pendente para esta OS.");
-        return;
-      }
-
       const payload = {
-        numero_os,
+        numero_os: null,
         frota,
         localizacao: localizacao || null,
         descricao,
         tecnico_id: profile?.id ?? user.id,
         tecnico_email: profile?.email?.trim() || user.email || "",
         tecnico_nome: profile?.nome?.trim() || user.email || "Técnico",
-        solicitante_id: user.id,
-        solicitante_email: user.email || "",
-        solicitante_nome: profile?.nome?.trim() || user.email || "Técnico",
         status: "pendente",
+        solicitacao_os: true,
+        solicitacao_status: "aguardando_os",
+        solicitada_em: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from("solicitacoes_os").insert(payload);
-      if (error) {
-        if (error.code === "23505") {
-          toast.error("Já existe uma solicitação pendente com este número de OS.");
-        } else {
-          throw error;
-        }
-        return;
-      }
+      const { error } = await supabase.from("ordens_servico").insert(payload);
+      if (error) throw error;
 
       toast.success("Solicitação enviada ao gestor.");
       onOpenChange(false);
@@ -466,21 +387,24 @@ function RequestForm({
         <DialogHeader>
           <DialogTitle>Solicitar cadastro de OS</DialogTitle>
           <DialogDescription>
-            Preencha os mesmos dados usados na abertura manual de uma OS. O gestor receberá a solicitação e poderá cadastrar/reencaminhar para você.
+            Informe a frota, localização e o serviço realizado. O gestor completará o número da OS e enviará a OS para você.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
+          <Field label="Número da OS (se houver)">
+            <Input name="numero_os" placeholder="Pode deixar em branco se a OS ainda não existir." disabled />
+          </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Número da OS"><Input name="numero_os" required placeholder="OS-2026-001" /></Field>
             <Field label="Frota"><Input name="frota" required placeholder="TR-024" /></Field>
+            <Field label="Localização"><Input name="localizacao" placeholder="Fazenda / Oficina / Talhão" /></Field>
           </div>
-          <Field label="Localização"><Input name="localizacao" placeholder="Fazenda / Oficina / Talhão" /></Field>
-          <Field label="Serviço realizado"><Textarea name="descricao" required rows={5} placeholder="Descreva o trabalho que foi realizado e o motivo..." /></Field>
+          <Field label="Serviço realizado"><Textarea name="descricao" required rows={5} placeholder="Descreva o trabalho realizado..." /></Field>
+          <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Solicitante: <strong>{profile?.nome || profile?.email || user.email}</strong>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving} className="gap-2">
-              <Send className="size-4" /> {saving ? "Enviando..." : "Enviar solicitação"}
-            </Button>
+            <Button type="submit" disabled={saving} className="gap-2"><Send className="size-4" /> {saving ? "Enviando..." : "Enviar solicitação"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -488,21 +412,13 @@ function RequestForm({
   );
 }
 
-function ManagerRequests({
-  requests,
-  onSelect,
-}: {
-  requests: Solicitacao[];
-  onSelect: (request: Solicitacao) => void;
-}) {
-  if (!requests.length) {
-    return <EmptyState text="Nenhuma solicitação de OS foi recebida." />;
-  }
+function ManagerRequests({ requests, onSelect }: { requests: Ordem[]; onSelect: (request: Ordem) => void }) {
+  if (!requests.length) return <EmptyState text="Nenhuma solicitação de OS foi recebida." />;
 
   return (
     <div className="space-y-3">
       {requests.map((request) => {
-        const pending = request.status === "pendente";
+        const pending = request.solicitacao_status === "aguardando_os";
         return (
           <button
             key={request.id}
@@ -513,15 +429,15 @@ function ManagerRequests({
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold">OS {request.numero_os}</span>
-                  <StatusRequestBadge status={request.status} />
-                  {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando gestor</span>}
+                  <span className="text-sm font-bold">{request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
+                  <RequestStatus status={request.solicitacao_status} />
+                  {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando cadastro</span>}
                 </div>
                 <div className="mt-2 grid gap-x-5 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
                   <span><strong className="text-foreground">Frota:</strong> {request.frota}</span>
                   <span><strong className="text-foreground">Técnico:</strong> {request.tecnico_nome || request.tecnico_email}</span>
                   <span><strong className="text-foreground">Local:</strong> {request.localizacao || "—"}</span>
-                  <span><strong className="text-foreground">Enviada:</strong> {formatDate(request.criada_em)}</span>
+                  <span><strong className="text-foreground">Solicitada:</strong> {formatDate(request.solicitada_em || request.created_at)}</span>
                 </div>
                 <p className="mt-3 line-clamp-2 text-sm">{request.descricao || "Sem descrição."}</p>
               </div>
@@ -534,10 +450,8 @@ function ManagerRequests({
   );
 }
 
-function TechnicianRequests({ requests }: { requests: Solicitacao[] }) {
-  if (!requests.length) {
-    return <EmptyState text="Você ainda não enviou nenhuma solicitação." />;
-  }
+function TechnicianRequests({ requests }: { requests: Ordem[] }) {
+  if (!requests.length) return <EmptyState text="Você ainda não enviou nenhuma solicitação." />;
 
   return (
     <div className="space-y-3">
@@ -546,25 +460,20 @@ function TechnicianRequests({ requests }: { requests: Solicitacao[] }) {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold">OS {request.numero_os}</span>
-                <StatusRequestBadge status={request.status} />
+                <span className="font-bold">{request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
+                <RequestStatus status={request.solicitacao_status} />
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                Frota {request.frota} · enviada em {formatDate(request.criada_em)}
+                Frota {request.frota} · enviada em {formatDate(request.solicitada_em || request.created_at)}
               </div>
             </div>
-            {request.ordem_id && (
+            {request.solicitacao_status === "regularizada" && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                <CheckCircle2 className="size-3.5" /> OS cadastrada
+                <CheckCircle2 className="size-3.5" /> OS devolvida à fila
               </span>
             )}
           </div>
           <p className="mt-3 text-sm">{request.descricao || "Sem descrição."}</p>
-          {request.detalhe_gestor && (
-            <div className="mt-3 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
-              <strong className="text-foreground">Gestor:</strong> {request.detalhe_gestor}
-            </div>
-          )}
         </div>
       ))}
     </div>
@@ -579,14 +488,14 @@ function ManagerRequestDialog({
   saving,
   onRegister,
 }: {
-  request: Solicitacao;
+  request: Ordem;
   technicians: Perfil[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   saving: boolean;
   onRegister: (values: RegisterValues) => Promise<void>;
 }) {
-  const [numeroOs, setNumeroOs] = useState(request.numero_os);
+  const [numeroOs, setNumeroOs] = useState(request.numero_os || "");
   const [frota, setFrota] = useState(request.frota);
   const [localizacao, setLocalizacao] = useState(request.localizacao || "");
   const [descricao, setDescricao] = useState(request.descricao || "");
@@ -594,37 +503,37 @@ function ManagerRequestDialog({
 
   const technician = technicians.find((item) => item.id === technicianId);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!numeroOs.trim() || !frota.trim() || !descricao.trim()) {
-      toast.error("Preencha Número da OS, Frota e serviço realizado.");
-      return;
-    }
-
-    await onRegister({
-      numero_os: numeroOs,
-      frota,
-      localizacao,
-      descricao,
-      tecnico_id: technicianId,
-      tecnico_email: technician?.email || request.tecnico_email,
-      tecnico_nome: technician?.nome || request.tecnico_nome || request.tecnico_email,
-    });
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Registrar e enviar OS</DialogTitle>
+          <DialogTitle>Inserir OS e enviar ao técnico</DialogTitle>
           <DialogDescription>
-            Confira os dados enviados pelo técnico. Ao confirmar, a OS será criada (ou atualizada, caso já exista) e enviada novamente ao técnico selecionado.
+            A solicitação provisória será transformada na OS oficial. Nenhuma segunda OS será criada.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="grid gap-4">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!numeroOs.trim() || !frota.trim() || !descricao.trim() || !technicianId) {
+              toast.error("Preencha Número da OS, Frota, serviço e técnico.");
+              return;
+            }
+            void onRegister({
+              numero_os: numeroOs,
+              frota,
+              localizacao,
+              descricao,
+              tecnico_id: technicianId,
+            });
+          }}
+          className="grid gap-4"
+        >
           <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 font-semibold text-foreground"><UserCircle className="size-4" /> Solicitação de {request.tecnico_nome || request.tecnico_email}</div>
-            <div className="mt-1">Recebida em {formatDate(request.criada_em)}</div>
+            <div className="flex items-center gap-2 font-semibold text-foreground">
+              <UserCircle className="size-4" /> Solicitação de {request.tecnico_nome || request.tecnico_email}
+            </div>
+            <div className="mt-1">Recebida em {formatDate(request.solicitada_em || request.created_at)}</div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -633,15 +542,12 @@ function ManagerRequestDialog({
           </div>
           <Field label="Localização"><Input value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} /></Field>
           <Field label="Serviço realizado"><Textarea value={descricao} onChange={(event) => setDescricao(event.target.value)} required rows={5} /></Field>
-
-          <Field label="Enviar para técnico">
+          <Field label="Enviar novamente para técnico">
             <Select value={technicianId} onValueChange={setTechnicianId}>
               <SelectTrigger><SelectValue placeholder="Selecionar técnico" /></SelectTrigger>
               <SelectContent>
                 {technicians.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {(person.nome || person.email) + " · " + person.email}
-                  </SelectItem>
+                  <SelectItem key={person.id} value={person.id}>{(person.nome || person.email) + " · " + person.email}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -649,9 +555,7 @@ function ManagerRequestDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving} className="gap-2">
-              <Send className="size-4" /> {saving ? "Registrando..." : "Registrar e enviar ao técnico"}
-            </Button>
+            <Button type="submit" disabled={saving} className="gap-2"><Send className="size-4" /> {saving ? "Salvando..." : "Inserir OS e enviar"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -659,26 +563,11 @@ function ManagerRequestDialog({
   );
 }
 
-function StatusRequestBadge({ status }: { status: string }) {
-  if (status === "atendida") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-        <CheckCircle2 className="size-3.5" /> Atendida
-      </span>
-    );
+function RequestStatus({ status }: { status: string | null }) {
+  if (status === "regularizada") {
+    return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 className="size-3.5" /> Regularizada</span>;
   }
-  if (status === "cancelada") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
-        <XCircle className="size-3.5" /> Cancelada
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-      <Clock3 className="size-3.5" /> Pendente
-    </span>
-  );
+  return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"><Clock3 className="size-3.5" /> Pendente</span>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -691,21 +580,9 @@ function formatDate(value: string | null) {
 }
 
 function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed bg-card py-14 text-center text-sm text-muted-foreground">
-      <Inbox className="mx-auto size-8" />
-      <p className="mt-2">{text}</p>
-    </div>
-  );
+  return <div className="rounded-2xl border border-dashed bg-card py-14 text-center text-sm text-muted-foreground"><Inbox className="mx-auto size-8" /><p className="mt-2">{text}</p></div>;
 }
 
 function Loading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="flex items-center gap-3 text-sm text-muted-foreground">
-        <span className="size-4 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        Carregando solicitações...
-      </div>
-    </div>
-  );
+  return <div className="flex min-h-screen items-center justify-center bg-background"><div className="flex items-center gap-3 text-sm text-muted-foreground"><span className="size-4 animate-spin rounded-full border-2 border-muted border-t-primary" />Carregando solicitações...</div></div>;
 }
