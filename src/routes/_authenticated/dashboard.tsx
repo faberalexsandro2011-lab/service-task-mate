@@ -67,6 +67,7 @@ type ImportRow = {
   localizacao: string;
   descricao: string;
   tecnico_email: string;
+  entrada: string;
   valid: boolean;
   reason?: string;
 };
@@ -780,7 +781,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           </div>
 
           <div className="flex min-w-[190px] flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            <span><strong className="text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
+            <span><strong className="text-foreground/70">Abertura da OS:</strong> {order.entrada || fmtDate(order.created_at)}</span>
             <span><strong className="text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
@@ -807,7 +808,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura</p><p className="mt-1 text-sm font-medium">{fmtDate(order.created_at)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura da OS</p><p className="mt-1 text-sm font-medium">{order.entrada || fmtDate(order.created_at)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início</p><p className="mt-1 text-sm font-medium">{fmtDate(order.data_inicio)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusão</p><p className="mt-1 text-sm font-medium">{fmtDate(order.concluida_em)}</p></div>
             </div>
@@ -1357,7 +1358,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
     const hasHeader = normalizedHeaders.some((key) => key.includes("frota") || key.includes("numero") || key === "os");
     const headers = hasHeader
       ? first.map((cell, index) => cell || `col_${index}`)
-      : ["numero_os", "frota", "localizacao", "descricao", "tecnico_email"];
+      : ["numero_os", "frota", "localizacao", "descricao", "tecnico_email", "entrada"];
     const dataRows = hasHeader ? matrix.slice(1) : matrix;
     const records = dataRows
       .filter((row) => row.some((cell) => cell.trim()))
@@ -1375,6 +1376,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       const technician = findTechnician(row.tecnico_email, technicians);
       return {
         numero_os: row.numero_os,
+        entrada: row.entrada || null,
         frota: row.frota,
         localizacao: row.localizacao || null,
         descricao: row.descricao || null,
@@ -1461,7 +1463,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       const firstSheet = workbook.Sheets[firstSheetName];
       if (!firstSheet) throw new Error("empty");
       // Encontra a linha de cabeçalho (pode não ser a primeira linha da folha)
-      const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "" });
+      const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "", raw: false });
       let headerIdx = matrix.findIndex((r) => r.map((c) => normKey(String(c))).some((k) => k.includes("frota") || k.includes("numero") || k === "os"));
       if (headerIdx < 0) headerIdx = 0;
       const headers = (matrix[headerIdx] ?? []).map((c, i) => String(c).trim() || `col_${i}`);
@@ -1513,6 +1515,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       const technician = findTechnician(row.tecnico_email, technicians);
       return {
         numero_os: row.numero_os,
+        entrada: row.entrada || null,
         frota: row.frota,
         localizacao: row.localizacao || null,
         descricao: row.descricao || null,
@@ -1539,7 +1542,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-        <DialogHeader><DialogTitle>Importar ordens em lote</DialogTitle><DialogDescription>Use Excel ou CSV com as colunas numero_os, frota, localizacao, descricao e tecnico_email.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Importar ordens em lote</DialogTitle><DialogDescription>Use Excel ou CSV com as colunas numero_os, frota, localizacao, descricao, tecnico_email e ENTRADA.</DialogDescription></DialogHeader>
         {!rows.length ? (
           <button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-52 w-full flex-col items-center justify-center rounded-md border border-dashed bg-muted/30 p-8 text-center transition-colors hover:bg-muted/60">
             <div className="grid size-12 place-items-center rounded-md bg-background shadow-sm"><FileSpreadsheet className="size-6 text-primary" /></div>
@@ -1616,6 +1619,10 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     .replace(/^\s*frota\s*[:#-]?\s*/i, "")
     .trim();
 
+  const entrada = pick(clean, [
+    "entrada", "data_entrada", "entrada_data", "data_de_entrada",
+  ], ["entrada"]);
+
   const tecnico = pick(clean, [
     "tecnico_email", "email_tecnico", "tecnico", "tecnico_atribuido",
     "nome_tecnico", "tecnico_nome", "responsavel", "responsavel_tecnico",
@@ -1633,6 +1640,7 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
   return {
     numero_os: numero,
     frota,
+    entrada,
     localizacao: pick(clean, ["localizacao", "local", "morada", "endereco", "fazenda"], ["local", "endereco", "fazenda"]),
     descricao: pick(clean, [
       "descricao", "descricao_do_problema", "descricao_problema", "problema",
