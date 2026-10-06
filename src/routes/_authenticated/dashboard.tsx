@@ -329,12 +329,14 @@ function Dashboard() {
           <Brand compact />
           <div className="flex items-center gap-2">
             {isManager && (
-              <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
-                <BarChart3 />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
-                <Inbox />
-              </Button>
+              <>
+                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
+                  <BarChart3 />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
+                  <Inbox />
+                </Button>
+              </>
             )}
             {!isManager && <ConnectionPill connected={connected} online={online} />}
             <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
