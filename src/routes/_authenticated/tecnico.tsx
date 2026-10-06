@@ -722,7 +722,7 @@ function TechnicianPage() {
           <div className="rounded-2xl border bg-muted/30 p-4">
             <p className="text-xs font-bold uppercase text-muted-foreground">Horários do atendimento</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatDateTime(details.created_at, "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{details.entrada || formatDateTime(details.created_at, "—")}</p></div>
               <div><p className="text-xs text-muted-foreground">Início do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-xs text-muted-foreground">Fim do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.concluida_em, details.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
             </div>
