@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2 } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -195,6 +195,10 @@ function TechnicianPage() {
   }
 
   function openFinish(order: Ordem) {
+    if (!order.numero_os?.trim()) {
+      toast.info("Aguardando o ADM informar o número da OS. Depois disso, você poderá finalizar o serviço.");
+      return;
+    }
     setFinish(order);
     setNotes("");
     setPartsReplaced("nao");
@@ -258,6 +262,7 @@ function TechnicianPage() {
             })
             .eq("id", action.orderId)
             .eq("status", "em_andamento")
+            .not("numero_os", "is", null)
             .select("id");
 
           if (error) throw error;
@@ -491,6 +496,11 @@ function TechnicianPage() {
 
   async function finalize() {
     if (!actor || !finish) return;
+    if (!finish.numero_os?.trim()) {
+      toast.warning("Esta OS ainda não possui número. O ADM precisa informar o número antes do fechamento.");
+      setFinish(null);
+      return;
+    }
     const solution = notes.trim();
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const pieces = partsReplaced === "sim" ? selectedParts.filter(Boolean) : [];
@@ -685,7 +695,12 @@ function TechnicianPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
             {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); void start(order); }}><Play /> Iniciar serviço</Button>}
-            {order.status === "em_andamento" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.status === "em_andamento" && order.numero_os?.trim() && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {order.status === "em_andamento" && !order.numero_os?.trim() && (
+              <Button type="button" size="lg" variant="secondary" className="rounded-xl" disabled>
+                <LockKeyhole /> Aguardando número da OS
+              </Button>
+            )}
           </div>
         </article>)}
         {!visible.length && <div className="lg:col-span-2 rounded-3xl border border-dashed bg-card p-14 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-9 text-primary" /><p className="font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm">Altere o filtro ou a pesquisa para ver outros serviços.</p></div>}
@@ -731,7 +746,12 @@ function TechnicianPage() {
           <div className="flex flex-wrap gap-2 pt-2">
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
-            {details.status === "em_andamento" && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {details.status === "em_andamento" && details.numero_os?.trim() && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
+            {details.status === "em_andamento" && !details.numero_os?.trim() && (
+              <Button type="button" className="rounded-xl" variant="secondary" disabled>
+                <LockKeyhole /> Aguardando número da OS
+              </Button>
+            )}
           </div>
         </div>}
       </DialogContent>
