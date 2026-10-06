@@ -308,7 +308,7 @@ function Dashboard() {
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
                 {isManager && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
                 {isManager && <PartsCatalogDialog />}
 
@@ -373,8 +373,7 @@ function Dashboard() {
             </div>
           )}
 
-          <section className="mt-8 overflow-hidden rounded-2xl border bg-card shadow-md">
-            <div className="border-b bg-gradient-to-r from-primary/10 via-card to-[var(--agri-wheat)]/10 p-4 sm:p-6 lg:p-7">
+          <div className="mt-8">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -431,7 +430,7 @@ function Dashboard() {
                 </TabsContent>
               ))}
             </Tabs>
-          </section>
+          </div>
         </div>
       </main>
     </div>
