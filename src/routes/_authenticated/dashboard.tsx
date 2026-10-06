@@ -20,6 +20,7 @@ import {
   Wrench,
   Ban,
   History,
+  BarChart3,
   Wifi,
   WifiOff,
   PackagePlus,
@@ -292,9 +293,14 @@ function Dashboard() {
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
           {isManager && (
-            <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-              <History className="size-4" /> Histórico
-            </button>
+            <>
+              <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <BarChart3 className="size-4" /> Análise técnica
+              </button>
+              <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <History className="size-4" /> Histórico
+              </button>
+            </>
           )}
         </nav>
         <UserPanel name={actor.name || "Utilizador"} email={actor.email} role={data.role} onSignOut={signOut} />
