@@ -37,8 +37,16 @@ export const Route = createFileRoute("/_authenticated")({
     } else {
       role = (await getOfflineRole<"gestor" | "tecnico">()) ?? "tecnico";
     }
-    if (role === "tecnico" && !location.pathname.endsWith("/tecnico")) throw redirect({ to: "/tecnico", replace: true });
-    if (role === "gestor" && location.pathname.endsWith("/tecnico")) throw redirect({ to: "/dashboard", replace: true });
+    const isTechnicianArea = location.pathname.endsWith("/tecnico");
+    const isRequestArea = location.pathname.endsWith("/solicitacoes");
+
+    if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {
+      throw redirect({ to: "/tecnico", replace: true });
+    }
+
+    if (role === "gestor" && isTechnicianArea) {
+      throw redirect({ to: "/dashboard", replace: true });
+    }
     return { user: data.session.user, role };
   },
   component: () => (
