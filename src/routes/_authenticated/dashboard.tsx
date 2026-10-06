@@ -28,6 +28,7 @@ import {
   WifiOff,
   PackagePlus,
   X,
+  Inbox,
 } from "lucide-react";
 import { read, utils } from "xlsx";
 import { toast } from "sonner";
@@ -311,6 +312,9 @@ function Dashboard() {
               <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <BarChart3 className="size-4" /> Análise técnica
               </button>
+              <button type="button" onClick={() => void navigate({ to: "/solicitacoes" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <Inbox className="size-4" /> Solicitações de OS
+              </button>
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <History className="size-4" /> Histórico
               </button>
@@ -327,6 +331,9 @@ function Dashboard() {
             {isManager && (
               <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                 <BarChart3 />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
+                <Inbox />
               </Button>
             )}
             {!isManager && <ConnectionPill connected={connected} online={online} />}
@@ -353,6 +360,11 @@ function Dashboard() {
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
                 {isManager && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
                 {isManager && <PartsCatalogDialog />}
+                {isManager && (
+                  <Button variant="outline" className="gap-2 text-sm font-semibold" onClick={() => void navigate({ to: "/solicitacoes" })}>
+                    <Inbox className="size-4" /> Solicitações de OS
+                  </Button>
+                )}
                 {isPrimaryAdmin && selectedOrderIds.length > 0 && (
                   <Button variant="destructive" className="gap-2 text-sm font-semibold" onClick={() => void deleteSelectedOrders()}>
                     <Trash2 className="size-4" /> Excluir {selectedOrderIds.length} OS
