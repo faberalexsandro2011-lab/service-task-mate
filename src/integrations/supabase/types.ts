@@ -123,7 +123,7 @@ export type Database = {
           id: string
           localizacao: string | null
           notas_fecho: string | null
-          numero_os: string
+          numero_os: string | null
           pecas_utilizadas: string | null
           status: string
           tecnico_email: string | null
@@ -147,7 +147,7 @@ export type Database = {
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
-          numero_os: string
+          numero_os: string | null
           pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
