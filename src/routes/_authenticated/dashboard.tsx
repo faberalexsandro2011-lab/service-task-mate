@@ -304,7 +304,7 @@ function Dashboard() {
         <header className="flex h-14 items-center justify-between border-b px-3 sm:px-5 lg:hidden">
           <Brand compact />
           <div className="flex items-center gap-2">
-            <ConnectionPill connected={connected} online={online} />
+            {!isManager && <ConnectionPill connected={connected} online={online} />}
             <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
           </div>
         </header>
@@ -319,7 +319,7 @@ function Dashboard() {
               <div className="flex items-center gap-3">
                 <Tractor className="size-5 text-[var(--agri-leaf)]" />
                 <p className="text-sm font-semibold text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
-                <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>
+                {!isManager && <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>}
               </div>
               <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Ordens de serviço</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
