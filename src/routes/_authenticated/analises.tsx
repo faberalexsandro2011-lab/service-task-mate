@@ -15,6 +15,7 @@ import {
   Settings2,
   ShieldAlert,
   Tractor,
+  TrendingUp,
   Wrench,
 } from "lucide-react";
 import {
