@@ -482,24 +482,11 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
-      <div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-3 py-2.5">
-        <div>
-          <p className="text-sm font-bold">Ordens de serviço</p>
-          <p className="text-xs text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
-        </div>
-        <div className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:flex">
-          <span className="rounded-full bg-accent px-2 py-1 text-accent-foreground">Pendente</span>
-          <span className="rounded-full bg-primary px-2 py-1 text-primary-foreground">Em andamento</span>
-          <span className="rounded-full bg-secondary px-2 py-1 text-secondary-foreground">Finalizada</span>
-        </div>
-      </div>
-      <div className="divide-y">
-        {orders.map((order) => (
-          <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
-        ))}
-      </div>
-    </section>
+    <div className="divide-y divide-border">
+      {orders.map((order) => (
+        <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+      ))}
+    </div>
   );
 }
 
@@ -634,7 +621,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   return (
     <>
       <article
-        className="group cursor-pointer border-b px-3 py-2.5 transition-colors hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset last:border-b-0"
+        className="group cursor-pointer px-1.5 py-2 transition-colors hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset"
         role="button"
         tabIndex={0}
         onClick={() => setDetailsOpen(true)}
