@@ -160,11 +160,6 @@ export type Database = {
           solicitada_em?: string | null
           regularizada_em?: string | null
           regularizada_por_email?: string | null
-          solicitacao_os?: boolean
-          solicitacao_status?: string | null
-          solicitada_em?: string | null
-          regularizada_em?: string | null
-          regularizada_por_email?: string | null
         }
         Update: {
           concluida_em?: string | null
@@ -176,7 +171,7 @@ export type Database = {
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
-          numero_os?: string
+          numero_os?: string | null
           pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
