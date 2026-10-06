@@ -52,6 +52,66 @@ export type Database = {
           },
         ]
       }
+      solicitacoes_os: {
+        Row: {
+          atendida_em: string | null
+          criada_em: string
+          detalhe_gestor: string | null
+          descricao: string | null
+          frota: string
+          id: string
+          localizacao: string | null
+          numero_os: string
+          ordem_id: string | null
+          solicitante_email: string
+          solicitante_id: string
+          solicitante_nome: string | null
+          status: string
+          tecnico_email: string
+          tecnico_id: string | null
+          tecnico_nome: string | null
+          updated_at: string
+        }
+        Insert: {
+          atendida_em?: string | null
+          criada_em?: string
+          detalhe_gestor?: string | null
+          descricao?: string | null
+          frota: string
+          id?: string
+          localizacao?: string | null
+          numero_os: string
+          ordem_id?: string | null
+          solicitante_email: string
+          solicitante_id: string
+          solicitante_nome?: string | null
+          status?: string
+          tecnico_email: string
+          tecnico_id?: string | null
+          tecnico_nome?: string | null
+          updated_at?: string
+        }
+        Update: {
+          atendida_em?: string | null
+          criada_em?: string
+          detalhe_gestor?: string | null
+          descricao?: string | null
+          frota?: string
+          id?: string
+          localizacao?: string | null
+          numero_os?: string
+          ordem_id?: string | null
+          solicitante_email?: string
+          solicitante_id?: string
+          solicitante_nome?: string | null
+          status?: string
+          tecnico_email?: string
+          tecnico_id?: string | null
+          tecnico_nome?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ordens_servico: {
         Row: {
           concluida_em: string | null
