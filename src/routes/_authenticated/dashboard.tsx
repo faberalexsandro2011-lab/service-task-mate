@@ -957,7 +957,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
   const [emailValue, setEmailValue] = useState("");
   const [adminAccess, setAdminAccess] = useState(false);
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
-  const canManage = actor.isManager;
+  const canManage = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
