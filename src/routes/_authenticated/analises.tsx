@@ -135,7 +135,10 @@ function TechnicalAnalysis() {
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
-  const fleetRows = useMemo(() => buildFleetRows(allOrders), [allOrders]);
+  const fleetRows = useMemo(
+    () => buildFleetRows(allOrders.filter((order) => order.status === "concluida")),
+    [allOrders],
+  );
   const selectedFleetOrders = useMemo(
     () => selectedFleet
       ? allOrders
@@ -862,7 +865,7 @@ function buildFleetRows(orders: Ordem[]) {
     const key = frota.toLocaleLowerCase("pt-BR");
     const current = groups.get(key) ?? { frota, total: 0, completed: 0, lastDate: order.created_at };
     current.total++;
-    if (order.status === "concluida") current.completed++;
+    current.completed++;
     if (new Date(order.created_at).getTime() > new Date(current.lastDate).getTime()) current.lastDate = order.created_at;
     groups.set(key, current);
   }
