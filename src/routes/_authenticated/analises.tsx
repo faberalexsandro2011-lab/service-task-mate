@@ -96,20 +96,6 @@ function TechnicalAnalysis() {
     };
   }, [queryClient]);
 
-  if (query.isPending) return <AnalysisLoading />;
-  if (query.isError) {
-    return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="mx-auto max-w-xl rounded-2xl border bg-card p-8 text-center shadow-sm">
-          <ShieldAlert className="mx-auto size-9 text-destructive" />
-          <h1 className="mt-4 text-lg font-bold">Não foi possível abrir a análise</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{query.error.message}</p>
-          <Button className="mt-5" onClick={() => void navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
-        </div>
-      </div>
-    );
-  }
-
   const allOrders = query.data?.orders ?? [];
   const scopedOrders = useMemo(() => {
     const now = new Date();
@@ -146,6 +132,20 @@ function TechnicalAnalysis() {
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
+
+  if (query.isPending) return <AnalysisLoading />;
+  if (query.isError) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="mx-auto max-w-xl rounded-2xl border bg-card p-8 text-center shadow-sm">
+          <ShieldAlert className="mx-auto size-9 text-destructive" />
+          <h1 className="mt-4 text-lg font-bold">Não foi possível abrir a análise</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{query.error.message}</p>
+          <Button className="mt-5" onClick={() => void navigate({ to: "/dashboard" })}>Voltar ao painel</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
