@@ -25,6 +25,34 @@ type Ordem = Tables<"ordens_servico">;
 type Peca = Tables<"pecas_catalogo">;
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
+function formatEntrada(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  const text = value.trim();
+
+  const br = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
+  if (br) {
+    const day = br[1].padStart(2, "0");
+    const month = br[2].padStart(2, "0");
+    const year = br[3].length === 2 ? "20" + br[3] : br[3].slice(-4);
+    return day + "/" + month + "/" + year.slice(-2);
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[3] + "/" + iso[2] + "/" + iso[1].slice(-2);
+
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      timeZone: "UTC",
+    });
+  }
+
+  return text;
+}
+
 function formatDateTime(value: string | null | undefined, emptyLabel: string) {
   if (!value) return emptyLabel;
   const date = new Date(value);
@@ -687,7 +715,7 @@ function TechnicianPage() {
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
             <div className="grid gap-2 rounded-2xl border bg-muted/30 p-3 sm:grid-cols-3">
-              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{order.entrada || formatDateTime(order.created_at, "—")}</p></div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(order.entrada) || formatDateTime(order.created_at, "—")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
             </div>
@@ -722,7 +750,7 @@ function TechnicianPage() {
           <div className="rounded-2xl border bg-muted/30 p-4">
             <p className="text-xs font-bold uppercase text-muted-foreground">Horários do atendimento</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{details.entrada || formatDateTime(details.created_at, "—")}</p></div>
+              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(details.entrada) || formatDateTime(details.created_at, "—")}</p></div>
               <div><p className="text-xs text-muted-foreground">Início do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-xs text-muted-foreground">Fim do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.concluida_em, details.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
             </div>
