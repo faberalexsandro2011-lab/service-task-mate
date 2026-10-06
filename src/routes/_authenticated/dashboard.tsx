@@ -148,6 +148,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState("todas");
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
 
   // Estado da ligação do navegador
@@ -204,6 +205,22 @@ function Dashboard() {
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+  }
+
+  const isPrimaryAdmin = userEmail === "faber.alexsandro2011@gmail.com";
+
+  async function deleteSelectedOrders() {
+    if (!isPrimaryAdmin || selectedOrderIds.length === 0) return;
+    if (!confirm("Excluir permanentemente " + selectedOrderIds.length + " OS selecionada(s)? Esta ação não pode ser desfeita.")) return;
+    const ids = [...selectedOrderIds];
+    const { error } = await supabase.from("ordens_servico").delete().in("id", ids);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível excluir as OS selecionadas."));
+      return;
+    }
+    setSelectedOrderIds([]);
+    toast.success(ids.length + " OS excluída(s) com sucesso.");
+    await refresh();
   }
 
   async function signOut() {
@@ -311,6 +328,11 @@ function Dashboard() {
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
                 {isManager && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
                 {isManager && <PartsCatalogDialog />}
+                {isPrimaryAdmin && selectedOrderIds.length > 0 && (
+                  <Button variant="destructive" className="gap-2 text-sm font-semibold" onClick={() => void deleteSelectedOrders()}>
+                    <Trash2 className="size-4" /> Excluir {selectedOrderIds.length} OS
+                  </Button>
+                )}
 
                 <Dialog>
                   <DialogTrigger asChild>
@@ -427,7 +449,7 @@ function Dashboard() {
                     </div>
                     {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
                   </div>
-                  <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} />
+                  <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isPrimaryAdmin} />
                 </TabsContent>
               ))}
             </Tabs>
@@ -476,7 +498,7 @@ function getReplacedParts(value: string | null | undefined) {
 
 const fmtDate = (value: string | null) =>
   value ? new Intl.DateTimeFormat("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) : "—";
-function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void> }) {
+function OrderList({ orders, empty, actor, onChanged, selectedIds, onToggleSelect, canSelect }: { orders: Ordem[]; empty: string; actor: Actor; onChanged: () => Promise<void>; selectedIds: string[]; onToggleSelect: (id: string) => void; canSelect: boolean }) {
   if (orders.length === 0) {
     return <div className="rounded-xl border border-dashed bg-card py-14 text-center text-sm text-muted-foreground">{empty}</div>;
   }
@@ -484,7 +506,7 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
   return (
     <div className="divide-y divide-border">
       {orders.map((order) => (
-        <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+        <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} selected={selectedIds.includes(order.id)} onToggleSelect={onToggleSelect} canSelect={canSelect} />
       ))}
     </div>
   );
@@ -516,7 +538,7 @@ function FleetBadge({ value, compact = false }: { value: string; compact?: boole
   );
 }
 
-function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; onChanged: () => Promise<void> }) {
+function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelect }: { order: Ordem; actor: Actor; onChanged: () => Promise<void>; selected: boolean; onToggleSelect: (id: string) => void; canSelect: boolean }) {
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -526,7 +548,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
-  const canDelete = actor.isManager;
+  const canDelete = isPrimaryAdmin;
 
   async function start() {
     setBusy(true);
@@ -635,6 +657,17 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        {canSelect && (
+          <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect(order.id)}
+              aria-label={"Selecionar OS " + order.numero_os}
+              className="size-4 cursor-pointer rounded border-input accent-primary"
+            />
+          </label>
+        )}
           <div className="flex min-w-[110px] items-center gap-2">
             <span className="grid size-6 shrink-0 place-items-center rounded bg-primary/10 text-primary">
               <ClipboardList className="size-3" />
