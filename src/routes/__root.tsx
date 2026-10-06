@@ -144,10 +144,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
-      <div className="pointer-events-none fixed bottom-2 right-2 z-[9999] rounded-full border bg-background/95 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground shadow-sm">
-        PWA TESTE v2026.10.04
-      </div>
-      <Toaster position="top-right" richColors />
+     <Toaster position="top-right" richColors />
     </QueryClientProvider>
   );
 }
