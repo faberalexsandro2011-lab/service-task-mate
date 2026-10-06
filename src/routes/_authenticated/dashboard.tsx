@@ -442,12 +442,32 @@ function Dashboard() {
               </TabsList>
               {tabs.map((t) => (
                 <TabsContent key={t.value} value={t.value} className="m-0 p-4 sm:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-bold">{t.label}</p>
                       <p className="text-sm text-muted-foreground">Mostrando {t.list.length} {t.list.length === 1 ? "registro" : "registros"}</p>
                     </div>
-                    {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isPrimaryAdmin && t.list.length > 0 && (
+                        <label className="flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm font-semibold hover:bg-muted">
+                          <input
+                            type="checkbox"
+                            checked={t.list.every((order) => selectedOrderIds.includes(order.id))}
+                            onChange={(event) => {
+                              if (event.target.checked) {
+                                setSelectedOrderIds((current) => Array.from(new Set([...current, ...t.list.map((order) => order.id)])));
+                              } else {
+                                const visibleIds = new Set(t.list.map((order) => order.id));
+                                setSelectedOrderIds((current) => current.filter((id) => !visibleIds.has(id)));
+                              }
+                            }}
+                            className="size-4 cursor-pointer accent-primary"
+                          />
+                          Excluir todas
+                        </label>
+                      )}
+                      {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
+                    </div>
                   </div>
                   <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isPrimaryAdmin} />
                 </TabsContent>
