@@ -1511,13 +1511,13 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       return;
     }
     try {
-      const workbook = read(await file.arrayBuffer());
+      const workbook = read(await file.arrayBuffer(), { cellDates: true });
       const firstSheetName = workbook.SheetNames[0];
       if (!firstSheetName) throw new Error("empty");
       const firstSheet = workbook.Sheets[firstSheetName];
       if (!firstSheet) throw new Error("empty");
       // Encontra a linha de cabeçalho (pode não ser a primeira linha da folha)
-      const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "", raw: false });
+      const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "", raw: true });
       let headerIdx = matrix.findIndex((r) => r.map((c) => normKey(String(c))).some((k) => k.includes("frota") || k.includes("numero") || k === "os"));
       if (headerIdx < 0) headerIdx = 0;
       const headers = (matrix[headerIdx] ?? []).map((c, i) => String(c).trim() || `col_${i}`);
@@ -1658,7 +1658,12 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
   // e depois procuramos cada campo por aliases. Assim "Frota | OS | Técnico" funciona
   // exatamente como "OS | Técnico | Frota".
   const clean: Record<string, string> = Object.fromEntries(
-    Object.entries(record).map(([key, value]) => [normKey(key), String(value ?? "").trim()]),
+    Object.entries(record).map(([key, value]) => [
+      normKey(key),
+      value instanceof Date
+        ? value.toISOString().slice(0, 10)
+        : String(value ?? "").trim(),
+    ]),
   );
 
   const numero = pick(clean, [
