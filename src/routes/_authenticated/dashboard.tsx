@@ -137,6 +137,7 @@ function formatEntrada(value: string | null | undefined) {
   if (!value?.trim()) return null;
   const text = value.trim();
 
+  // Datas brasileiras: mantém explicitamente DD/MM/AA.
   const br = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
   if (br) {
     const day = br[1].padStart(2, "0");
@@ -145,8 +146,21 @@ function formatEntrada(value: string | null | undefined) {
     return day + "/" + month + "/" + year.slice(-2);
   }
 
+  // ISO/Date do Excel: interpreta sem conversão de fuso e mostra DD/MM/AA.
   const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return iso[3] + "/" + iso[2] + "/" + iso[1].slice(-2);
+
+  // Número serial do Excel (sistema 1900).
+  const serial = Number(text);
+  if (Number.isFinite(serial) && serial > 20000 && serial < 100000) {
+    const date = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      timeZone: "UTC",
+    });
+  }
 
   const date = new Date(text);
   if (!Number.isNaN(date.getTime())) {
@@ -158,7 +172,19 @@ function formatEntrada(value: string | null | undefined) {
     });
   }
 
-  return text;
+  return null;
+}
+
+function formatDataAberturaFallback(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    timeZone: "UTC",
+  });
 }
 
 function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
@@ -809,7 +835,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           </div>
 
           <div className="flex min-w-[190px] flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            <span><strong className="text-foreground/70">Abertura da OS:</strong> {formatEntrada(order.entrada) || fmtDate(order.created_at)}</span>
+            <span><strong className="text-foreground/70">Abertura da OS:</strong> {formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at)}</span>
             <span><strong className="text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
@@ -836,7 +862,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura da OS</p><p className="mt-1 text-sm font-medium">{formatEntrada(order.entrada) || fmtDate(order.created_at)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura da OS</p><p className="mt-1 text-sm font-medium">{formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início</p><p className="mt-1 text-sm font-medium">{fmtDate(order.data_inicio)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusão</p><p className="mt-1 text-sm font-medium">{fmtDate(order.concluida_em)}</p></div>
             </div>
