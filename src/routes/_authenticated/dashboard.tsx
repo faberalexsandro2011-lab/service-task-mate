@@ -482,42 +482,22 @@ function OrderList({ orders, empty, actor, onChanged }: { orders: Ordem[]; empty
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="flex flex-col gap-2 border-b bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b bg-muted/20 px-3 py-2.5">
         <div>
-          <p className="text-base font-bold">Ordens de serviço</p>
-          <p className="text-sm text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
+          <p className="text-sm font-bold">Ordens de serviço</p>
+          <p className="text-xs text-muted-foreground">{orders.length} {orders.length === 1 ? "ordem encontrada" : "ordens encontradas"}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <div className="hidden items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:flex">
           <span className="rounded-full bg-accent px-2 py-1 text-accent-foreground">Pendente</span>
           <span className="rounded-full bg-primary px-2 py-1 text-primary-foreground">Em andamento</span>
           <span className="rounded-full bg-secondary px-2 py-1 text-secondary-foreground">Finalizada</span>
         </div>
       </div>
-
-      <div className="hidden xl:block">
-        <div className="grid grid-cols-[minmax(100px,0.75fr)_minmax(80px,0.55fr)_minmax(140px,1fr)_minmax(190px,1.45fr)_minmax(105px,0.8fr)_minmax(180px,1.2fr)_minmax(240px,1.4fr)] items-start gap-3 border-b bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          <span>OS</span>
-          <span>Frota</span>
-          <span>Técnico</span>
-          <span>Serviço</span>
-          <span>Status</span>
-          <span>Datas do atendimento</span>
-          <span className="text-right">Ações</span>
-        </div>
-        <div className="divide-y">
-          {orders.map((order) => (
-            <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
-          ))}
-        </div>
-      </div>
-
-      <div className="xl:hidden">
-        <div className="divide-y">
-          {orders.map((order) => (
-            <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
-          ))}
-        </div>
+      <div className="divide-y">
+        {orders.map((order) => (
+          <OrderCard key={order.id} order={order} actor={actor} onChanged={onChanged} />
+        ))}
       </div>
     </section>
   );
@@ -654,7 +634,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   return (
     <>
       <article
-        className="group cursor-pointer transition-all duration-200 hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset active:bg-muted/40"
+        className="group cursor-pointer border-b px-3 py-2.5 transition-colors hover:bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset last:border-b-0"
         role="button"
         tabIndex={0}
         onClick={() => setDetailsOpen(true)}
@@ -666,57 +646,41 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="hidden grid-cols-[minmax(100px,0.75fr)_minmax(80px,0.55fr)_minmax(140px,1fr)_minmax(190px,1.45fr)_minmax(105px,0.8fr)_minmax(180px,1.2fr)_minmax(240px,1.4fr)] items-start gap-3 px-4 py-3.5 xl:grid">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2"><span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3" /></span><p className="truncate text-sm font-bold text-foreground">{order.numero_os}</p></div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-[110px] items-center gap-2">
+            <span className="grid size-6 shrink-0 place-items-center rounded bg-primary/10 text-primary">
+              <ClipboardList className="size-3" />
+            </span>
+            <span className="font-bold text-sm">OS {order.numero_os}</span>
           </div>
-          <FleetBadge value={order.frota} />
-          <div className="min-w-0">
-            <p className="break-words text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
-            {order.tecnico_email && <p className="mt-0.5 break-all text-xs text-muted-foreground">{order.tecnico_email}</p>}
-          </div>
-          <div className="min-w-0"><p className="break-words text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p></div>
-          <div><StatusBadge status={status} /></div>
-          <div className="grid gap-0.5 text-[11px] leading-4 text-muted-foreground">
-            <span><strong className="font-semibold text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
-            <span><strong className="font-semibold text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
-            <span><strong className="font-semibold text-foreground/70">Fechamento:</strong> {fmtDate(order.concluida_em)}</span>
-          </div>
-          <div className="min-w-0" onClick={(event) => event.stopPropagation()}>{actionButtons}</div>
-        </div>
 
-        <div className="grid gap-4 px-4 py-4 sm:px-5 xl:hidden">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><ClipboardList className="size-3.5" /></span>
-                <div className="min-w-0">
-                  <p className="break-words text-sm font-bold text-foreground">OS {order.numero_os}</p>
-                  <div className="mt-1"><FleetBadge value={order.frota} compact /></div>
-                </div>
-              </div>
-              <StatusBadge status={status} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="min-w-0 rounded-lg border bg-muted/20 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Técnico</p>
-                <p className="mt-1 break-words text-sm font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
-                {order.tecnico_email && <p className="mt-0.5 break-all text-xs text-muted-foreground">{order.tecnico_email}</p>}
-              </div>
-              <div className="min-w-0 rounded-lg border bg-muted/20 p-3">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Serviço</p>
-                <p className="mt-1 break-words text-sm font-medium leading-5">{order.descricao || "Sem descrição"}</p>
-              </div>
-            </div>
-            <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-xs sm:grid-cols-3">
-              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Abertura</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.created_at)}</span></div>
-              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Início</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.data_inicio)}</span></div>
-              <div><strong className="block text-[11px] uppercase tracking-wide text-muted-foreground">Fechamento</strong><span className="mt-0.5 block break-words font-medium">{fmtDate(order.concluida_em)}</span></div>
-            </div>
-            <div onClick={(event) => event.stopPropagation()} className="border-t pt-3">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Ações</p>
-              <div className="w-full">{actionButtons}</div>
-            </div>
+          <div className="min-w-[75px]">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground">Frota</span>
+            <p className="text-sm font-semibold text-primary">{order.frota || "—"}</p>
+          </div>
+
+          <div className="min-w-[150px] flex-1">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground">Técnico</span>
+            <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
+          </div>
+
+          <div className="min-w-[180px] flex-[1.4]">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground">Serviço</span>
+            <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
+          </div>
+
+          <div className="shrink-0">
+            <StatusBadge status={status} />
+          </div>
+
+          <div className="flex min-w-[210px] flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            <span><strong className="text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
+            <span><strong className="text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
+            <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
+          </div>
+
+          <div className="ml-auto w-full sm:w-auto sm:min-w-[180px]" onClick={(event) => event.stopPropagation()}>
+            {actionButtons}
           </div>
         </div>
       </article>
