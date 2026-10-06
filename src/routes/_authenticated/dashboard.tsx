@@ -133,6 +133,34 @@ type Actor = { id: string; email: string; name: string; isManager: boolean };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
+function formatEntrada(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  const text = value.trim();
+
+  const br = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
+  if (br) {
+    const day = br[1].padStart(2, "0");
+    const month = br[2].padStart(2, "0");
+    const year = br[3].length === 2 ? "20" + br[3] : br[3].slice(-4);
+    return day + "/" + month + "/" + year.slice(-2);
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return iso[3] + "/" + iso[2] + "/" + iso[1].slice(-2);
+
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      timeZone: "UTC",
+    });
+  }
+
+  return text;
+}
+
 function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
   if (!error) return fallback;
   if (error.code === "42501" || /permission|row-level/i.test(error.message ?? "")) {
@@ -781,7 +809,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           </div>
 
           <div className="flex min-w-[190px] flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            <span><strong className="text-foreground/70">Abertura da OS:</strong> {order.entrada || fmtDate(order.created_at)}</span>
+            <span><strong className="text-foreground/70">Abertura da OS:</strong> {formatEntrada(order.entrada) || fmtDate(order.created_at)}</span>
             <span><strong className="text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
@@ -808,7 +836,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura da OS</p><p className="mt-1 text-sm font-medium">{order.entrada || fmtDate(order.created_at)}</p></div>
+              <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Abertura da OS</p><p className="mt-1 text-sm font-medium">{formatEntrada(order.entrada) || fmtDate(order.created_at)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Início</p><p className="mt-1 text-sm font-medium">{fmtDate(order.data_inicio)}</p></div>
               <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusão</p><p className="mt-1 text-sm font-medium">{fmtDate(order.concluida_em)}</p></div>
             </div>
