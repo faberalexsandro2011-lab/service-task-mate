@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Clock3,
   Filter,
+  ChevronRight,
   Gauge,
   Package,
   RefreshCw,
@@ -78,6 +79,7 @@ function TechnicalAnalysis() {
   const queryClient = useQueryClient();
   const [period, setPeriod] = useState<Period>("all");
   const [search, setSearch] = useState("");
+  const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["technical-analysis"],
     queryFn: getAnalysisData,
@@ -133,6 +135,15 @@ function TechnicalAnalysis() {
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
+  const fleetRows = useMemo(() => buildFleetRows(allOrders), [allOrders]);
+  const selectedFleetOrders = useMemo(
+    () => selectedFleet
+      ? allOrders
+          .filter((order) => String(order.frota).trim().toLocaleLowerCase("pt-BR") === selectedFleet.toLocaleLowerCase("pt-BR"))
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      : [],
+    [allOrders, selectedFleet],
+  );
 
   if (query.isPending) return <AnalysisLoading />;
   if (query.isError) {
@@ -394,6 +405,107 @@ function TechnicalAnalysis() {
           </Panel>
         </section>
 
+        <section className="grid gap-5 xl:grid-cols-[0.8fr_1.6fr]">
+          <Panel
+            title="Histórico por frota"
+            subtitle="Clique em qualquer frota para abrir todo o histórico de manutenção dela, sem limitar pelo período."
+            icon={<Tractor className="size-4" />}
+          >
+            {fleetRows.length ? (
+              <div className="max-h-[520px] overflow-y-auto">
+                <div className="space-y-1">
+                  {fleetRows.map((row) => {
+                    const active = selectedFleet?.toLocaleLowerCase("pt-BR") === row.frota.toLocaleLowerCase("pt-BR");
+                    return (
+                      <button
+                        key={row.frota}
+                        type="button"
+                        onClick={() => setSelectedFleet(row.frota)}
+                        className={[
+                          "grid w-full grid-cols-[1fr_auto_auto] items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
+                          active
+                            ? "border-primary bg-primary/5"
+                            : "border-transparent hover:border-border hover:bg-muted/40",
+                        ].join(" ")}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-bold">{row.frota}</div>
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">
+                            {row.total} {row.total === 1 ? "manutenção" : "manutenções"} · última {formatDateOnly(row.lastDate)}
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-muted px-2 py-1 text-[11px] font-bold">{row.completed} concluída(s)</span>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <EmptyState text="Nenhuma frota cadastrada nas OS." />
+            )}
+          </Panel>
+
+          <Panel
+            title={selectedFleet ? "Histórico completo · " + selectedFleet : "Selecione uma frota"}
+            subtitle={selectedFleet ? "Todas as ordens registradas para esta frota, da mais recente para a mais antiga." : "A seleção mostra OS, problema, serviço, peças, técnico e datas de atendimento."}
+            icon={<ClipboardList className="size-4" />}
+          >
+            {!selectedFleet ? (
+              <div className="flex min-h-[300px] items-center justify-center rounded-xl border border-dashed p-8 text-center">
+                <div>
+                  <Tractor className="mx-auto size-9 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-semibold">Escolha uma frota ao lado</p>
+                  <p className="mt-1 text-xs text-muted-foreground">O sistema carregará todo o histórico de manutenção armazenado.</p>
+                </div>
+              </div>
+            ) : selectedFleetOrders.length ? (
+              <div className="space-y-2">
+                {selectedFleetOrders.map((order, index) => {
+                  const parts = extractParts(order.pecas_utilizadas);
+                  return (
+                    <div key={order.id} className="rounded-xl border p-3 transition-colors hover:bg-muted/25">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold">OS {order.numero_os}</span>
+                            <StatusBadge status={order.status} />
+                            {index === 0 && <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">Mais recente</span>}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">{formatDate(order.created_at)} · {serviceCategory(order)}</div>
+                        </div>
+                        <div className="text-left text-xs text-muted-foreground sm:text-right">
+                          <div><strong className="text-foreground">Técnico:</strong> {order.tecnico_nome || order.tecnico_email || "Sem técnico"}</div>
+                          <div className="mt-1"><strong className="text-foreground">Atendimento:</strong> {order.data_inicio ? formatDate(order.data_inicio) : "Não iniciado"} → {order.concluida_em ? formatDate(order.concluida_em) : "Em aberto"}</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-[1.2fr_0.8fr]">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Problema / serviço</div>
+                          <p className="mt-1 text-sm leading-5">{order.descricao || order.notas_fecho || "Sem descrição registrada."}</p>
+                          {order.notas_fecho && order.descricao && <p className="mt-1 text-xs text-muted-foreground"><strong>Fechamento:</strong> {order.notas_fecho}</p>}
+                        </div>
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Peças trocadas</div>
+                          {parts.length ? (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {parts.map((part) => <span key={part} className="rounded-md bg-muted px-2 py-1 text-xs">{part}</span>)}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-xs text-muted-foreground">Nenhuma peça registrada.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState text="Não há OS registradas para esta frota." />
+            )}
+          </Panel>
+        </section>
+
         <section className="rounded-2xl border bg-card shadow-sm">
           <div className="border-b p-4 sm:p-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -543,6 +655,11 @@ function AnalysisLoading() {
 function formatDate(value: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatDateOnly(value: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("pt-BR");
 }
 
 function formatNumber(value: number) {
@@ -735,6 +852,24 @@ function buildRecurrenceRows(orders: Ordem[]) {
   return [...groups.values()]
     .filter((row) => row.total >= 2)
     .sort((a, b) => b.total - a.total || new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime());
+}
+
+function buildFleetRows(orders: Ordem[]) {
+  const groups = new Map<string, { frota: string; total: number; completed: number; lastDate: string }>();
+
+  for (const order of orders) {
+    const frota = String(order.frota ?? "").trim() || "Sem frota";
+    const key = frota.toLocaleLowerCase("pt-BR");
+    const current = groups.get(key) ?? { frota, total: 0, completed: 0, lastDate: order.created_at };
+    current.total++;
+    if (order.status === "concluida") current.completed++;
+    if (new Date(order.created_at).getTime() > new Date(current.lastDate).getTime()) current.lastDate = order.created_at;
+    groups.set(key, current);
+  }
+
+  return [...groups.values()].sort(
+    (a, b) => b.total - a.total || new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime(),
+  );
 }
 
 function buildTechnicianRows(orders: Ordem[]) {
