@@ -646,7 +646,7 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
           <div className="flex min-w-[110px] items-center gap-2">
             <span className="grid size-6 shrink-0 place-items-center rounded bg-primary/10 text-primary">
               <ClipboardList className="size-3" />
@@ -654,17 +654,17 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <span className="font-bold text-sm">OS {order.numero_os}</span>
           </div>
 
-          <div className="min-w-[75px]">
+          <div className="min-w-[65px]">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Frota</span>
             <p className="text-sm font-semibold text-primary">{order.frota || "—"}</p>
           </div>
 
-          <div className="min-w-[150px] flex-1">
+          <div className="min-w-[125px] flex-1">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Técnico</span>
             <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
           </div>
 
-          <div className="min-w-[180px] flex-[1.4]">
+          <div className="min-w-[150px] flex-[1.2]">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Serviço</span>
             <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
           </div>
@@ -673,13 +673,13 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
             <StatusBadge status={status} />
           </div>
 
-          <div className="flex min-w-[210px] flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+          <div className="flex min-w-[190px] flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
             <span><strong className="text-foreground/70">Abertura:</strong> {fmtDate(order.created_at)}</span>
             <span><strong className="text-foreground/70">Início:</strong> {fmtDate(order.data_inicio)}</span>
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          <div className="ml-auto w-full sm:w-auto sm:min-w-[180px]" onClick={(event) => event.stopPropagation()}>
+          <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
             {actionButtons}
           </div>
         </div>
