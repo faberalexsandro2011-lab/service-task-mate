@@ -1087,7 +1087,9 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button variant="outline"><UserRound /> Técnicos</Button></DialogTrigger>
+      {canManage && (
+        <DialogTrigger asChild><Button variant="outline"><UserRound /> Técnicos</Button></DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Técnicos e administradores</DialogTitle>
