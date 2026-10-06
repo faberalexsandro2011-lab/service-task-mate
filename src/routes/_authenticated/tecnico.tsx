@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -594,6 +594,7 @@ function TechnicianPage() {
   const menuItems = [
     { label: "Início", href: "/tecnico", icon: Home },
     { label: "Minhas OS", href: "/tecnico", icon: ClipboardList },
+    { label: "Solicitar OS", href: "/solicitacoes", icon: FilePlus2 },
     { label: "Histórico", href: "/historico", icon: History },
   ];
 
