@@ -1429,7 +1429,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         />
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          Ordem das colunas: <strong>Número da OS → Frota → Localização → Descrição → Técnico</strong>
+          Colunas reconhecidas: <strong>Número da OS · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
         </div>
 
         <DialogFooter>
