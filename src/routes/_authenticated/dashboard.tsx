@@ -522,7 +522,8 @@ function OrderCard({ order, actor, onChanged }: { order: Ordem; actor: Actor; on
   const [detailsOpen, setDetailsOpen] = useState(false);
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
-  const canStart = !actor.isManager && status === "pendente" && (!order.tecnico_id || isMine);
+  const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
+  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = actor.isManager;
