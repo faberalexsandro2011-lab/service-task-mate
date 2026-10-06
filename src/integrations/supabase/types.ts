@@ -131,6 +131,11 @@ export type Database = {
           tecnico_nome: string | null
           updated_at: string
           valor_total: number | null
+          solicitacao_os: boolean
+          solicitacao_status: string | null
+          solicitada_em: string | null
+          regularizada_em: string | null
+          regularizada_por_email: string | null
         }
         Insert: {
           concluida_em?: string | null
@@ -150,6 +155,16 @@ export type Database = {
           tecnico_nome?: string | null
           updated_at?: string
           valor_total?: number | null
+          solicitacao_os?: boolean
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
+          solicitacao_os?: boolean
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
         }
         Update: {
           concluida_em?: string | null
