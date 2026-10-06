@@ -192,7 +192,7 @@ function SolicitacoesPage() {
           tecnico_id: technician?.id ?? selected.tecnico_id,
           tecnico_email: technician?.email ?? selected.tecnico_email,
           tecnico_nome: technician?.nome ?? selected.tecnico_nome,
-          status: "pendente",
+          status: selected.status === "em_andamento" ? "em_andamento" : "pendente",
           solicitacao_os: false,
           solicitacao_status: "regularizada",
           regularizada_em: now,
@@ -430,8 +430,8 @@ function ManagerRequests({ requests, onSelect }: { requests: Ordem[]; onSelect: 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-bold">{request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
-                  <RequestStatus status={request.solicitacao_status} />
-                  {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando cadastro</span>}
+                  <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
+                  {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando número da OS</span>}
                 </div>
                 <div className="mt-2 grid gap-x-5 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
                   <span><strong className="text-foreground">Frota:</strong> {request.frota}</span>
@@ -461,7 +461,7 @@ function TechnicianRequests({ requests }: { requests: Ordem[] }) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-bold">{request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
-                <RequestStatus status={request.solicitacao_status} />
+                <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 Frota {request.frota} · enviada em {formatDate(request.solicitada_em || request.created_at)}
@@ -509,7 +509,7 @@ function ManagerRequestDialog({
         <DialogHeader>
           <DialogTitle>Inserir OS e enviar ao técnico</DialogTitle>
           <DialogDescription>
-            A solicitação provisória será transformada na OS oficial. Nenhuma segunda OS será criada.
+            Informe o número oficial da OS. A mesma OS será devolvida ao técnico mantendo o atendimento em andamento; não será criada uma segunda OS.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -563,9 +563,12 @@ function ManagerRequestDialog({
   );
 }
 
-function RequestStatus({ status }: { status: string | null }) {
+function RequestStatus({ status }: { status: string | null },) {
   if (status === "regularizada") {
     return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 className="size-3.5" /> Regularizada</span>;
+  }
+  if (status === "em_andamento") {
+    return <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800"><Clock3 className="size-3.5" /> Em andamento · aguardando número</span>;
   }
   return <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800"><Clock3 className="size-3.5" /> Pendente</span>;
 }
