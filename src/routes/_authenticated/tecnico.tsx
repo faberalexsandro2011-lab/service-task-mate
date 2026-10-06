@@ -687,7 +687,7 @@ function TechnicianPage() {
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
             <div className="grid gap-2 rounded-2xl border bg-muted/30 p-3 sm:grid-cols-3">
-              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura</p><p className="mt-1 font-semibold">{formatDateTime(order.created_at, "—")}</p></div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{order.entrada || formatDateTime(order.created_at, "—")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
             </div>
