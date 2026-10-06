@@ -99,6 +99,7 @@ export type Database = {
           frota?: string
           id?: string
           localizacao?: string | null
+          entrada?: string | null
           numero_os?: string
           ordem_id?: string | null
           solicitante_email?: string
@@ -122,6 +123,7 @@ export type Database = {
           frota: string
           id: string
           localizacao: string | null
+          entrada: string | null
           notas_fecho: string | null
           numero_os: string | null
           pecas_utilizadas: string | null
@@ -146,6 +148,7 @@ export type Database = {
           frota: string
           id?: string
           localizacao?: string | null
+          entrada?: string | null
           notas_fecho?: string | null
           numero_os: string | null
           pecas_utilizadas?: string | null
