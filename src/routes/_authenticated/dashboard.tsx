@@ -310,6 +310,11 @@ function Dashboard() {
         <header className="flex h-14 items-center justify-between border-b px-3 sm:px-5 lg:hidden">
           <Brand compact />
           <div className="flex items-center gap-2">
+            {isManager && (
+              <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
+                <BarChart3 />
+              </Button>
+            )}
             {!isManager && <ConnectionPill connected={connected} online={online} />}
             <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
           </div>
