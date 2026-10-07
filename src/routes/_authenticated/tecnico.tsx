@@ -700,7 +700,7 @@ function TechnicianPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold">{online ? <Wifi className="size-3.5 text-[var(--agri-wheat)]" /> : <WifiOff className="size-3.5 text-[var(--agri-wheat)]" />}{online ? "Online" : "Offline"}</div>
-          <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Notificações"><Bell className="size-4" /></button>
+          <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Ativar notificações" onClick={() => { if ("Notification" in window) void Notification.requestPermission(); }}><Bell className="size-4" /></button>
         </div>
       </div>
     </header>
