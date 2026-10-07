@@ -421,18 +421,24 @@ function TechnicianPage() {
         // nova consulta ao banco, evitando depender de RLS/payload parcial.
         void load();
 
-        if (
-          payload.eventType === "INSERT" ||
-          (assignedToTechnician && (
-            previous.tecnico_id !== actorId &&
-            previousEmail !== actorEmail
-          ))
-        ) {
-          toast.success("Nova OS enviada para você.");
+        const receivedNewOrder = payload.eventType === "INSERT" || (assignedToTechnician && previous.tecnico_id !== actorId && previousEmail !== actorEmail);
+        const requestReceivedOfficialNumber = assignedToTechnician && !String(previous.numero_os || "").trim() && !!String(next.numero_os || "").trim() && (next.solicitacao_status === "regularizada" || previous.solicitacao_os === true);
+
+        if (receivedNewOrder || requestReceivedOfficialNumber) {
+          const title = requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
+          const body = requestReceivedOfficialNumber
+            ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
+            : "Uma nova ordem de serviço foi enviada para você.";
+          toast.success(body);
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
-        }
-      })
+          if ("Notification" in window) {
+            if (Notification.permission === "default") void Notification.requestPermission();
+            if (Notification.permission === "granted" && "serviceWorker" in navigator) {
+              void navigator.serviceWorker.ready.then((registration) => registration.showNotification(title, { body, icon: "/agri-icon.svg", badge: "/agri-icon.svg" }));
+            }
+          }
+        }      })
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           void load();
