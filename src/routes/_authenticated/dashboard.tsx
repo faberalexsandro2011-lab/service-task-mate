@@ -974,7 +974,10 @@ function PartsCatalogDialog() {
     const { data, error } = await (supabase as any).from("pecas_catalogo").select("*").order("nome", { ascending: true });
     setLoading(false);
     if (error) { toast.error("Não foi possível carregar o estoque de peças."); return; }
-    setParts((data ?? []) as Array<Peca & { estoque_atual: number; estoque_minimo: number }>);
+    const loaded = (data ?? []) as Array<Peca & { estoque_atual: number; estoque_minimo: number }>;
+    setParts(loaded);
+    const low = loaded.filter((item) => item.estoque_atual <= (item.estoque_minimo ?? 3));
+    if (low.length) toast.warning(`Atenção: ${low.length} peça(s) estão com estoque baixo (3 unidades ou menos).`);
   }
 
   async function addPart(event: React.FormEvent) {
