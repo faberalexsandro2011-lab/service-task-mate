@@ -63,6 +63,28 @@ self.addEventListener("notificationclick", (event) => {
     for (const client of clients) {
       if ("focus" in client) return client.focus();
     }
-    if (self.clients.openWindow) return self.clients.openWindow("/tecnico");
+    const url = event.notification.data?.url || "/tecnico";
+    if (self.clients.openWindow) return self.clients.openWindow(url);
   }));
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Central OS", body: "Você recebeu uma atualização.", url: "/tecnico" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch {
+    try {
+      if (event.data) data.body = event.data.text();
+    } catch {}
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/agri-icon.svg",
+      badge: "/agri-icon.svg",
+      data: { url: data.url || "/tecnico" },
+      tag: data.osId ? "central-os-" + data.osId : "central-os",
+    })
+  );
 });
