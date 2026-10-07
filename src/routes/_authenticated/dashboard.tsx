@@ -369,7 +369,7 @@ function Dashboard() {
                 <BarChart3 className="size-4" /> Análise técnica
               </button>
               <button type="button" onClick={() => void navigate({ to: "/solicitacoes" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                <Inbox className="size-4" /> Solicitações de OS
+                <Inbox className="size-4" /> Solicitações de OS {pendingSolicitations > 0 && <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-black text-destructive-foreground">{pendingSolicitations}</span>}
               </button>
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <History className="size-4" /> Histórico
@@ -390,7 +390,7 @@ function Dashboard() {
                   <BarChart3 />
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
-                  <Inbox />
+                  <Inbox />{pendingSolicitations > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-destructive px-1 text-[10px] font-black leading-5 text-destructive-foreground">{pendingSolicitations}</span>}
                 </Button>
               </>
             )}
