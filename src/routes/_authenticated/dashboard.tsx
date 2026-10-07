@@ -240,7 +240,7 @@ function Dashboard() {
   const isManager = data?.role === "gestor";
   const userId = data?.user.id;
   const userEmail = data?.user.email?.trim().toLowerCase();
-  const allOrders = data?.orders ?? [];
+  const allOrders = data?.orders ?? [];\n  const pendingSolicitations = isManager ? allOrders.filter((o) => o.solicitacao_os === true && o.solicitacao_status === "aguardando_os").length : 0;
   // Técnico: aceita atribuição pelo ID ou pelo e-mail para não perder OS
   // antigas/importadas que foram gravadas sem tecnico_id.
   const orders = useMemo(() => {
