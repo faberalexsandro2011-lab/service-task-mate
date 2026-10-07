@@ -677,7 +677,7 @@ function TechnicianPage() {
     { label: "Histórico", href: "/historico", icon: History },
   ];
 
-  return (<main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
+  return (<><main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
     <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity md:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={() => setMenuOpen(false)} />
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--agri-field)] text-white shadow-2xl transition-transform duration-300 ease-out md:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex h-20 items-center justify-between border-b border-white/10 px-5">
@@ -876,7 +876,6 @@ function TechnicianPage() {
         <DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter>
       </DialogContent>
     </Dialog>
-    </div>
     <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
       <DialogContent className="rounded-3xl sm:max-w-md">
         <DialogHeader>
@@ -916,5 +915,6 @@ function TechnicianPage() {
         </div>
       </DialogContent>
     </Dialog>
-  </main>);
+    </div>
+  </main></>);
 }
