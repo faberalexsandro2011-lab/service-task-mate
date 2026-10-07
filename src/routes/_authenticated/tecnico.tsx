@@ -842,7 +842,8 @@ function TechnicianPage() {
             {selectedParts.map((part, index) => {
               const catalogPart = partsCatalog.find(item => item.id === part.id);
               const available = catalogPart?.estoque_atual ?? 0;
-              return (\n                <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
+              return (
+                <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
                 <Select value={part.id || ""} onValueChange={(value) => {
                   const item = partsCatalog.find(entry => entry.id === value);
                   setSelectedParts(current => current.map((selected, i) => i === index && item ? { id: item.id, nome: item.nome, quantidade: 1 } : selected));
@@ -864,7 +865,8 @@ function TechnicianPage() {
                   aria-label="Quantidade utilizada"
                 />
                 <Button type="button" variant="outline" className="h-11 rounded-xl px-3" onClick={() => setSelectedParts(current => current.filter((_, i) => i !== index))}>Remover</Button>
-              </div>;
+                </div>
+              );
             })}
             <Button type="button" variant="outline" className="rounded-xl" disabled={!partsCatalog.some(item => item.estoque_atual > 0) || selectedParts.length >= partsCatalog.filter(item => item.estoque_atual > 0).length} onClick={() => setSelectedParts(current => [...current, { id: "", nome: "", quantidade: 1 }])}>+ Adicionar outra peça</Button>
             {selectedParts.length > 0 && <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">Após a conclusão, o estoque será reduzido exatamente pela quantidade informada.</div>}
