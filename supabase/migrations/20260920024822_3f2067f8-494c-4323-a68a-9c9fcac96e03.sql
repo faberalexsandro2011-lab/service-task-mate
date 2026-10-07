@@ -1,5 +1,15 @@
 -- Roles enum
-CREATE TYPE public.app_role AS ENUM ('gestor', 'tecnico');
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE t.typname = 'app_role' AND n.nspname = 'public'
+  ) THEN
+    CREATE TYPE public.app_role AS ENUM ('gestor', 'tecnico');
+  END IF;
+END
+$;
 
 -- Timestamp helper
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
