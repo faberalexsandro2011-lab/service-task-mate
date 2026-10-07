@@ -833,7 +833,7 @@ function TechnicianPage() {
         setSelectedParts([]);
       }
     }}>
-      <DialogContent className="rounded-3xl sm:max-w-lg">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-3xl overscroll-contain touch-pan-y sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle>
         </DialogHeader>
@@ -907,26 +907,47 @@ function TechnicianPage() {
                       </SelectContent>
                     </Select>
 
-                    <input
-                      type="number"
-                      min="1"
-                      max={Math.max(1, available)}
-                      value={part.quantidade}
-                      onChange={(event) => {
-                        const next = Math.max(
-                          1,
-                          Math.min(available || 1, Math.floor(Number(event.target.value) || 1)),
-                        );
-                        setSelectedParts((current) =>
-                          current.map((selected, i) =>
-                            i === index ? { ...selected, quantidade: next } : selected,
-                          ),
-                        );
-                      }}
-                      className="h-11 rounded-xl border bg-background px-3 text-center font-bold"
-                      disabled={!part.id || available <= 0}
-                      aria-label="Quantidade utilizada"
-                    />
+                    <div className="flex h-11 items-center rounded-xl border bg-background">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-11 w-10 shrink-0 rounded-l-xl px-0 text-lg font-black"
+                        disabled={!part.id || available <= 0 || part.quantidade <= 1}
+                        onClick={() =>
+                          setSelectedParts((current) =>
+                            current.map((selected, i) =>
+                              i === index
+                                ? { ...selected, quantidade: Math.max(1, selected.quantidade - 1) }
+                                : selected,
+                            ),
+                          )
+                        }
+                        aria-label="Diminuir quantidade"
+                      >
+                        −
+                      </Button>
+                      <span className="min-w-0 flex-1 text-center font-bold" aria-label="Quantidade utilizada">
+                        {part.quantidade}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-11 w-10 shrink-0 rounded-r-xl px-0 text-lg font-black"
+                        disabled={!part.id || available <= 0 || part.quantidade >= available}
+                        onClick={() =>
+                          setSelectedParts((current) =>
+                            current.map((selected, i) =>
+                              i === index
+                                ? { ...selected, quantidade: Math.min(available, selected.quantidade + 1) }
+                                : selected,
+                            ),
+                          )
+                        }
+                        aria-label="Aumentar quantidade"
+                      >
+                        +
+                      </Button>
+                    </div>
 
                     <Button
                       type="button"
