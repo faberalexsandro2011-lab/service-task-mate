@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
   component: TechnicianPage,
 });
 type Ordem = Tables<"ordens_servico">;
-type Peca = Tables<"pecas_catalogo"> & { estoque_atual: number; estoque_minimo: number };
+type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
