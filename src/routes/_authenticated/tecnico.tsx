@@ -825,55 +825,171 @@ function TechnicianPage() {
         </div>}
       </DialogContent>
     </Dialog>
-    <Dialog open={!!finish} onOpenChange={(open) => { if (!open) { setFinish(null); setNotes(""); setPartsReplaced("nao"); setSelectedParts([]); } }}>
+    <Dialog open={!!finish} onOpenChange={(open) => {
+      if (!open) {
+        setFinish(null);
+        setNotes("");
+        setPartsReplaced("nao");
+        setSelectedParts([]);
+      }
+    }}>
       <DialogContent className="rounded-3xl sm:max-w-lg">
-        <DialogHeader><DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle>
+        </DialogHeader>
+
         <div className="grid gap-4">
           <div className="grid gap-2">
             <label className="text-sm font-semibold">Foi trocada alguma peça?</label>
-            <Select value={partsReplaced} onValueChange={(value) => { const next = value as "sim" | "nao"; setPartsReplaced(next); if (next === "nao") setSelectedParts([]); }}>
-              <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent><SelectItem value="nao">Não</SelectItem><SelectItem value="sim">Sim</SelectItem></SelectContent>
+            <Select
+              value={partsReplaced}
+              onValueChange={(value) => {
+                const next = value as "sim" | "nao";
+                setPartsReplaced(next);
+                if (next === "nao") setSelectedParts([]);
+              }}
+            >
+              <SelectTrigger className="h-11 rounded-xl">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nao">Não</SelectItem>
+                <SelectItem value="sim">Sim</SelectItem>
+              </SelectContent>
             </Select>
           </div>
-          {partsReplaced === "sim" && <div className="grid gap-3 rounded-2xl border bg-muted/20 p-3">
-            <div><p className="text-sm font-semibold">Peças substituídas</p><p className="text-xs text-muted-foreground">Escolha a peça e a quantidade usada. O estoque será abatido automaticamente ao finalizar a OS.</p></div>
-            {!partsCatalog.length && <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">Nenhuma peça cadastrada ainda. Solicite ao administrador que cadastre o item no estoque.</p>}
-            {selectedParts.map((part, index) => {
-              const catalogPart = partsCatalog.find(item => item.id === part.id);
-              const available = catalogPart?.estoque_atual ?? 0;
-              return (
-                <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
-                <Select value={part.id || ""} onValueChange={(value) => {
-                  const item = partsCatalog.find(entry => entry.id === value);
-                  setSelectedParts(current => current.map((selected, i) => i === index && item ? { id: item.id, nome: item.nome, quantidade: 1 } : selected));
-                }}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Selecione a peça" /></SelectTrigger>
-                  <SelectContent>{partsCatalog.filter(item => !selectedParts.some(selected => selected.id === item.id) || item.id === part.id).map(item => <SelectItem key={item.id} value={item.id} disabled={item.estoque_atual <= 0}>{item.nome} — estoque: {item.estoque_atual}</SelectItem>)}</SelectContent>
-                </Select>
-                <input
-                  type="number"
-                  min="1"
-                  max={Math.max(1, available)}
-                  value={part.quantidade}
-                  onChange={(event) => {
-                    const next = Math.max(1, Math.min(available || 1, Math.floor(Number(event.target.value) || 1)));
-                    setSelectedParts(current => current.map((selected, i) => i === index ? { ...selected, quantidade: next } : selected));
-                  }}
-                  className="h-11 rounded-xl border bg-background px-3 text-center font-bold"
-                  disabled={!part.id || available <= 0}
-                  aria-label="Quantidade utilizada"
-                />
-                <Button type="button" variant="outline" className="h-11 rounded-xl px-3" onClick={() => setSelectedParts(current => current.filter((_, i) => i !== index))}>Remover</Button>
+
+          {partsReplaced === "sim" ? (
+            <div className="grid gap-3 rounded-2xl border bg-muted/20 p-3">
+              <div>
+                <p className="text-sm font-semibold">Peças substituídas</p>
+                <p className="text-xs text-muted-foreground">
+                  Escolha a peça e a quantidade usada. O estoque será abatido automaticamente ao finalizar a OS.
+                </p>
+              </div>
+
+              {!partsCatalog.length ? (
+                <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
+                  Nenhuma peça cadastrada ainda. Solicite ao administrador que cadastre o item no estoque.
+                </p>
+              ) : null}
+
+              {selectedParts.map((part, index) => {
+                const catalogPart = partsCatalog.find((item) => item.id === part.id);
+                const available = catalogPart?.estoque_atual ?? 0;
+
+                return (
+                  <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
+                    <Select
+                      value={part.id || ""}
+                      onValueChange={(value) => {
+                        const item = partsCatalog.find((entry) => entry.id === value);
+                        setSelectedParts((current) =>
+                          current.map((selected, i) =>
+                            i === index && item
+                              ? { id: item.id, nome: item.nome, quantidade: 1 }
+                              : selected,
+                          ),
+                        );
+                      }}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl">
+                        <SelectValue placeholder="Selecione a peça" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {partsCatalog
+                          .filter((item) => !selectedParts.some((selected) => selected.id === item.id) || item.id === part.id)
+                          .map((item) => (
+                            <SelectItem key={item.id} value={item.id} disabled={item.estoque_atual <= 0}>
+                              {item.nome} — estoque: {item.estoque_atual}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+
+                    <input
+                      type="number"
+                      min="1"
+                      max={Math.max(1, available)}
+                      value={part.quantidade}
+                      onChange={(event) => {
+                        const next = Math.max(
+                          1,
+                          Math.min(available || 1, Math.floor(Number(event.target.value) || 1)),
+                        );
+                        setSelectedParts((current) =>
+                          current.map((selected, i) =>
+                            i === index ? { ...selected, quantidade: next } : selected,
+                          ),
+                        );
+                      }}
+                      className="h-11 rounded-xl border bg-background px-3 text-center font-bold"
+                      disabled={!part.id || available <= 0}
+                      aria-label="Quantidade utilizada"
+                    />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 rounded-xl px-3"
+                      onClick={() =>
+                        setSelectedParts((current) => current.filter((_, i) => i !== index))
+                      }
+                    >
+                      Remover
+                    </Button>
+                  </div>
+                );
+              })}
+
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-xl"
+                disabled={
+                  !partsCatalog.some((item) => item.estoque_atual > 0) ||
+                  selectedParts.length >= partsCatalog.filter((item) => item.estoque_atual > 0).length
+                }
+                onClick={() =>
+                  setSelectedParts((current) => [
+                    ...current,
+                    { id: "", nome: "", quantidade: 1 },
+                  ])
+                }
+              >
+                + Adicionar outra peça
+              </Button>
+
+              {selectedParts.length > 0 ? (
+                <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
+                  Após a conclusão, o estoque será reduzido exatamente pela quantidade informada.
                 </div>
-              );
-            })}
-            <Button type="button" variant="outline" className="rounded-xl" disabled={!partsCatalog.some(item => item.estoque_atual > 0) || selectedParts.length >= partsCatalog.filter(item => item.estoque_atual > 0).length} onClick={() => setSelectedParts(current => [...current, { id: "", nome: "", quantidade: 1 }])}>+ Adicionar outra peça</Button>
-            {selectedParts.length > 0 && <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">Após a conclusão, o estoque será reduzido exatamente pela quantidade informada.</div>}
-          </div>
-          <Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} />
+              ) : null}
+            </div>
+          ) : null}
+
+          <Textarea
+            className="min-h-36 rounded-2xl"
+            autoFocus
+            rows={6}
+            placeholder="Descreva o serviço realizado e a solução aplicada..."
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
         </div>
-        <DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => setFinish(null)}
+          >
+            Voltar
+          </Button>
+          <Button className="rounded-xl" onClick={finalize}>
+            Finalizar serviço
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
