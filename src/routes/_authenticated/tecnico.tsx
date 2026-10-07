@@ -125,6 +125,58 @@ function isNetworkError(error: unknown) {
   return message.includes("failed to fetch") || message.includes("networkerror") || message.includes("network error") || message.includes("load failed") || message.includes("fetch failed");
 }
 
+const VAPID_PUBLIC_KEY = "BDN_JDP0Lbahzy597BZWX31sgBOL4Zh8e4nECMDE1QSKV9IG6oVR9EfIvPpW5vBzcwbsEN4g8JOWDJliXgCBC9w";
+
+function urlBase64ToUint8Array(value: string) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = window.atob(base64);
+  return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)));
+}
+
+async function registerWebPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return false;
+
+  if (Notification.permission === "default") {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return false;
+  }
+  if (Notification.permission !== "granted") return false;
+
+  const userResult = await supabase.auth.getUser();
+  const user = userResult.data.user;
+  if (!user) return false;
+
+  const registration = await navigator.serviceWorker.ready;
+  let subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+  }
+
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
+
+  const { error } = await (supabase as any)
+    .from("push_subscriptions")
+    .upsert(
+      {
+        user_id: user.id,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,endpoint" },
+    );
+
+  if (error) throw error;
+  return true;
+}
+
 function TechnicianPage() {
   const [orders, setOrders] = useState<Ordem[]>([]);
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
@@ -369,6 +421,7 @@ function TechnicianPage() {
     }
 
     setOnline(navigator.onLine);
+    void registerWebPush().catch((error) => console.warn("[Push] Registro automático indisponível:", error));
     void load();
     void loadPartsCatalog();
     void syncOffline();
@@ -700,7 +753,7 @@ function TechnicianPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-2 text-xs font-semibold">{online ? <Wifi className="size-3.5 text-[var(--agri-wheat)]" /> : <WifiOff className="size-3.5 text-[var(--agri-wheat)]" />}{online ? "Online" : "Offline"}</div>
-          <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Ativar notificações" onClick={() => { if ("Notification" in window) void Notification.requestPermission(); }}><Bell className="size-4" /></button>
+          <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 transition hover:bg-white/20" title="Ativar notificações" onClick={() => void registerWebPush().then((registered) => { if (registered) toast.success("Notificações do celular ativadas."); }) .catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível ativar as notificações."))}><Bell className="size-4" /></button>
         </div>
       </div>
     </header>
