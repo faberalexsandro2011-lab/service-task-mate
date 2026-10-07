@@ -964,7 +964,7 @@ function PartsCatalogDialog() {
   const [open, setOpen] = useState(false);
   const [parts, setParts] = useState<Array<Peca & { estoque_atual: number; estoque_minimo: number }>>([]);
   const [name, setName] = useState("");
-  const [initialStock, setInitialStock] = useState("0");
+  const [initialStock, setInitialStock] = useState("1");
   const [replenish, setReplenish] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -983,7 +983,7 @@ function PartsCatalogDialog() {
   async function addPart(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
-    const stock = Math.max(0, Math.floor(Number(initialStock) || 0));
+    const stock = Math.max(1, Math.floor(Number(initialStock) || 0));
     if (!trimmed) { toast.error("Informe o nome da peça."); return; }
     setSaving(true);
     const user = (await supabase.auth.getUser()).data.user;
@@ -1000,7 +1000,7 @@ function PartsCatalogDialog() {
     }
     setParts(current => [...current, data].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
     setName("");
-    setInitialStock("0");
+    setInitialStock("1");
     toast.success(`Peça adicionada com ${stock} unidade(s) em estoque.`);
   }
 
@@ -1036,7 +1036,7 @@ function PartsCatalogDialog() {
       </DialogHeader>
       <form onSubmit={addPart} className="grid gap-2 sm:grid-cols-[1fr_150px_auto]">
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Correia do alternador" className="h-11" />
-        <Input type="number" min="0" step="1" value={initialStock} onChange={(event) => setInitialStock(event.target.value)} placeholder="Estoque inicial" className="h-11" />
+        <Input type="number" min="1" step="1" value={initialStock} onChange={(event) => setInitialStock(event.target.value)} placeholder="Estoque inicial" className="h-11" />
         <Button type="submit" disabled={saving || !name.trim()} className="h-11">{saving ? "Adicionando..." : "Adicionar peça"}</Button>
       </form>
       <div className="rounded-2xl border bg-muted/20 p-3">
