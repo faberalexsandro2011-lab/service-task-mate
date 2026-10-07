@@ -677,7 +677,7 @@ function TechnicianPage() {
     { label: "Histórico", href: "/historico", icon: History },
   ];
 
-  return <main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
+  return (<main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
     <div className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity md:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={() => setMenuOpen(false)} />
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[var(--agri-field)] text-white shadow-2xl transition-transform duration-300 ease-out md:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
       <div className="flex h-20 items-center justify-between border-b border-white/10 px-5">
@@ -842,7 +842,7 @@ function TechnicianPage() {
             {selectedParts.map((part, index) => {
               const catalogPart = partsCatalog.find(item => item.id === part.id);
               const available = catalogPart?.estoque_atual ?? 0;
-              return <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
+              return (\n                <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
                 <Select value={part.id || ""} onValueChange={(value) => {
                   const item = partsCatalog.find(entry => entry.id === value);
                   setSelectedParts(current => current.map((selected, i) => i === index && item ? { id: item.id, nome: item.nome, quantidade: 1 } : selected));
@@ -914,5 +914,5 @@ function TechnicianPage() {
         </div>
       </DialogContent>
     </Dialog>
-  </main>;
+  </main>);
 }
