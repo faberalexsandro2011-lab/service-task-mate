@@ -201,6 +201,8 @@ function Dashboard() {
   const navigate = useNavigate();
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -255,13 +257,19 @@ function Dashboard() {
   }, [allOrders, isManager, scope, userId, userEmail]);
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
-    if (!term) return orders;
-    return orders.filter((order) =>
-      [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.tecnico_nome, order.descricao]
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+    const to = dateTo ? new Date(dateTo + "T23:59:59.999") : null;
+
+    return orders.filter((order) => {
+      const matchesSearch = !term || [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.tecnico_nome, order.descricao]
         .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase("pt").includes(term)),
-    );
-  }, [orders, search]);
+        .some((value) => value?.toLocaleLowerCase("pt").includes(term));
+      const openedAt = new Date(order.created_at);
+      const matchesFrom = !from || openedAt >= from;
+      const matchesTo = !to || openedAt <= to;
+      return matchesSearch && matchesFrom && matchesTo;
+    });
+  }, [orders, search, dateFrom, dateTo]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -502,9 +510,28 @@ function Dashboard() {
                     {filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"} · clique numa aba para filtrar rapidamente.
                   </p>
                 </div>
-                <div className="relative w-full lg:max-w-md">
-                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-12 bg-background pl-9 shadow-sm transition-shadow focus-within:shadow-md" />
+                <div className="flex w-full flex-col gap-2 lg:max-w-2xl">
+                  <div className="relative w-full">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-12 bg-background pl-9 shadow-sm transition-shadow focus-within:shadow-md" />
+                  </div>
+                  {isManager && (
+                    <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
+                      <div className="grid min-w-[145px] flex-1 gap-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
+                        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10 bg-background" />
+                      </div>
+                      <div className="grid min-w-[145px] flex-1 gap-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground">Data final</label>
+                        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-10 bg-background" />
+                      </div>
+                      {(dateFrom || dateTo) && (
+                        <Button variant="outline" size="sm" className="h-10 gap-1.5" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                          <X className="size-4" /> Limpar datas
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="mt-5 border-y py-3">
