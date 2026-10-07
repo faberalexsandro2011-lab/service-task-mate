@@ -594,6 +594,13 @@ function TechnicianPage() {
       ? selectedParts.filter((part) => part.id && part.quantidade > 0)
       : [];
     if (partsReplaced === "sim" && !pieces.length) { toast.error("Selecione pelo menos uma peça trocada."); return; }
+    if (pieces.some((part) => {
+      const catalog = partsCatalog.find((item) => item.id === part.id);
+      return !catalog || catalog.estoque_atual <= 0 || part.quantidade > catalog.estoque_atual;
+    })) {
+      toast.error("Não é possível adicionar uma peça sem estoque ou em quantidade maior que o estoque disponível.");
+      return;
+    }
 
     const finishedAt = new Date().toISOString();
     const orderToFinish = finish;
