@@ -22,7 +22,8 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
   component: TechnicianPage,
 });
 type Ordem = Tables<"ordens_servico">;
-type Peca = Tables<"pecas_catalogo">;
+type Peca = Tables<"pecas_catalogo"> & { estoque_atual: number; estoque_minimo: number };
+type SelectedPart = { id: string; nome: string; quantidade: number };
 type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
 
 function formatEntrada(value: string | null | undefined) {
@@ -94,7 +95,10 @@ function getReplacedParts(value: string | null | undefined) {
     .split(/\n/)
     .map((part) => part.trim())
     .filter(Boolean)
-    .map((nome) => ({ nome, quantidade: 1 }));
+    .map((part) => {
+      const match = part.match(/^(.*)\\s+x(\\d+)$/);
+      return { nome: match?.[1]?.trim() || part, quantidade: Number(match?.[2] || 1) };
+    });
 }
 
 function playFieldAlert() {
@@ -185,7 +189,7 @@ function TechnicianPage() {
   const [details, setDetails] = useState<Ordem | null>(null);
   const [notes, setNotes] = useState("");
   const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
-  const [selectedParts, setSelectedParts] = useState<string[]>([]);
+  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
   const [partsCatalog, setPartsCatalog] = useState<Peca[]>([]);
   const [online, setOnline] = useState(true);
   const [search, setSearch] = useState("");
@@ -294,8 +298,8 @@ function TechnicianPage() {
 
   async function loadPartsCatalog() {
     if (!navigator.onLine) return;
-    const { data, error } = await supabase.from("pecas_catalogo").select("id,nome,ativo,criado_por_email,created_at,updated_at").eq("ativo", true).order("nome", { ascending: true });
-    if (!error) setPartsCatalog(data ?? []);
+    const { data, error } = await (supabase as any).from("pecas_catalogo").select("id,nome,ativo,criado_por_email,created_at,updated_at,estoque_atual,estoque_minimo").eq("ativo", true).order("nome", { ascending: true });
+    if (!error) setPartsCatalog((data ?? []) as Peca[]);
     else console.warn("[Técnico] Catálogo de peças indisponível:", error);
   }
 
@@ -357,45 +361,16 @@ function TechnicianPage() {
             if (historyError) throw historyError;
           }
         } else {
-          const { data, error } = await supabase
-            .from("ordens_servico")
-            .update({
-              status: "concluida",
-              notas_fecho: action.notes,
-              pecas_utilizadas: (action.pieces ?? []).length ? (action.pieces ?? []).join("\n") : null,
-              concluida_em: action.createdAt,
-            })
-            .eq("id", action.orderId)
-            .eq("status", "em_andamento")
-            .not("numero_os", "is", null)
-            .select("id");
-
+          const rawPieces = action.pieces ?? [];
+          const pieces = Array.isArray(rawPieces) && rawPieces.length && typeof rawPieces[0] === "string"
+            ? (await (supabase as any).from("pecas_catalogo").select("id,nome").in("nome", rawPieces as string[])).data?.map((item: { id: string; nome: string }) => ({ id: item.id, nome: item.nome, quantidade: 1 })) ?? []
+            : rawPieces;
+          const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", {
+            p_os_id: action.orderId,
+            p_notas: action.notes,
+            p_pecas: pieces,
+          });
           if (error) throw error;
-
-          const current = !data?.length
-            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status
-            : "concluida";
-
-          if (current !== "concluida") throw new Error("A OS não está disponível para sincronização.");
-
-          const { data: history } = await supabase
-            .from("historico_edicoes")
-            .select("id")
-            .eq("os_id", action.orderId)
-            .eq("acao", "finalizada")
-            .eq("usuario_id", action.actorId)
-            .limit(1);
-
-          if (!history?.length) {
-            const { error: historyError } = await supabase.from("historico_edicoes").insert({
-              os_id: action.orderId,
-              acao: "finalizada",
-              detalhe: `Finalizada por ${action.actorEmail} (sincronizado offline): ${action.notes}`,
-              usuario_id: action.actorId,
-              usuario_email: action.actorEmail,
-            });
-            if (historyError) throw historyError;
-          }
         }
 
         await removeOfflineAction(action.id);
@@ -615,8 +590,11 @@ function TechnicianPage() {
     }
     const solution = notes.trim();
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
-    const pieces = partsReplaced === "sim" ? selectedParts.filter(Boolean) : [];
+    const pieces = partsReplaced === "sim"
+      ? selectedParts.filter((part) => part.id && part.quantidade > 0)
+      : [];
     if (partsReplaced === "sim" && !pieces.length) { toast.error("Selecione pelo menos uma peça trocada."); return; }
+
     const finishedAt = new Date().toISOString();
     const orderToFinish = finish;
 
@@ -625,7 +603,7 @@ function TechnicianPage() {
         ...orderToFinish,
         status: "concluida",
         notas_fecho: solution,
-        pecas_utilizadas: pieces.length ? pieces.join("\n") : null,
+        pecas_utilizadas: pieces.length ? pieces.map((part) => `${part.nome} x${part.quantidade}`).join("\n") : null,
         concluida_em: finishedAt,
         updated_at: finishedAt,
       } as Ordem;
@@ -643,6 +621,7 @@ function TechnicianPage() {
       });
       setFinish(null);
       setNotes("");
+      setSelectedParts([]);
       toast.success("Serviço finalizado offline. Será sincronizado quando a internet voltar.");
     };
 
@@ -651,56 +630,27 @@ function TechnicianPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("ordens_servico")
-      .update({
-        status: "concluida",
-        notas_fecho: solution,
-        pecas_utilizadas: pieces.length ? pieces.join("\n") : null,
-        concluida_em: finishedAt,
-      })
-      .eq("id", orderToFinish.id)
-      .eq("status", "em_andamento")
-      .select("id");
+    const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", {
+      p_os_id: orderToFinish.id,
+      p_notas: solution,
+      p_pecas: pieces,
+    });
 
     if (error) {
       if (isNetworkError(error)) {
         await queueAction();
         return;
       }
-      toast.error(error.message || "Não foi possível finalizar a OS."); return;
-    }
-
-    if (!data?.length) { toast.error("A OS já foi alterada."); return; }
-
-    const { error: historyError } = await supabase.from("historico_edicoes").insert({
-      os_id: orderToFinish.id,
-      acao: "finalizada",
-      detalhe: `Finalizada por ${actor.email}: ${solution}`,
-      usuario_id: actor.id,
-      usuario_email: actor.email,
-    });
-
-    setFinish(null);
-    setNotes("");
-
-    if (historyError) {
-      await queueOfflineAction({
-        id: makeOfflineId(),
-        type: "finish",
-        orderId: orderToFinish.id,
-        actorId: actor.id,
-        actorEmail: actor.email,
-        notes: solution,
-        pieces,
-        createdAt: finishedAt,
-      });
-      toast.warning("Serviço finalizado, mas o histórico ficou pendente de sincronização.");
+      toast.error(error.message || "Não foi possível finalizar a OS.");
       return;
     }
 
-    toast.success("Serviço finalizado.");
+    setFinish(null);
+    setNotes("");
+    setSelectedParts([]);
+    toast.success("Serviço finalizado e estoque atualizado.");
     await load();
+    await loadPartsCatalog();
   }
 
   function openMap(location: string | null) {
@@ -880,17 +830,38 @@ function TechnicianPage() {
             </Select>
           </div>
           {partsReplaced === "sim" && <div className="grid gap-3 rounded-2xl border bg-muted/20 p-3">
-            <div><p className="text-sm font-semibold">Peças substituídas</p><p className="text-xs text-muted-foreground">Selecione as peças cadastradas pelo administrador.</p></div>
-            {!partsCatalog.length && <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">Nenhuma peça cadastrada ainda. Solicite ao administrador que adicione o item ao catálogo.</p>}
-            {selectedParts.map((part, index) => <div key={index} className="flex gap-2">
-              <Select value={part || ""} onValueChange={(value) => setSelectedParts(current => current.map((item, i) => i === index ? value : item))}>
-                <SelectTrigger className="h-11 flex-1 rounded-xl"><SelectValue placeholder="Selecione a peça" /></SelectTrigger>
-                <SelectContent>{partsCatalog.filter(item => !selectedParts.includes(item.nome) || item.nome === part).map(item => <SelectItem key={item.id} value={item.nome}>{item.nome}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button type="button" variant="outline" className="h-11 rounded-xl px-3" onClick={() => setSelectedParts(current => current.filter((_, i) => i !== index))}>Remover</Button>
-            </div>)}
-            <Button type="button" variant="outline" className="rounded-xl" disabled={!partsCatalog.length || selectedParts.length >= partsCatalog.length} onClick={() => setSelectedParts(current => [...current, ""])}>+ Adicionar outra peça</Button>
-          </div>}
+            <div><p className="text-sm font-semibold">Peças substituídas</p><p className="text-xs text-muted-foreground">Escolha a peça e a quantidade usada. O estoque será abatido automaticamente ao finalizar a OS.</p></div>
+            {!partsCatalog.length && <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">Nenhuma peça cadastrada ainda. Solicite ao administrador que cadastre o item no estoque.</p>}
+            {selectedParts.map((part, index) => {
+              const catalogPart = partsCatalog.find(item => item.id === part.id);
+              const available = catalogPart?.estoque_atual ?? 0;
+              return <div key={index} className="grid gap-2 rounded-xl border bg-background p-2 sm:grid-cols-[1fr_90px_auto]">
+                <Select value={part.id || ""} onValueChange={(value) => {
+                  const item = partsCatalog.find(entry => entry.id === value);
+                  setSelectedParts(current => current.map((selected, i) => i === index && item ? { id: item.id, nome: item.nome, quantidade: 1 } : selected));
+                }}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Selecione a peça" /></SelectTrigger>
+                  <SelectContent>{partsCatalog.filter(item => !selectedParts.some(selected => selected.id === item.id) || item.id === part.id).map(item => <SelectItem key={item.id} value={item.id} disabled={item.estoque_atual <= 0}>{item.nome} — estoque: {item.estoque_atual}</SelectItem>)}</SelectContent>
+                </Select>
+                <input
+                  type="number"
+                  min="1"
+                  max={Math.max(1, available)}
+                  value={part.quantidade}
+                  onChange={(event) => {
+                    const next = Math.max(1, Math.min(available || 1, Math.floor(Number(event.target.value) || 1)));
+                    setSelectedParts(current => current.map((selected, i) => i === index ? { ...selected, quantidade: next } : selected));
+                  }}
+                  className="h-11 rounded-xl border bg-background px-3 text-center font-bold"
+                  disabled={!part.id || available <= 0}
+                  aria-label="Quantidade utilizada"
+                />
+                <Button type="button" variant="outline" className="h-11 rounded-xl px-3" onClick={() => setSelectedParts(current => current.filter((_, i) => i !== index))}>Remover</Button>
+              </div>;
+            })}
+            <Button type="button" variant="outline" className="rounded-xl" disabled={!partsCatalog.some(item => item.estoque_atual > 0) || selectedParts.length >= partsCatalog.filter(item => item.estoque_atual > 0).length} onClick={() => setSelectedParts(current => [...current, { id: "", nome: "", quantidade: 1 }])}>+ Adicionar outra peça</Button>
+            {selectedParts.length > 0 && <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">Após a conclusão, o estoque será reduzido exatamente pela quantidade informada.</div>}
+          </div>
           <Textarea className="min-h-36 rounded-2xl" autoFocus rows={6} placeholder="Descreva o serviço realizado e a solução aplicada..." value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
         <DialogFooter><Button variant="outline" className="rounded-xl" onClick={() => setFinish(null)}>Voltar</Button><Button className="rounded-xl" onClick={finalize}>Finalizar serviço</Button></DialogFooter>
