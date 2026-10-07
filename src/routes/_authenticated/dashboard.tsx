@@ -962,25 +962,34 @@ function StatusBadge({ status }: { status: Status }) {
 
 function PartsCatalogDialog() {
   const [open, setOpen] = useState(false);
-  const [parts, setParts] = useState<Peca[]>([]);
+  const [parts, setParts] = useState<Array<Peca & { estoque_atual: number; estoque_minimo: number }>>([]);
   const [name, setName] = useState("");
+  const [initialStock, setInitialStock] = useState("0");
+  const [replenish, setReplenish] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function loadParts() {
     setLoading(true);
-    const { data, error } = await supabase.from("pecas_catalogo").select("*").order("nome", { ascending: true });
+    const { data, error } = await (supabase as any).from("pecas_catalogo").select("*").order("nome", { ascending: true });
     setLoading(false);
-    if (error) { toast.error("Não foi possível carregar o catálogo de peças."); return; }
-    setParts(data ?? []);
+    if (error) { toast.error("Não foi possível carregar o estoque de peças."); return; }
+    setParts((data ?? []) as Array<Peca & { estoque_atual: number; estoque_minimo: number }>);
   }
 
   async function addPart(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = name.trim();
+    const stock = Math.max(0, Math.floor(Number(initialStock) || 0));
     if (!trimmed) { toast.error("Informe o nome da peça."); return; }
     setSaving(true);
-    const { data, error } = await supabase.from("pecas_catalogo").insert({ nome: trimmed, criado_por_email: (await supabase.auth.getUser()).data.user?.email ?? null }).select("*").single();
+    const user = (await supabase.auth.getUser()).data.user;
+    const { data, error } = await (supabase as any).from("pecas_catalogo").insert({
+      nome: trimmed,
+      estoque_atual: stock,
+      estoque_minimo: 3,
+      criado_por_email: user?.email ?? null,
+    }).select("*").single();
     setSaving(false);
     if (error) {
       toast.error(/duplicate|unique/i.test(error.message) ? "Essa peça já está cadastrada." : "Não foi possível adicionar a peça: " + error.message);
@@ -988,32 +997,62 @@ function PartsCatalogDialog() {
     }
     setParts(current => [...current, data].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
     setName("");
-    toast.success("Peça adicionada ao catálogo.");
+    setInitialStock("0");
+    toast.success(`Peça adicionada com ${stock} unidade(s) em estoque.`);
+  }
+
+  async function addStock(part: Peca & { estoque_atual: number; estoque_minimo: number }) {
+    const quantity = Math.max(0, Math.floor(Number(replenish[part.id] || 0)));
+    if (!quantity) { toast.error("Informe quantas unidades deseja adicionar."); return; }
+    const nextStock = part.estoque_atual + quantity;
+    const { data, error } = await (supabase as any)
+      .from("pecas_catalogo")
+      .update({ estoque_atual: nextStock, updated_at: new Date().toISOString() })
+      .eq("id", part.id)
+      .select("*")
+      .single();
+    if (error) { toast.error("Não foi possível atualizar o estoque: " + error.message); return; }
+    setParts(current => current.map(item => item.id === part.id ? data : item));
+    setReplenish(current => ({ ...current, [part.id]: "" }));
+    toast.success(`Estoque de ${part.nome} atualizado para ${nextStock} unidade(s).`);
   }
 
   async function removePart(part: Peca) {
-    const { error } = await supabase.from("pecas_catalogo").delete().eq("id", part.id);
+    const { error } = await (supabase as any).from("pecas_catalogo").delete().eq("id", part.id);
     if (error) { toast.error("Não foi possível excluir a peça."); return; }
     setParts(current => current.filter(item => item.id !== part.id));
     toast.success("Peça removida do catálogo.");
   }
 
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) void loadParts(); }}>
-    <DialogTrigger asChild><Button variant="outline"><PackagePlus /> Peças</Button></DialogTrigger>
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+    <DialogTrigger asChild><Button variant="outline"><PackagePlus /> Estoque / Peças</Button></DialogTrigger>
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle>Catálogo de peças</DialogTitle>
-        <DialogDescription>Adicione os nomes das peças que ficarão disponíveis para todos os técnicos selecionarem ao finalizar uma OS.</DialogDescription>
+        <DialogTitle>Controle de estoque de peças</DialogTitle>
+        <DialogDescription>Cadastre as peças, informe o estoque inicial e reponha o estoque quando necessário. O sistema baixa automaticamente as peças usadas nas OS.</DialogDescription>
       </DialogHeader>
-      <form onSubmit={addPart} className="flex gap-2">
+      <form onSubmit={addPart} className="grid gap-2 sm:grid-cols-[1fr_150px_auto]">
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex.: Correia do alternador" className="h-11" />
-        <Button type="submit" disabled={saving || !name.trim()} className="h-11">{saving ? "Adicionando..." : "Adicionar"}</Button>
+        <Input type="number" min="0" step="1" value={initialStock} onChange={(event) => setInitialStock(event.target.value)} placeholder="Estoque inicial" className="h-11" />
+        <Button type="submit" disabled={saving || !name.trim()} className="h-11">{saving ? "Adicionando..." : "Adicionar peça"}</Button>
       </form>
-      <div className="rounded-xl border bg-muted/20 p-3">
-        <div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-bold">Peças cadastradas</h3><span className="text-xs text-muted-foreground">{parts.length} item(ns)</span></div>
-        {loading && <p className="py-6 text-center text-sm text-muted-foreground">Carregando catálogo...</p>}
-        {!loading && !parts.length && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma peça cadastrada.</p>}
-        {!loading && parts.length > 0 && <div className="max-h-72 space-y-2 overflow-y-auto">{parts.map(part => <div key={part.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2"><span className="min-w-0 truncate text-sm font-medium">{part.nome}</span><Button type="button" variant="ghost" size="sm" className="shrink-0 text-destructive" onClick={() => void removePart(part)}>Excluir</Button></div>)}</div>}
+      <div className="rounded-2xl border bg-muted/20 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3"><h3 className="text-sm font-bold">Estoque atual</h3><span className="text-xs text-muted-foreground">{parts.length} item(ns)</span></div>
+        {loading && <p className="py-6 text-center text-sm text-muted-foreground">Carregando estoque...</p>}
+        {!loading && !parts.length && <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma peça cadastrada.</p>}
+        {!loading && parts.length > 0 && <div className="space-y-2">{parts.map(part => {
+          const low = part.estoque_atual <= (part.estoque_minimo ?? 3);
+          return <div key={part.id} className="rounded-2xl border bg-background p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0"><div className="truncate font-semibold">{part.nome}</div><div className="mt-1 flex flex-wrap items-center gap-2 text-xs"><span className="font-bold">Disponível: {part.estoque_atual}</span><span className="text-muted-foreground">Mínimo: {part.estoque_minimo ?? 3}</span>{low && <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-1 font-black text-destructive"><AlertTriangle className="size-3" /> ESTOQUE BAIXO</span>}</div></div>
+              <Button type="button" variant="ghost" size="sm" className="shrink-0 text-destructive" onClick={() => void removePart(part)}>Excluir</Button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Input type="number" min="1" step="1" value={replenish[part.id] ?? ""} onChange={(event) => setReplenish(current => ({ ...current, [part.id]: event.target.value }))} placeholder="Qtd. para adicionar" className="h-10" />
+              <Button type="button" variant="outline" className="h-10 whitespace-nowrap" onClick={() => void addStock(part)}>+ Adicionar estoque</Button>
+            </div>
+          </div>;
+        })}</div>}
       </div>
       <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Fechar</Button></DialogFooter>
     </DialogContent>
