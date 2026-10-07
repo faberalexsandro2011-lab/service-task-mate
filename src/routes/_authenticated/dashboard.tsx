@@ -389,7 +389,7 @@ function Dashboard() {
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                   <BarChart3 />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
+                <Button variant="ghost" size="icon" className="relative" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
                   <Inbox />{pendingSolicitations > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-destructive px-1 text-[10px] font-black leading-5 text-destructive-foreground">{pendingSolicitations}</span>}
                 </Button>
               </>
