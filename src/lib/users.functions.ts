@@ -23,6 +23,12 @@ export const createTeamUser = createServerFn({ method: "POST" })
     if (roleErr) return { ok: false as const, error: "Não foi possível verificar a sua função." };
     if (!isGestor) return { ok: false as const, error: "Somente gestores podem cadastrar usuários." }
 
+    const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
+    const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
+    if (data.adminAccess && actorEmail !== ADMIN_EMAIL) {
+      return { ok: false as const, error: "Somente o administrador principal pode cadastrar gestores." };
+    }
+
     const role = data.adminAccess ? "gestor" : "tecnico";
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -114,6 +120,14 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     if (profileError) return { ok: false as const, error: "Não foi possível atualizar o perfil: " + profileError.message };
 
     if (data.role) {
+      const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
+      const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
+      if (actorEmail !== ADMIN_EMAIL) {
+        return { ok: false as const, error: "Somente o administrador principal pode alterar funções." };
+      }
+      if (data.userId === context.userId) {
+        return { ok: false as const, error: "O administrador principal não pode alterar a própria função." };
+      }
       const { error: roleDeleteError } = await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
       if (roleDeleteError) return { ok: false as const, error: "Não foi possível atualizar a função: " + roleDeleteError.message };
       const { error: roleInsertError } = await supabaseAdmin.from("user_roles").insert({ user_id: data.userId, role: data.role });
