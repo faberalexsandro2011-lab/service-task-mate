@@ -498,7 +498,7 @@ function TechnicianPage() {
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
     const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em && (o.status === "pendente" || o.status === "em_andamento"));
-    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? orders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
+    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em) : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
   }, [orders, tab, search]);
