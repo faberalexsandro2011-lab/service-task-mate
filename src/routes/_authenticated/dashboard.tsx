@@ -50,13 +50,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 type Ordem = Tables<"ordens_servico">;
 type Peca = Tables<"pecas_catalogo">;
@@ -592,37 +587,51 @@ function Dashboard() {
                 <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
-                    <Select value={filterOS || "__todas__"} onValueChange={(value) => setFilterOS(value === "__todas__" ? "" : value)}>
-                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todas as OS" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__todas__">Todas as OS</SelectItem>
-                        {[...new Set(orders.map((order) => String(order.numero_os ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })).map((numero) => <SelectItem key={numero} value={numero}>{numero}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SearchableFilter
+                      value={filterOS || "__todas__"}
+                      onValueChange={(value) => setFilterOS(value === "__todas__" ? "" : value)}
+                      placeholder="Todas as OS"
+                      searchPlaceholder="Buscar número da OS..."
+                      options={[
+                        { value: "__todas__", label: "Todas as OS" },
+                        ...[...new Set(orders.map((order) => String(order.numero_os ?? "").trim()).filter(Boolean))]
+                          .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }))
+                          .map((numero) => ({ value: numero, label: numero })),
+                      ]}
+                    />
                   </div>
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por frota</label>
-                    <Select value={filterFrota || "__todas__"} onValueChange={(value) => setFilterFrota(value === "__todas__" ? "" : value)}>
-                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todas as frotas" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__todas__">Todas as frotas</SelectItem>
-                        {[...new Set(orders.map((order) => String(order.frota ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })).map((frota) => <SelectItem key={frota} value={frota}>{frota}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    <SearchableFilter
+                      value={filterFrota || "__todas__"}
+                      onValueChange={(value) => setFilterFrota(value === "__todas__" ? "" : value)}
+                      placeholder="Todas as frotas"
+                      searchPlaceholder="Buscar frota..."
+                      options={[
+                        { value: "__todas__", label: "Todas as frotas" },
+                        ...[...new Set(orders.map((order) => String(order.frota ?? "").trim()).filter(Boolean))]
+                          .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }))
+                          .map((frota) => ({ value: frota, label: frota })),
+                      ]}
+                    />
                   </div>
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por técnico</label>
-                    <Select value={filterTecnico || "__todos__"} onValueChange={(value) => setFilterTecnico(value === "__todos__" ? "" : value)}>
-                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todos os técnicos" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__todos__">Todos os técnicos</SelectItem>
-                        {[...new Map(orders.flatMap((order) => {
+                    <SearchableFilter
+                      value={filterTecnico || "__todos__"}
+                      onValueChange={(value) => setFilterTecnico(value === "__todos__" ? "" : value)}
+                      placeholder="Todos os técnicos"
+                      searchPlaceholder="Buscar técnico..."
+                      options={[
+                        { value: "__todos__", label: "Todos os técnicos" },
+                        ...[...new Map(orders.flatMap((order) => {
                           const label = (order.tecnico_nome || order.tecnico_email || "").trim();
                           const value = (order.tecnico_email || order.tecnico_nome || "").trim();
                           return label && value ? [[value, { value, label: order.tecnico_email && order.tecnico_nome ? label + " · " + order.tecnico_email : label }] as const] : [];
-                        })).values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR")).map((technician) => <SelectItem key={technician.value} value={technician.value}>{technician.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                        })).values()]
+                          .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+                      ]}
+                    />
                   </div>
                   {(filterOS || filterFrota || filterTecnico) && (
                     <div className="sm:col-span-3">
@@ -1943,6 +1952,55 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     valid,
     ...(reason ? { reason } : {}),
   };
+}
+
+type SearchableFilterOption = { value: string; label: string };
+
+function SearchableFilter({
+  value,
+  onValueChange,
+  placeholder,
+  searchPlaceholder,
+  options,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+  options: SearchableFilterOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-11 w-full justify-between bg-background font-normal">
+          <span className="truncate">{selected?.label ?? placeholder}</span>
+          <Search className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+            {options.map((option) => (
+              <CommandItem
+                key={option.value}
+                value={option.label}
+                onSelect={() => {
+                  onValueChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
