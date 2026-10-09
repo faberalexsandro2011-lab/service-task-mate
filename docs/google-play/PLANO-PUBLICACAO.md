@@ -44,3 +44,8 @@ O banco atual do proprietário deve permanecer intacto. Para desenvolvimento mul
 
 ## Status
 Planejamento e diagnóstico inicial registrados. Ainda não há AAB, aplicativo Android publicado, teste em dispositivo, nem confirmação de aprovação da Google Play. Não declarar lançamento concluído até completar os critérios acima.
+
+## Achado adicional de auditoria (somente leitura)
+Em 2026-10-08, a consulta de políticas RLS no projeto Supabase atualmente conectado (ref `edujipmfqeajvfkvicda`) mostrou políticas baseadas em papéis globais (`gestor`, `gestor_os`, `tecnico`) e e-mail, sem um identificador de empresa/organização nas tabelas consultadas (`ordens_servico`, `pecas_catalogo`, `historico_edicoes`, `profiles`, `user_roles`, `solicitacoes_os`). Isso não prova que seja o banco de produção; o arquivo `supabase/config.toml` aponta para outro ref. Não fazer deploy nem migration antes de reconciliar essa diferença.
+
+**Implicação:** a arquitetura observada não está pronta para vender um único serviço multiempresa sem uma implementação e validação de isolamento por tenant. Não basta criar contas separadas: cada consulta, política RLS e função privilegiada deve validar a organização do usuário. Para preservar os dados atuais, desenvolver e testar o modelo em um projeto Supabase separado, com dados fictícios, antes de qualquer migração no banco atual.
