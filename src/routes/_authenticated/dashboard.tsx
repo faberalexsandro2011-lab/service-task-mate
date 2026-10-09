@@ -711,7 +711,6 @@ function Dashboard() {
                           Excluir todas
                         </label>
                       )}
-                      {search && <Button variant="ghost" size="sm" onClick={() => setSearch("")}>Limpar pesquisa <X /></Button>}
                     </div>
                   </div>
                   <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isPrimaryAdmin} />
