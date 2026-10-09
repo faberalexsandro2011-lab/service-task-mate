@@ -770,13 +770,15 @@ function TechnicianPage() {
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
-          <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
-            <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
-            <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
-            <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {tab !== "minhas" && tab !== "historico" && (
+          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
+            <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
+              <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
+              <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
+              <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         <div className="relative w-full sm:max-w-xs">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar OS, frota..." className="h-11 w-full rounded-2xl border bg-card pl-9 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20" />
