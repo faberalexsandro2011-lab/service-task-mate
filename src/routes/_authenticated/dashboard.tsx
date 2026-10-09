@@ -187,6 +187,62 @@ function formatDataAberturaFallback(value: string | null | undefined) {
   });
 }
 
+/**
+ * Resolve a data real de abertura exibida no painel. Prioriza o campo "entrada"
+ * (que pode vir de planilha) e usa created_at como alternativa segura.
+ */
+function getOrderOpenedAt(order: Pick<Ordem, "entrada" | "created_at">): Date | null {
+  const value = String(order.entrada ?? "").trim();
+
+  if (value) {
+    const br = value.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})/);
+    if (br) {
+      const day = Number(br[1]);
+      const month = Number(br[2]);
+      const rawYear = Number(br[3]);
+      const year = br[3].length === 2 ? 2000 + rawYear : rawYear;
+      const date = new Date(year, month - 1, day);
+      if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) return date;
+    }
+
+    const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+    if (iso) {
+      const year = Number(iso[1]);
+      const month = Number(iso[2]);
+      const day = Number(iso[3]);
+      const date = new Date(year, month - 1, day);
+      if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) return date;
+    }
+
+    const serial = Number(value);
+    if (Number.isFinite(serial) && serial > 20000 && serial < 100000) {
+      const excelDate = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+      return new Date(excelDate.getUTCFullYear(), excelDate.getUTCMonth(), excelDate.getUTCDate());
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const createdAt = new Date(order.created_at);
+  return Number.isNaN(createdAt.getTime()) ? null : createdAt;
+}
+
+/** Idade em dias de calendário; evita diferenças de fuso e horas do dia. */
+function getOrderAgeInDays(order: Pick<Ordem, "entrada" | "created_at">, now = new Date()): number | null {
+  const openedAt = getOrderOpenedAt(order);
+  if (!openedAt) return null;
+  const openedDay = new Date(openedAt.getFullYear(), openedAt.getMonth(), openedAt.getDate()).getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.floor((today - openedDay) / 86400000);
+}
+
+function isPriorityOrder(order: Ordem): boolean {
+  if (order.status !== "pendente" && order.status !== "em_andamento") return false;
+  const ageDays = getOrderAgeInDays(order);
+  return ageDays !== null && ageDays >= 3;
+}
+
 function friendlyError(error: { code?: string; message?: string } | null, fallback: string) {
   if (!error) return fallback;
   if (error.code === "42501" || /permission|row-level/i.test(error.message ?? "")) {
@@ -260,7 +316,7 @@ function Dashboard() {
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
     const to = dateTo ? new Date(dateTo + "T23:59:59.999") : null;
 
-    return orders.filter((order) => {
+    const matches = orders.filter((order) => {
       const matchesSearch = !term || [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.tecnico_nome, order.descricao]
         .filter(Boolean)
         .some((value) => value?.toLocaleLowerCase("pt").includes(term));
@@ -269,14 +325,25 @@ function Dashboard() {
       const matchesTo = !to || openedAt <= to;
       return matchesSearch && matchesFrom && matchesTo;
     });
-  }, [orders, search, dateFrom, dateTo]);
+
+    // No painel administrativo, coloca as OS prioritárias no topo e as mais antigas primeiro.
+    if (!isManager) return matches;
+    return matches.sort((a, b) => {
+      const aPriority = isPriorityOrder(a);
+      const bPriority = isPriorityOrder(b);
+      if (aPriority !== bPriority) return aPriority ? -1 : 1;
+      if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
+      return 0;
+    });
+  }, [orders, search, dateFrom, dateTo, isManager]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
-    if (!isManager) return { stalePending: 0, staleInProgress: 0, unassigned: 0 };
+    if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
     const now = Date.now();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     const oneDay = 24 * 60 * 60 * 1000;
     return {
+      priorityOpen: orders.filter((o) => isPriorityOrder(o)).length,
       stalePending: orders.filter((o) => o.status === "pendente" && now - new Date(o.created_at).getTime() >= sevenDays).length,
       staleInProgress: orders.filter((o) => o.status === "em_andamento" && o.data_inicio && now - new Date(o.data_inicio).getTime() >= oneDay).length,
       unassigned: orders.filter((o) => o.status === "pendente" && !o.tecnico_id && !o.tecnico_email).length,
@@ -540,6 +607,10 @@ function Dashboard() {
                   {isManager ? (
                     <>
                       <span className="inline-flex items-center gap-1.5">
+                        <AlertTriangle className={"size-3.5 " + (operationalAlerts.priorityOpen ? "text-rose-600" : "text-emerald-600")} />
+                        <strong>{operationalAlerts.priorityOpen}</strong> OS prioritária(s) abertas há 3 dias ou mais
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
                         <AlertTriangle className={"size-3.5 " + (operationalAlerts.stalePending ? "text-amber-600" : "text-emerald-600")} />
                         <strong>{operationalAlerts.stalePending}</strong> pendente(s) há mais de 7 dias
                       </span>
@@ -717,6 +788,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin;
+  const priorityAgeDays = getOrderAgeInDays(order);
+  const priority = actor.isManager && isPriorityOrder(order);
 
   async function start() {
     setBusy(true);
@@ -858,8 +931,17 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
           </div>
 
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             <StatusBadge status={status} />
+            {priority && priorityAgeDays !== null && (
+              <span
+                title={`OS aberta há ${priorityAgeDays} dias ou mais`}
+                className="inline-flex items-center gap-1 rounded-full border border-rose-300 bg-rose-100 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-rose-800 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-300"
+              >
+                <AlertTriangle className="size-3.5" />
+                Prioridade · {priorityAgeDays} {priorityAgeDays === 1 ? "dia" : "dias"}
+              </span>
+            )}
           </div>
 
           <div className="flex min-w-[190px] flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
