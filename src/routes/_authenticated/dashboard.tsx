@@ -457,9 +457,6 @@ function Dashboard() {
               <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <BarChart3 className="size-4" /> Análise técnica
               </button>
-              <button type="button" onClick={() => void navigate({ to: "/solicitacoes" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                <Inbox className="size-4" /> Solicitações de OS {pendingSolicitations > 0 && <span className="rounded-full bg-destructive px-2 py-0.5 text-[10px] font-black text-destructive-foreground">{pendingSolicitations}</span>}
-              </button>
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <History className="size-4" /> Histórico
               </button>
@@ -477,9 +474,6 @@ function Dashboard() {
               <>
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                   <BarChart3 />
-                </Button>
-                <Button variant="ghost" size="icon" className="relative" onClick={() => void navigate({ to: "/solicitacoes" })} title="Solicitações de OS">
-                  <Inbox />{pendingSolicitations > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-destructive px-1 text-[10px] font-black leading-5 text-destructive-foreground">{pendingSolicitations}</span>}
                 </Button>
               </>
             )}
@@ -507,11 +501,6 @@ function Dashboard() {
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
                 {isManager && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
                 {isManager && <PartsCatalogDialog />}
-                {isManager && (
-                  <Button variant="outline" className="gap-2 text-sm font-semibold" onClick={() => void navigate({ to: "/solicitacoes" })}>
-                    <Inbox className="size-4" /> Solicitações de OS
-                  </Button>
-                )}
                 {isPrimaryAdmin && selectedOrderIds.length > 0 && (
                   <Button variant="destructive" className="gap-2 text-sm font-semibold" onClick={() => void deleteSelectedOrders()}>
                     <Trash2 className="size-4" /> Excluir {selectedOrderIds.length} OS
@@ -524,14 +513,14 @@ function Dashboard() {
                       <ClipboardList className="size-4" /> Gestão de OS
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-lg">
+                  <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Gestão de ordens de serviço</DialogTitle>
                       <DialogDescription>
                         Escolha como deseja adicionar novas ordens ao sistema.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <Button
                         type="button"
                         className="h-auto min-h-28 flex-col gap-2 rounded-xl p-4"
@@ -560,6 +549,17 @@ function Dashboard() {
                         <ClipboardPaste className="size-7" />
                         <span className="text-sm font-bold">Colar planilha</span>
                         <span className="text-xs leading-5 text-muted-foreground">Copiar e colar do Excel</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="relative h-auto min-h-28 flex-col gap-2 rounded-xl p-4"
+                        onClick={() => void navigate({ to: "/solicitacoes" })}
+                      >
+                        <Inbox className="size-7" />
+                        <span className="text-sm font-bold">Solicitações de OS</span>
+                        <span className="text-xs leading-5 text-muted-foreground">Ver e analisar pedidos dos técnicos</span>
+                        {pendingSolicitations > 0 && <span className="absolute right-3 top-3 rounded-full bg-destructive px-2 py-0.5 text-[10px] font-black text-destructive-foreground">{pendingSolicitations} pendente(s)</span>}
                       </Button>
                     </div>
                   </DialogContent>
