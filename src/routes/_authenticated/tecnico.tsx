@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
-type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
+type Tab = "todas" | "pendente" | "em_andamento" | "minhas";
 
 function formatEntrada(value: string | null | undefined) {
   if (!value?.trim()) return null;
@@ -187,6 +187,9 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [details, setDetails] = useState<Ordem | null>(null);
+  const [editCompleted, setEditCompleted] = useState(false);
+  const [editNotes, setEditNotes] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
   const [notes, setNotes] = useState("");
   const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
@@ -496,7 +499,8 @@ function TechnicianPage() {
 
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
-    const base = tab === "todas" ? orders : orders.filter(o => o.status === tab);
+    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em);
+    const base = tab === "todas" ? activeOrders : tab === "minhas" ? activeOrders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
   }, [orders, tab, search]);
@@ -660,6 +664,42 @@ function TechnicianPage() {
     await loadPartsCatalog();
   }
 
+  async function saveCompletedEdit() {
+    if (!actor || !details || details.status !== "concluida") return;
+    if ((details as Ordem & { fechada_em?: string | null }).fechada_em) {
+      toast.error("Esta OS já foi fechada pelo administrador e não pode mais ser editada.");
+      return;
+    }
+    const solution = editNotes.trim();
+    if (!solution) { toast.error("Informe o serviço realizado."); return; }
+    setEditBusy(true);
+    const { data, error } = await (supabase as any).from("ordens_servico")
+      .update({ notas_fecho: solution })
+      .eq("id", details.id)
+      .eq("status", "concluida")
+      .is("fechada_em", null)
+      .select("id");
+    setEditBusy(false);
+    if (error || !data?.length) {
+      toast.error(error?.message || "A OS foi fechada ou alterada por outra pessoa. Atualize a tela.");
+      await load();
+      return;
+    }
+    const updated = { ...details, notas_fecho: solution } as Ordem;
+    setDetails(updated);
+    setOrders(current => current.map(item => item.id === details.id ? updated : item));
+    setEditCompleted(false);
+    const { error: historyError } = await supabase.from("historico_edicoes").insert({
+      os_id: details.id,
+      acao: "servico_editado",
+      detalhe: `Descrição do serviço atualizada por ${actor.email}`,
+      usuario_id: actor.id,
+      usuario_email: actor.email,
+    });
+    if (historyError) console.warn("[Técnico] Não foi possível registrar edição no histórico:", historyError);
+    toast.success("Serviço atualizado.");
+  }
+
   function openMap(location: string | null) {
     if (!location) { toast.info("Esta OS não possui localização."); return; }
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
@@ -726,7 +766,7 @@ function TechnicianPage() {
           <div className="mt-5 grid grid-cols-3 gap-2 sm:max-w-xl sm:gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "pendente").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Pendentes</div></div>
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "em_andamento").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Em campo</div></div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
           </div>
         </div>
       </div>
@@ -737,7 +777,7 @@ function TechnicianPage() {
             <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
             <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
             <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
-            <TabsTrigger value="concluida" className="rounded-xl px-3">Concluídas</TabsTrigger>
+            <TabsTrigger value="minhas" className="rounded-xl px-3">Minhas OSs</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:max-w-xs">
@@ -750,7 +790,7 @@ function TechnicianPage() {
         {visible.map(order => <article key={order.id} role="button" tabIndex={0} onClick={() => setDetails(order)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetails(order); } }} className="group cursor-pointer rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
-            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
+            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
           </div>
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
@@ -811,8 +851,21 @@ function TechnicianPage() {
               <p className="mt-2 text-sm text-muted-foreground">Nenhuma peça trocada</p>
             )}
           </div>
-          {details.notas_fecho && <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho}</p></div>}
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p>
+            {editCompleted ? (
+              <Textarea className="mt-2" value={editNotes} onChange={(event) => setEditNotes(event.target.value)} rows={4} />
+            ) : (
+              <p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho || "Sem descrição do serviço."}</p>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 pt-2">
+            {details.status === "concluida" && !(details as Ordem & { fechada_em?: string | null }).fechada_em && !editCompleted && <Button variant="outline" className="rounded-xl" onClick={() => { setEditNotes(details.notas_fecho || ""); setEditCompleted(true); }}>Editar serviço</Button>}
+            {editCompleted && <>
+              <Button className="rounded-xl" disabled={editBusy} onClick={() => void saveCompletedEdit()}>{editBusy ? "Salvando..." : "Salvar alterações"}</Button>
+              <Button variant="outline" className="rounded-xl" disabled={editBusy} onClick={() => setEditCompleted(false)}>Cancelar edição</Button>
+            </>}
+            {(details as Ordem & { fechada_em?: string | null }).fechada_em && <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-800">Fechada pelo administrador · somente leitura</span>}
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
             {details.status === "em_andamento" && details.numero_os?.trim() && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
