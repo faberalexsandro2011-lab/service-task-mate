@@ -592,15 +592,37 @@ function Dashboard() {
                 <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
-                    <Input value={filterOS} onChange={(event) => setFilterOS(event.target.value)} placeholder="Número da OS" className="h-11 bg-background" />
+                    <Select value={filterOS || "__todas__"} onValueChange={(value) => setFilterOS(value === "__todas__" ? "" : value)}>
+                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todas as OS" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__todas__">Todas as OS</SelectItem>
+                        {[...new Set(orders.map((order) => String(order.numero_os ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })).map((numero) => <SelectItem key={numero} value={numero}>{numero}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por frota</label>
-                    <Input value={filterFrota} onChange={(event) => setFilterFrota(event.target.value)} placeholder="Código ou nome da frota" className="h-11 bg-background" />
+                    <Select value={filterFrota || "__todas__"} onValueChange={(value) => setFilterFrota(value === "__todas__" ? "" : value)}>
+                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todas as frotas" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__todas__">Todas as frotas</SelectItem>
+                        {[...new Set(orders.map((order) => String(order.frota ?? "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })).map((frota) => <SelectItem key={frota} value={frota}>{frota}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por técnico</label>
-                    <Input value={filterTecnico} onChange={(event) => setFilterTecnico(event.target.value)} placeholder="Nome ou e-mail" className="h-11 bg-background" />
+                    <Select value={filterTecnico || "__todos__"} onValueChange={(value) => setFilterTecnico(value === "__todos__" ? "" : value)}>
+                      <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Todos os técnicos" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__todos__">Todos os técnicos</SelectItem>
+                        {[...new Map(orders.flatMap((order) => {
+                          const label = (order.tecnico_nome || order.tecnico_email || "").trim();
+                          const value = (order.tecnico_email || order.tecnico_nome || "").trim();
+                          return label && value ? [[value, { value, label: order.tecnico_email && order.tecnico_nome ? label + " · " + order.tecnico_email : label }] as const] : [];
+                        })).values()].sort((a, b) => a.label.localeCompare(b.label, "pt-BR")).map((technician) => <SelectItem key={technician.value} value={technician.value}>{technician.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {(filterOS || filterFrota || filterTecnico) && (
                     <div className="sm:col-span-3">
