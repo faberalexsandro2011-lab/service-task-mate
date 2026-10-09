@@ -52,67 +52,6 @@ export type Database = {
           },
         ]
       }
-      solicitacoes_os: {
-        Row: {
-          atendida_em: string | null
-          criada_em: string
-          detalhe_gestor: string | null
-          descricao: string | null
-          frota: string
-          id: string
-          localizacao: string | null
-          numero_os: string
-          ordem_id: string | null
-          solicitante_email: string
-          solicitante_id: string
-          solicitante_nome: string | null
-          status: string
-          tecnico_email: string
-          tecnico_id: string | null
-          tecnico_nome: string | null
-          updated_at: string
-        }
-        Insert: {
-          atendida_em?: string | null
-          criada_em?: string
-          detalhe_gestor?: string | null
-          descricao?: string | null
-          frota: string
-          id?: string
-          localizacao?: string | null
-          numero_os: string
-          ordem_id?: string | null
-          solicitante_email: string
-          solicitante_id: string
-          solicitante_nome?: string | null
-          status?: string
-          tecnico_email: string
-          tecnico_id?: string | null
-          tecnico_nome?: string | null
-          updated_at?: string
-        }
-        Update: {
-          atendida_em?: string | null
-          criada_em?: string
-          detalhe_gestor?: string | null
-          descricao?: string | null
-          frota?: string
-          id?: string
-          localizacao?: string | null
-          entrada?: string | null
-          numero_os?: string
-          ordem_id?: string | null
-          solicitante_email?: string
-          solicitante_id?: string
-          solicitante_nome?: string | null
-          status?: string
-          tecnico_email?: string
-          tecnico_id?: string | null
-          tecnico_nome?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       ordens_servico: {
         Row: {
           concluida_em: string | null
@@ -123,11 +62,8 @@ export type Database = {
           frota: string
           id: string
           localizacao: string | null
-          entrada: string | null
-          fechada_em: string | null
-          fechada_por_email: string | null
           notas_fecho: string | null
-          numero_os: string | null
+          numero_os: string
           pecas_utilizadas: string | null
           status: string
           tecnico_email: string | null
@@ -135,11 +71,6 @@ export type Database = {
           tecnico_nome: string | null
           updated_at: string
           valor_total: number | null
-          solicitacao_os: boolean
-          solicitacao_status: string | null
-          solicitada_em: string | null
-          regularizada_em: string | null
-          regularizada_por_email: string | null
         }
         Insert: {
           concluida_em?: string | null
@@ -150,11 +81,8 @@ export type Database = {
           frota: string
           id?: string
           localizacao?: string | null
-          entrada?: string | null
-          fechada_em?: string | null
-          fechada_por_email?: string | null
           notas_fecho?: string | null
-          numero_os: string | null
+          numero_os: string
           pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
@@ -162,11 +90,6 @@ export type Database = {
           tecnico_nome?: string | null
           updated_at?: string
           valor_total?: number | null
-          solicitacao_os?: boolean
-          solicitacao_status?: string | null
-          solicitada_em?: string | null
-          regularizada_em?: string | null
-          regularizada_por_email?: string | null
         }
         Update: {
           concluida_em?: string | null
@@ -177,10 +100,8 @@ export type Database = {
           frota?: string
           id?: string
           localizacao?: string | null
-          fechada_em?: string | null
-          fechada_por_email?: string | null
           notas_fecho?: string | null
-          numero_os?: string | null
+          numero_os?: string
           pecas_utilizadas?: string | null
           status?: string
           tecnico_email?: string | null
