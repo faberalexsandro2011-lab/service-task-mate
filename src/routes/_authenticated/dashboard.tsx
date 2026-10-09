@@ -786,6 +786,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
   const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
+  const canClose = actor.isManager && status === "concluida" && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin;
   const priorityAgeDays = getOrderAgeInDays(order);
@@ -813,6 +815,30 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       toast.warning(`OS ${order.numero_os} iniciada, mas o histórico ficou pendente.`);
     }
     setBusy(false);
+    await onChanged();
+  }
+
+  async function closeOrder() {
+    if (!actor.isManager || status !== "concluida" || isClosed) return;
+    if (!confirm(`Fechar oficialmente a OS ${order.numero_os}? Depois disso, o técnico não poderá mais editá-la.`)) return;
+    setBusy(true);
+    const closedAt = new Date().toISOString();
+    const { error } = await (supabase as any).from("ordens_servico").update({
+      fechada_em: closedAt,
+      fechada_por_email: actor.email,
+    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null);
+    if (error) {
+      setBusy(false);
+      toast.error(friendlyError(error, "Não foi possível fechar a OS."));
+      return;
+    }
+    try {
+      await logHistory(order.id, actor, "fechada", `OS fechada oficialmente por ${actor.email}`);
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar fechamento no histórico:", historyError);
+    }
+    setBusy(false);
+    toast.success(`OS ${order.numero_os} fechada. O técnico não poderá mais editá-la.`);
     await onChanged();
   }
 
@@ -862,6 +888,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       {canStart && (
         <Button size="sm" className="h-9 w-full min-w-0 px-2" disabled={busy} onClick={(event) => { event.stopPropagation(); void start(); }}>
           <Play /> Iniciar
+        </Button>
+      )}
+      {canClose && (
+        <Button size="sm" variant="outline" className="h-9 w-full min-w-0 border-emerald-600 px-2 text-emerald-700 hover:bg-emerald-50" disabled={busy} onClick={(event) => { event.stopPropagation(); void closeOrder(); }}>
+          <CheckCircle2 /> Fechar OS
         </Button>
       )}
       {canFinish && (
@@ -933,6 +964,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
 
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             <StatusBadge status={status} />
+            {isClosed && <span className="rounded-sm bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">Fechada</span>}
             {priority && priorityAgeDays !== null && (
               <span
                 title={`OS aberta há ${priorityAgeDays} dias ou mais`}
