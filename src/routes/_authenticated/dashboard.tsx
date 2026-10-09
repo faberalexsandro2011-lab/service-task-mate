@@ -618,10 +618,6 @@ function Dashboard() {
                         <strong>{operationalAlerts.priorityOpen}</strong> OS prioritária(s) abertas há 3 dias ou mais
                       </span>
                       <span className="inline-flex items-center gap-1.5">
-                        <AlertTriangle className={"size-3.5 " + (operationalAlerts.stalePending ? "text-amber-600" : "text-emerald-600")} />
-                        <strong>{operationalAlerts.stalePending}</strong> pendente(s) há mais de 7 dias
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
                         <Clock3 className={"size-3.5 " + (operationalAlerts.staleInProgress ? "text-violet-600" : "text-emerald-600")} />
                         <strong>{operationalAlerts.staleInProgress}</strong> atendimento(s) há mais de 24 h
                       </span>
