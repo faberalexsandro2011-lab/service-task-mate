@@ -695,7 +695,7 @@ function Dashboard() {
                   <p className="text-sm text-muted-foreground">Acompanhe as suas OS e atualizações diretamente nesta tela.</p>
                 )}
               </section>
-              <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
+              <div className="mt-6 grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
                 {tabs.map((t) => {
                   const selected = activeTab === t.value;
                   const tone = statusChipStyles[t.value] ?? statusChipStyles["todas"]!;
@@ -706,12 +706,12 @@ function Dashboard() {
                       aria-pressed={selected}
                       onClick={() => setActiveTab(t.value)}
                       className={[
-                        "group flex min-h-14 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
+                        "group flex min-h-10 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
                         selected ? tone.active : tone.inactive,
                       ].join(" ")}
                     >
                       <span className="min-w-0 truncate">{t.label}</span>
-                      <span className={"inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-2 text-sm font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>
+                      <span className={"inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>
                         {t.list.length}
                       </span>
                     </button>
