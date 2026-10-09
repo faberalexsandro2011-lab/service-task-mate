@@ -195,7 +195,7 @@ function getOrderOpenedAt(order: Pick<Ordem, "entrada" | "created_at">): Date | 
   const value = String(order.entrada ?? "").trim();
 
   if (value) {
-    const br = value.match(/^(\\d{1,2})[\\/-](\\d{1,2})[\\/-](\\d{2,4})/);
+    const br = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
     if (br) {
       const day = Number(br[1]);
       const month = Number(br[2]);
@@ -205,7 +205,7 @@ function getOrderOpenedAt(order: Pick<Ordem, "entrada" | "created_at">): Date | 
       if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) return date;
     }
 
-    const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (iso) {
       const year = Number(iso[1]);
       const month = Number(iso[2]);
