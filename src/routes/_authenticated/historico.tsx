@@ -50,6 +50,7 @@ function HistoryPage() {
         ordersQuery = supabase.from("ordens_servico")
           .select("*")
           .or(`tecnico_id.eq.${auth.user.id},tecnico_email.ilike.${email}`)
+          .not("fechada_em", "is", null)
           .order("created_at", { ascending: false });
 
         historyQuery = supabase.from("historico_edicoes")
