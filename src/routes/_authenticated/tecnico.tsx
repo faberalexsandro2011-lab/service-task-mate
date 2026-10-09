@@ -811,7 +811,7 @@ function TechnicianPage() {
       </div>
     </section>
     <Dialog open={!!details} onOpenChange={(open) => { if (!open) setDetails(null); }}>
-      <DialogContent className="rounded-3xl sm:max-w-xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y rounded-3xl p-4 sm:max-w-xl sm:p-6">
         <DialogHeader>
           <DialogTitle>Detalhes da OS {details?.numero_os}</DialogTitle>
         </DialogHeader>
@@ -854,7 +854,7 @@ function TechnicianPage() {
               <p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho || "Sem descrição do serviço."}</p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap gap-2 border-t bg-background/95 px-1 py-3 pt-3 backdrop-blur">
             {details.status === "concluida" && !(details as Ordem & { fechada_em?: string | null }).fechada_em && !editCompleted && <Button variant="outline" className="rounded-xl" onClick={() => { setEditNotes(details.notas_fecho || ""); setEditCompleted(true); }}>Editar serviço</Button>}
             {editCompleted && <>
               <Button className="rounded-xl" disabled={editBusy} onClick={() => void saveCompletedEdit()}>{editBusy ? "Salvando..." : "Salvar alterações"}</Button>
@@ -1109,7 +1109,7 @@ function TechnicianPage() {
           </section>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 z-10 -mx-1 flex-col-reverse gap-2 border-t bg-background/95 px-1 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:border-0 sm:bg-transparent sm:p-0">
           <Button
             variant="outline"
             className="rounded-xl"
