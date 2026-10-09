@@ -59,3 +59,14 @@ Em 2026-10-08, a consulta de políticas RLS no projeto Supabase atualmente conec
 
 ## Ações realizadas nesta continuação
 Somente leitura do código e atualização deste documento na branch `play-store-prep`. Não houve alteração no banco de dados, migração, alteração na branch `main`, nem publicação de nova versão do site.
+
+
+## Domínio confirmado pelo proprietário (2026-10-08)
+- O proprietário confirmou `https://service-task-mate.lovable.app` como o endereço que utiliza atualmente.
+- A confirmação do endereço identifica o domínio esperado, mas não comprova sozinha qual commit está publicado nem quais variáveis de ambiente o deploy ativo recebeu. A tentativa de consultar a página diretamente nesta auditoria não retornou conteúdo verificável; por isso, não declarar o deploy confirmado.
+- O commit atual de `main` consultado pelo GitHub é `1002946105d7f9465b2f72fab30fc5dd0b23f376` (mensagem: “Reforçar permissões das RPCs sensíveis”, 2026-10-08). Isso é o HEAD do repositório, não prova que o domínio já esteja servindo esse commit.
+- O arquivo `.env` versionado aponta para o projeto `edujipmfqeajvfkvicda`, enquanto `supabase/config.toml` aponta para `bshykkaqimjpgayzzxch`. O projeto Supabase consultado anteriormente também foi `edujipmfqeajvfkvicda`, mas ainda é necessário comparar o ambiente do site publicado com esse identificador antes de afirmar que é o banco de produção.
+- Não foi encontrada pasta `.github` com workflow de deploy no repositório. A publicação aparenta estar ligada à integração com Lovable descrita no README, mas o status do deploy não foi confirmado por um endpoint de deploy acessível nesta auditoria.
+
+## Próximo passo seguro
+Confirmar o projeto Supabase usado pelo domínio ativo e o commit publicado no painel de deploy/Lovable. Não alterar domínio, variáveis, banco, nem publicar mudanças até reconciliar essa informação. Depois disso, preparar uma cópia de teste isolada para os testes multiempresa e escolher o empacotamento Android.
