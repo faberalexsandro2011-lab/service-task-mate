@@ -11,10 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedSolicitacoesRouteImport } from './routes/_authenticated/solicitacoes'
 import { Route as AuthenticatedAnalisesRouteImport } from './routes/_authenticated/analises'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
+import { Route as AuthenticatedSolicitacoesRouteImport } from './routes/_authenticated/solicitacoes'
 import { Route as AuthenticatedTecnicoRouteImport } from './routes/_authenticated/tecnico'
 
 const IndexRoute = IndexRouteImport.update({
@@ -26,19 +26,14 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedSolicitacoesRoute = AuthenticatedSolicitacoesRouteImport.update({
-  id: '/solicitacoes',
-  path: '/solicitacoes',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAnalisesRoute = AuthenticatedAnalisesRouteImport.update({
   id: '/analises',
   path: '/analises',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedHistoricoRoute = AuthenticatedHistoricoRouteImport.update({
@@ -46,6 +41,12 @@ const AuthenticatedHistoricoRoute = AuthenticatedHistoricoRouteImport.update({
   path: '/historico',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSolicitacoesRoute =
+  AuthenticatedSolicitacoesRouteImport.update({
+    id: '/solicitacoes',
+    path: '/solicitacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTecnicoRoute = AuthenticatedTecnicoRouteImport.update({
   id: '/tecnico',
   path: '/tecnico',
@@ -54,43 +55,55 @@ const AuthenticatedTecnicoRoute = AuthenticatedTecnicoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
-  '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/analises': typeof AuthenticatedAnalisesRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/historico': typeof AuthenticatedHistoricoRoute
+  '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
-  '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/analises': typeof AuthenticatedAnalisesRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/historico': typeof AuthenticatedHistoricoRoute
+  '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/_authenticated/analises': typeof AuthenticatedAnalisesRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
+  '/_authenticated/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/_authenticated/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/solicitacoes' | '/analises' | '/historico' | '/tecnico'
+  fullPaths:
+    | '/'
+    | '/analises'
+    | '/dashboard'
+    | '/historico'
+    | '/solicitacoes'
+    | '/tecnico'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/solicitacoes' | '/analises' | '/historico' | '/tecnico'
+  to:
+    | '/'
+    | '/analises'
+    | '/dashboard'
+    | '/historico'
+    | '/solicitacoes'
+    | '/tecnico'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
-    | '/_authenticated/dashboard'
-    | '/_authenticated/solicitacoes'
     | '/_authenticated/analises'
+    | '/_authenticated/dashboard'
     | '/_authenticated/historico'
+    | '/_authenticated/solicitacoes'
     | '/_authenticated/tecnico'
   fileRoutesById: FileRoutesById
 }
@@ -115,20 +128,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/solicitacoes': {
-      id: '/_authenticated/solicitacoes'
-      path: '/solicitacoes'
-      fullPath: '/solicitacoes'
-      preLoaderRoute: typeof AuthenticatedSolicitacoesRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/analises': {
       id: '/_authenticated/analises'
       path: '/analises'
@@ -136,11 +135,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAnalisesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/historico': {
       id: '/_authenticated/historico'
       path: '/historico'
       fullPath: '/historico'
       preLoaderRoute: typeof AuthenticatedHistoricoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/solicitacoes': {
+      id: '/_authenticated/solicitacoes'
+      path: '/solicitacoes'
+      fullPath: '/solicitacoes'
+      preLoaderRoute: typeof AuthenticatedSolicitacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tecnico': {
@@ -154,18 +167,18 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedSolicitacoesRoute: typeof AuthenticatedSolicitacoesRoute
   AuthenticatedAnalisesRoute: typeof AuthenticatedAnalisesRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
+  AuthenticatedSolicitacoesRoute: typeof AuthenticatedSolicitacoesRoute
   AuthenticatedTecnicoRoute: typeof AuthenticatedTecnicoRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedSolicitacoesRoute: AuthenticatedSolicitacoesRoute,
   AuthenticatedAnalisesRoute: AuthenticatedAnalisesRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
+  AuthenticatedSolicitacoesRoute: AuthenticatedSolicitacoesRoute,
   AuthenticatedTecnicoRoute: AuthenticatedTecnicoRoute,
 }
 
