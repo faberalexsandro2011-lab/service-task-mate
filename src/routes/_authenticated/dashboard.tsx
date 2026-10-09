@@ -966,10 +966,12 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
           </div>
 
-          <div className="min-w-[150px] flex-[1.2]">
-            <span className="text-[10px] font-semibold uppercase text-muted-foreground">Serviço</span>
-            <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
-          </div>
+          {!actor.isManager && (
+            <div className="min-w-[150px] flex-[1.2]">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Serviço</span>
+              <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
+            </div>
+          )}
 
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             <StatusBadge status={status} />
