@@ -15,15 +15,7 @@ BEGIN
 
   IF OLD.fechada_em IS NOT NULL
      AND NOT public.has_role(auth.uid(), 'gestor'::public.app_role)
-     AND (
-       NEW.status IS DISTINCT FROM OLD.status
-       OR NEW.notas_fecho IS DISTINCT FROM OLD.notas_fecho
-       OR NEW.pecas_utilizadas IS DISTINCT FROM OLD.pecas_utilizadas
-       OR NEW.descricao IS DISTINCT FROM OLD.descricao
-       OR NEW.localizacao IS DISTINCT FROM OLD.localizacao
-       OR NEW.frota IS DISTINCT FROM OLD.frota
-       OR NEW.numero_os IS DISTINCT FROM OLD.numero_os
-     ) THEN
+     AND (to_jsonb(NEW) - 'updated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'updated_at') THEN
     RAISE EXCEPTION 'Esta OS está fechada e não pode mais ser editada pelo técnico.';
   END IF;
 
