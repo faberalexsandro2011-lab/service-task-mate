@@ -397,8 +397,7 @@ function TechnicianPage() {
         })
         .catch((error) => console.warn("Service worker offline:", error));
     }
-    setOnline(navigator.onLine);
-    void registerWebPush().catch((error) => console.warn("[Push] Registro automático indisponível:", error));
+    setOnline(navigator.onLine);    void registerWebPush().catch((error) => console.warn("[Push] Registro automático indisponível:", error));
     void load();
     void loadPartsCatalog();
     void syncOffline();
@@ -788,7 +787,7 @@ function TechnicianPage() {
         {visible.map(order => <article key={order.id} role="button" tabIndex={0} onClick={() => setDetails(order)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetails(order); } }} className="group cursor-pointer rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
-            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
+            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{tab === "historico" ? "Fechada pelo ADM" : order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
           </div>
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
@@ -797,8 +796,7 @@ function TechnicianPage() {
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at)}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>            </div>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-2">
+          </div>          <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
             {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); void start(order); }}><Play /> Iniciar serviço</Button>}
             {order.status === "em_andamento" && order.numero_os?.trim() && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
