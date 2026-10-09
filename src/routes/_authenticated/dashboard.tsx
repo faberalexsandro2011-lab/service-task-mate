@@ -608,32 +608,37 @@ function Dashboard() {
                   )}
                 </div>
               </div>
-              <div className="mt-5 border-y py-3">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-                  <span className="font-bold uppercase tracking-[0.12em] text-muted-foreground">Monitoramento</span>
-                  {isManager ? (
-                    <>
-                      <span className="inline-flex items-center gap-1.5">
-                        <AlertTriangle className={"size-3.5 " + (operationalAlerts.priorityOpen ? "text-rose-600" : "text-emerald-600")} />
-                        <strong>{operationalAlerts.priorityOpen}</strong> OS prioritária(s) abertas há 3 dias ou mais
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Clock3 className={"size-3.5 " + (operationalAlerts.staleInProgress ? "text-violet-600" : "text-emerald-600")} />
-                        <strong>{operationalAlerts.staleInProgress}</strong> atendimento(s) há mais de 24 h
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <UserX className={"size-3.5 " + (operationalAlerts.unassigned ? "text-rose-600" : "text-emerald-600")} />
-                        <strong>{operationalAlerts.unassigned}</strong> OS pendente(s) sem técnico
-                      </span>
-                      <button type="button" onClick={() => void navigate({ to: "/analises" })} className="font-semibold text-primary hover:underline">
-                        Abrir análise técnica →
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Acompanhe suas OS e atualizações diretamente nesta tela.</span>
+              <section className="mt-5 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold">Monitoramento operacional</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">Indicadores atualizados conforme as ordens registadas.</p>
+                  </div>
+                  {isManager && (
+                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void navigate({ to: "/analises" })}>
+                      <BarChart3 className="size-4" /> Análise técnica
+                    </Button>
                   )}
                 </div>
-              </div>
+                {isManager ? (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900/60 dark:bg-rose-950/20">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-5" /></div>
+                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.priorityOpen}</div><div className="text-xs font-medium leading-5 text-muted-foreground">OS prioritárias abertas há 3 dias ou mais</div></div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3 dark:border-violet-900/60 dark:bg-violet-950/20">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><Clock3 className="size-5" /></div>
+                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.staleInProgress}</div><div className="text-xs font-medium leading-5 text-muted-foreground">Atendimentos em andamento há mais de 24 h</div></div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><UserX className="size-5" /></div>
+                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.unassigned}</div><div className="text-xs font-medium leading-5 text-muted-foreground">OS pendentes sem técnico atribuído</div></div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Acompanhe as suas OS e atualizações diretamente nesta tela.</p>
+                )}
+              </section>
               <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 sm:gap-3">
                 {tabs.map((t) => {
                   const selected = activeTab === t.value;
