@@ -8,11 +8,20 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NEW.fechada_em IS DISTINCT FROM OLD.fechada_em
+  -- O fechamento oficial só pode ser feito por um gestor e numa OS finalizada.
+  IF (
+       NEW.fechada_em IS DISTINCT FROM OLD.fechada_em
+       OR NEW.fechada_por_email IS DISTINCT FROM OLD.fechada_por_email
+     )
      AND NOT public.has_role(auth.uid(), 'gestor'::public.app_role) THEN
     RAISE EXCEPTION 'Somente o administrador pode fechar uma OS.';
   END IF;
 
+  IF NEW.fechada_em IS NOT NULL AND NEW.status IS DISTINCT FROM 'concluida' THEN
+    RAISE EXCEPTION 'Somente uma OS finalizada pode ser fechada.';
+  END IF;
+
+  -- Depois do fechamento, o técnico não pode modificar nenhum campo da OS.
   IF OLD.fechada_em IS NOT NULL
      AND NOT public.has_role(auth.uid(), 'gestor'::public.app_role)
      AND (to_jsonb(NEW) - 'updated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'updated_at') THEN
