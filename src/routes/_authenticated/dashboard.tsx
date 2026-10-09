@@ -500,7 +500,7 @@ function Dashboard() {
                 <p className="text-sm font-semibold text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
                 {!isManager && <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>}
               </div>
-              <h1 className="mt-1 text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">Ordens de serviço</h1>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">Ordens de serviço</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
