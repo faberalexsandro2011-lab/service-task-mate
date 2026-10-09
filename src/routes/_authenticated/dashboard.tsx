@@ -399,11 +399,18 @@ function Dashboard() {
   };
   const connected = online && live;
 
+  const waitingAdminClosure = filtered.filter((o) =>
+    o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em
+  );
+  const closedOrders = filtered.filter((o) =>
+    o.status === "concluida" && Boolean((o as Ordem & { fechada_em?: string | null }).fechada_em)
+  );
   const tabs: { value: string; label: string; list: Ordem[] }[] = [
     { value: "todas", label: "Todas", list: filtered },
     { value: "pendente", label: "Pendente", list: byStatus("pendente") },
     { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
-    { value: "concluida", label: "Concluídas", list: byStatus("concluida") },
+    ...(isManager ? [{ value: "aguardando_fechamento", label: "Aguardando ADM", list: waitingAdminClosure }] : []),
+    { value: "concluida", label: isManager ? "Fechadas" : "Concluídas", list: isManager ? closedOrders : byStatus("concluida") },
     { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
   ];
   const statusChipStyles: Record<string, { active: string; inactive: string }> = {
@@ -823,13 +830,14 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
     if (!confirm(`Fechar oficialmente a OS ${order.numero_os}? Depois disso, o técnico não poderá mais editá-la.`)) return;
     setBusy(true);
     const closedAt = new Date().toISOString();
-    const { error } = await (supabase as any).from("ordens_servico").update({
+    const { data: closedRows, error } = await (supabase as any).from("ordens_servico").update({
       fechada_em: closedAt,
       fechada_por_email: actor.email,
-    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null);
-    if (error) {
+    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null).select("id");
+    if (error || !closedRows?.length) {
       setBusy(false);
-      toast.error(friendlyError(error, "Não foi possível fechar a OS."));
+      toast.error(error ? friendlyError(error, "Não foi possível fechar a OS.") : "Esta OS já foi fechada ou alterada. Atualize o painel.");
+      await onChanged();
       return;
     }
     try {
