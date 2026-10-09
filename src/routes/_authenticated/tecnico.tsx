@@ -811,7 +811,7 @@ function TechnicianPage() {
       </div>
     </section>
     <Dialog open={!!details} onOpenChange={(open) => { if (!open) setDetails(null); }}>
-      <DialogContent className="rounded-3xl sm:max-w-xl">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto overscroll-contain touch-pan-y rounded-3xl p-4 sm:max-w-xl sm:p-6">
         <DialogHeader>
           <DialogTitle>Detalhes da OS {details?.numero_os}</DialogTitle>
         </DialogHeader>
@@ -1109,7 +1109,7 @@ function TechnicianPage() {
           </section>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 z-10 -mx-1 flex-col-reverse gap-2 border-t bg-background/95 px-1 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:border-0 sm:bg-transparent sm:p-0">
           <Button
             variant="outline"
             className="rounded-xl"
