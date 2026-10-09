@@ -646,7 +646,7 @@ function Dashboard() {
                     </div>
                   )}
                   {isManager && (
-                    <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
+                    <div className="sm:col-span-3 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
                       <div className="grid min-w-[145px] flex-1 gap-1">
                         <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
                         <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10 bg-background" />
