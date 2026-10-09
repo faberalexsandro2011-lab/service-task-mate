@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
-type Tab = "todas" | "pendente" | "em_andamento" | "minhas";
+type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
 
 function formatEntrada(value: string | null | undefined) {
   if (!value?.trim()) return null;
@@ -397,7 +397,6 @@ function TechnicianPage() {
         })
         .catch((error) => console.warn("Service worker offline:", error));
     }
-
     setOnline(navigator.onLine);
     void registerWebPush().catch((error) => console.warn("[Push] Registro automático indisponível:", error));
     void load();
@@ -500,7 +499,7 @@ function TechnicianPage() {
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
     const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em);
-    const base = tab === "todas" ? activeOrders : tab === "minhas" ? activeOrders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
+    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? activeOrders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
   }, [orders, tab, search]);
@@ -728,7 +727,7 @@ function TechnicianPage() {
         <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
       </div>
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map(item => { const Icon = item.icon; return <a key={item.label} href={item.href} onClick={() => { setMenuOpen(false); if (item.label === "Minhas OS") setTab("minhas"); else if (item.label === "Início") setTab("todas"); }} className={`flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${((item.label === "Minhas OS" && tab === "minhas") || (item.label === "Início" && tab !== "minhas")) ? "bg-white/15 text-white" : "text-white/75"}`}><Icon className="size-5" />{item.label}</a>; })}
+        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "Minhas OS" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "Minhas OS") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
         <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
@@ -797,8 +796,7 @@ function TechnicianPage() {
             <div className="grid gap-2 rounded-2xl border bg-muted/30 p-3 sm:grid-cols-3">
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at)}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
-              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
-            </div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>            </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
