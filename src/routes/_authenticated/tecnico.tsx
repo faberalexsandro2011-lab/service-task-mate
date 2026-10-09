@@ -728,7 +728,7 @@ function TechnicianPage() {
         <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
       </div>
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map(item => { const Icon = item.icon; return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className="flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><Icon className="size-5" />{item.label}</a>; })}
+        {menuItems.map(item => { const Icon = item.icon; return <a key={item.label} href={item.href} onClick={() => { setMenuOpen(false); if (item.label === "Minhas OS") setTab("minhas"); else if (item.label === "Início") setTab("todas"); }} className={`flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${((item.label === "Minhas OS" && tab === "minhas") || (item.label === "Início" && tab !== "minhas")) ? "bg-white/15 text-white" : "text-white/75"}`}><Icon className="size-5" />{item.label}</a>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
         <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
@@ -773,11 +773,10 @@ function TechnicianPage() {
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
-          <TabsList className="grid h-12 w-full grid-cols-4 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
+          <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
             <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
             <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
             <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
-            <TabsTrigger value="minhas" className="rounded-xl px-3">Minhas OSs</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:max-w-xs">
