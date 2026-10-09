@@ -124,6 +124,8 @@ export type Database = {
           id: string
           localizacao: string | null
           entrada: string | null
+          fechada_em: string | null
+          fechada_por_email: string | null
           notas_fecho: string | null
           numero_os: string | null
           pecas_utilizadas: string | null
@@ -149,6 +151,8 @@ export type Database = {
           id?: string
           localizacao?: string | null
           entrada?: string | null
+          fechada_em?: string | null
+          fechada_por_email?: string | null
           notas_fecho?: string | null
           numero_os: string | null
           pecas_utilizadas?: string | null
@@ -173,6 +177,8 @@ export type Database = {
           frota?: string
           id?: string
           localizacao?: string | null
+          fechada_em?: string | null
+          fechada_por_email?: string | null
           notas_fecho?: string | null
           numero_os?: string | null
           pecas_utilizadas?: string | null
