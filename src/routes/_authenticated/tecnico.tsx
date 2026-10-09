@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
-type Tab = "todas" | "pendente" | "em_andamento" | "concluida";
+type Tab = "todas" | "pendente" | "em_andamento" | "minhas";
 
 function formatEntrada(value: string | null | undefined) {
   if (!value?.trim()) return null;
@@ -496,7 +496,8 @@ function TechnicianPage() {
 
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
-    const base = tab === "todas" ? orders : orders.filter(o => o.status === tab);
+    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em);
+    const base = tab === "todas" ? activeOrders : tab === "minhas" ? activeOrders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
   }, [orders, tab, search]);
@@ -726,7 +727,7 @@ function TechnicianPage() {
           <div className="mt-5 grid grid-cols-3 gap-2 sm:max-w-xl sm:gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "pendente").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Pendentes</div></div>
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "em_andamento").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Em campo</div></div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
           </div>
         </div>
       </div>
@@ -737,7 +738,7 @@ function TechnicianPage() {
             <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
             <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
             <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
-            <TabsTrigger value="concluida" className="rounded-xl px-3">Concluídas</TabsTrigger>
+            <TabsTrigger value="minhas" className="rounded-xl px-3">Minhas OSs</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative w-full sm:max-w-xs">
@@ -750,7 +751,7 @@ function TechnicianPage() {
         {visible.map(order => <article key={order.id} role="button" tabIndex={0} onClick={() => setDetails(order)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetails(order); } }} className="group cursor-pointer rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
-            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
+            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
           </div>
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
