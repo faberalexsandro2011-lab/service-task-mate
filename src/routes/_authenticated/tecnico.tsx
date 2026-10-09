@@ -187,6 +187,9 @@ function TechnicianPage() {
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
   const [details, setDetails] = useState<Ordem | null>(null);
+  const [editCompleted, setEditCompleted] = useState(false);
+  const [editNotes, setEditNotes] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
   const [notes, setNotes] = useState("");
   const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
@@ -661,6 +664,42 @@ function TechnicianPage() {
     await loadPartsCatalog();
   }
 
+  async function saveCompletedEdit() {
+    if (!actor || !details || details.status !== "concluida") return;
+    if ((details as Ordem & { fechada_em?: string | null }).fechada_em) {
+      toast.error("Esta OS já foi fechada pelo administrador e não pode mais ser editada.");
+      return;
+    }
+    const solution = editNotes.trim();
+    if (!solution) { toast.error("Informe o serviço realizado."); return; }
+    setEditBusy(true);
+    const { data, error } = await (supabase as any).from("ordens_servico")
+      .update({ notas_fecho: solution })
+      .eq("id", details.id)
+      .eq("status", "concluida")
+      .is("fechada_em", null)
+      .select("id");
+    setEditBusy(false);
+    if (error || !data?.length) {
+      toast.error(error?.message || "A OS foi fechada ou alterada por outra pessoa. Atualize a tela.");
+      await load();
+      return;
+    }
+    const updated = { ...details, notas_fecho: solution } as Ordem;
+    setDetails(updated);
+    setOrders(current => current.map(item => item.id === details.id ? updated : item));
+    setEditCompleted(false);
+    const { error: historyError } = await supabase.from("historico_edicoes").insert({
+      os_id: details.id,
+      acao: "servico_editado",
+      detalhe: `Descrição do serviço atualizada por ${actor.email}`,
+      usuario_id: actor.id,
+      usuario_email: actor.email,
+    });
+    if (historyError) console.warn("[Técnico] Não foi possível registrar edição no histórico:", historyError);
+    toast.success("Serviço atualizado.");
+  }
+
   function openMap(location: string | null) {
     if (!location) { toast.info("Esta OS não possui localização."); return; }
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`, "_blank", "noopener,noreferrer");
@@ -812,8 +851,21 @@ function TechnicianPage() {
               <p className="mt-2 text-sm text-muted-foreground">Nenhuma peça trocada</p>
             )}
           </div>
-          {details.notas_fecho && <div className="rounded-2xl border bg-muted/30 p-4"><p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho}</p></div>}
+          <div className="rounded-2xl border bg-muted/30 p-4">
+            <p className="text-xs font-bold uppercase text-muted-foreground">Serviço realizado</p>
+            {editCompleted ? (
+              <Textarea className="mt-2" value={editNotes} onChange={(event) => setEditNotes(event.target.value)} rows={4} />
+            ) : (
+              <p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho || "Sem descrição do serviço."}</p>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 pt-2">
+            {details.status === "concluida" && !(details as Ordem & { fechada_em?: string | null }).fechada_em && !editCompleted && <Button variant="outline" className="rounded-xl" onClick={() => { setEditNotes(details.notas_fecho || ""); setEditCompleted(true); }}>Editar serviço</Button>}
+            {editCompleted && <>
+              <Button className="rounded-xl" disabled={editBusy} onClick={() => void saveCompletedEdit()}>{editBusy ? "Salvando..." : "Salvar alterações"}</Button>
+              <Button variant="outline" className="rounded-xl" disabled={editBusy} onClick={() => setEditCompleted(false)}>Cancelar edição</Button>
+            </>}
+            {(details as Ordem & { fechada_em?: string | null }).fechada_em && <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-800">Fechada pelo administrador · somente leitura</span>}
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
             {details.status === "em_andamento" && details.numero_os?.trim() && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
