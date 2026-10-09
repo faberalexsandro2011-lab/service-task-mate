@@ -497,8 +497,8 @@ function TechnicianPage() {
 
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
-    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em);
-    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? activeOrders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
+    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em && (o.status === "pendente" || o.status === "em_andamento"));
+    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? orders.filter(o => o.status === "concluida") : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
   }, [orders, tab, search]);
@@ -710,7 +710,7 @@ function TechnicianPage() {
 
   const menuItems = [
     { label: "Início", href: "/tecnico", icon: Home },
-    { label: "Minhas OS", href: "/tecnico", icon: ClipboardList },
+    { label: "OS finalizada", href: "/tecnico", icon: ClipboardList },
     { label: "Solicitar OS", href: "/solicitacoes", icon: FilePlus2 },
     { label: "Histórico", href: "/historico", icon: History },
   ];
@@ -726,7 +726,7 @@ function TechnicianPage() {
         <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
       </div>
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "Minhas OS" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "Minhas OS") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
+        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "OS finalizada" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "OS finalizada") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
         <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
