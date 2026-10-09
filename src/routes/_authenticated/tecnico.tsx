@@ -854,7 +854,7 @@ function TechnicianPage() {
               <p className="mt-1 whitespace-pre-wrap leading-6">{details.notas_fecho || "Sem descrição do serviço."}</p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap gap-2 border-t bg-background/95 px-1 py-3 pt-3 backdrop-blur">
             {details.status === "concluida" && !(details as Ordem & { fechada_em?: string | null }).fechada_em && !editCompleted && <Button variant="outline" className="rounded-xl" onClick={() => { setEditNotes(details.notas_fecho || ""); setEditCompleted(true); }}>Editar serviço</Button>}
             {editCompleted && <>
               <Button className="rounded-xl" disabled={editBusy} onClick={() => void saveCompletedEdit()}>{editBusy ? "Salvando..." : "Salvar alterações"}</Button>
