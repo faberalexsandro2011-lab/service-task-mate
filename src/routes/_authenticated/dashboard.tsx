@@ -256,7 +256,9 @@ function Dashboard() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const [filterOS, setFilterOS] = useState("");
+  const [filterFrota, setFilterFrota] = useState("");
+  const [filterTecnico, setFilterTecnico] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
@@ -312,18 +314,21 @@ function Dashboard() {
       : allOrders.filter((o) => !o.tecnico_id && !o.tecnico_email && o.status === "pendente");
   }, [allOrders, isManager, scope, userId, userEmail]);
   const filtered = useMemo(() => {
-    const term = search.trim().toLocaleLowerCase("pt");
+    const osTerm = filterOS.trim().toLocaleLowerCase("pt");
+    const frotaTerm = filterFrota.trim().toLocaleLowerCase("pt");
+    const tecnicoTerm = filterTecnico.trim().toLocaleLowerCase("pt");
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
     const to = dateTo ? new Date(dateTo + "T23:59:59.999") : null;
 
     const matches = orders.filter((order) => {
-      const matchesSearch = !term || [order.numero_os, order.frota, order.localizacao, order.tecnico_email, order.tecnico_nome, order.descricao]
-        .filter(Boolean)
-        .some((value) => value?.toLocaleLowerCase("pt").includes(term));
+      const matchesOS = !osTerm || (order.numero_os ?? "").toLocaleLowerCase("pt").includes(osTerm);
+      const matchesFrota = !frotaTerm || (order.frota ?? "").toLocaleLowerCase("pt").includes(frotaTerm);
+      const technician = [order.tecnico_nome, order.tecnico_email].filter(Boolean).join(" ").toLocaleLowerCase("pt");
+      const matchesTecnico = !tecnicoTerm || technician.includes(tecnicoTerm);
       const openedAt = new Date(order.created_at);
       const matchesFrom = !from || openedAt >= from;
       const matchesTo = !to || openedAt <= to;
-      return matchesSearch && matchesFrom && matchesTo;
+      return matchesOS && matchesFrota && matchesTecnico && matchesFrom && matchesTo;
     });
 
     // No painel administrativo, coloca as OS prioritárias no topo e as mais antigas primeiro.
@@ -335,7 +340,7 @@ function Dashboard() {
       if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
       return 0;
     });
-  }, [orders, search, dateFrom, dateTo, isManager]);
+  }, [orders, filterOS, filterFrota, filterTecnico, dateFrom, dateTo, isManager]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -584,11 +589,24 @@ function Dashboard() {
                     {filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"} · clique numa aba para filtrar rapidamente.
                   </p>
                 </div>
-                <div className="flex w-full flex-col gap-2 lg:max-w-2xl">
-                  <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar OS, frota ou técnico..." className="h-12 bg-background pl-9 shadow-sm transition-shadow focus-within:shadow-md" />
+                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
+                  <div className="grid gap-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
+                    <Input value={filterOS} onChange={(event) => setFilterOS(event.target.value)} placeholder="Número da OS" className="h-11 bg-background" />
                   </div>
+                  <div className="grid gap-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por frota</label>
+                    <Input value={filterFrota} onChange={(event) => setFilterFrota(event.target.value)} placeholder="Código ou nome da frota" className="h-11 bg-background" />
+                  </div>
+                  <div className="grid gap-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por técnico</label>
+                    <Input value={filterTecnico} onChange={(event) => setFilterTecnico(event.target.value)} placeholder="Nome ou e-mail" className="h-11 bg-background" />
+                  </div>
+                  {(filterOS || filterFrota || filterTecnico) && (
+                    <div className="sm:col-span-3">
+                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); }}>Limpar filtros</Button>
+                    </div>
+                  )}
                   {isManager && (
                     <div className="flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
                       <div className="grid min-w-[145px] flex-1 gap-1">
