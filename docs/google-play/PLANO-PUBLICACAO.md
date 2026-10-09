@@ -49,3 +49,13 @@ Planejamento e diagnóstico inicial registrados. Ainda não há AAB, aplicativo 
 Em 2026-10-08, a consulta de políticas RLS no projeto Supabase atualmente conectado (ref `edujipmfqeajvfkvicda`) mostrou políticas baseadas em papéis globais (`gestor`, `gestor_os`, `tecnico`) e e-mail, sem um identificador de empresa/organização nas tabelas consultadas (`ordens_servico`, `pecas_catalogo`, `historico_edicoes`, `profiles`, `user_roles`, `solicitacoes_os`). Isso não prova que seja o banco de produção; o arquivo `supabase/config.toml` aponta para outro ref. Não fazer deploy nem migration antes de reconciliar essa diferença.
 
 **Implicação:** a arquitetura observada não está pronta para vender um único serviço multiempresa sem uma implementação e validação de isolamento por tenant. Não basta criar contas separadas: cada consulta, política RLS e função privilegiada deve validar a organização do usuário. Para preservar os dados atuais, desenvolver e testar o modelo em um projeto Supabase separado, com dados fictícios, antes de qualquer migração no banco atual.
+
+
+## Auditoria adicional do cliente web (2026-10-08)
+- A rota raiz confirma `ssr: false`; o app é entregue como cliente web e conversa diretamente com Supabase usando a chave publicável. Isso torna uma solução baseada em site HTTPS (por exemplo, TWA) uma candidata inicial, mas ainda exige validar o domínio de produção, navegação e sessão em Android antes de decidir.
+- O arquivo `.env` está versionado no repositório e contém URL/ref do Supabase e chave publicável. A chave publicável é destinada ao cliente e não equivale a uma service-role/secret key; ainda assim, arquivos de ambiente não devem ser versionados por padrão. Não encontrei chave secreta nesse arquivo analisado. Antes de mudar o tratamento de ambiente, confirmar quais variáveis a plataforma de deploy injeta para evitar quebrar o site.
+- `public/manifest.webmanifest` está configurado com `start_url: /tecnico` e nome voltado à área do técnico. Para publicação pública de um produto vendido a empresas, avaliar a experiência de entrada/login e a identidade do app para que o usuário não seja direcionado indevidamente para uma área específica.
+- O repositório não apresenta uma configuração Android nem pacote AAB pronto. Nenhum APK/AAB foi gerado nesta etapa.
+
+## Ações realizadas nesta continuação
+Somente leitura do código e atualização deste documento na branch `play-store-prep`. Não houve alteração no banco de dados, migração, alteração na branch `main`, nem publicação de nova versão do site.
