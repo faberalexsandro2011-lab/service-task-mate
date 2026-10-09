@@ -70,3 +70,10 @@ Somente leitura do código e atualização deste documento na branch `play-store
 
 ## Próximo passo seguro
 Confirmar o projeto Supabase usado pelo domínio ativo e o commit publicado no painel de deploy/Lovable. Não alterar domínio, variáveis, banco, nem publicar mudanças até reconciliar essa informação. Depois disso, preparar uma cópia de teste isolada para os testes multiempresa e escolher o empacotamento Android.
+
+
+## Conferência somente de leitura dos projetos Supabase (2026-10-08)
+- A conexão Supabase disponível nesta sessão lista um único projeto acessível: `edujipmfqeajvfkvicda`, com status `ACTIVE_HEALTHY`.
+- O arquivo `supabase/config.toml` nesta branch ainda aponta para `bshykkaqimjpgayzzxch`.
+- Isso confirma uma divergência de configuração, mas não confirma qual projeto o site `service-task-mate.lovable.app` usa em produção. A lista de projetos acessíveis pelo conector também pode não representar todos os projetos de todas as contas/organizações.
+- Não foram executados comandos SQL, migrations ou alterações de configuração do Supabase. Para identificar o banco publicado com certeza, comparar a URL/ref mostrada nas configurações de ambiente do projeto Lovable que faz deploy do domínio, sem expor chaves secretas.
