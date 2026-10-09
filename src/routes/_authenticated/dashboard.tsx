@@ -664,8 +664,8 @@ function Dashboard() {
                   )}
                 </div>
               </div>
-              <section className="mt-5 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <section className="mt-5 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold">Monitoramento operacional</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Indicadores atualizados conforme as ordens registadas.</p>
@@ -677,18 +677,18 @@ function Dashboard() {
                   )}
                 </div>
                 {isManager ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3 dark:border-rose-900/60 dark:bg-rose-950/20">
-                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-5" /></div>
-                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.priorityOpen}</div><div className="text-xs font-medium leading-5 text-muted-foreground">OS prioritárias abertas há 3 dias ou mais</div></div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/70 p-2 dark:border-rose-900/60 dark:bg-rose-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.priorityOpen}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS prioritárias abertas há 3 dias ou mais</div></div>
                     </div>
-                    <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3 dark:border-violet-900/60 dark:bg-violet-950/20">
-                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><Clock3 className="size-5" /></div>
-                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.staleInProgress}</div><div className="text-xs font-medium leading-5 text-muted-foreground">Atendimentos em andamento há mais de 24 h</div></div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/70 p-2 dark:border-violet-900/60 dark:bg-violet-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><Clock3 className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.staleInProgress}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">Atendimentos em andamento há mais de 24 h</div></div>
                     </div>
-                    <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
-                      <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><UserX className="size-5" /></div>
-                      <div className="min-w-0"><div className="text-2xl font-bold tabular-nums">{operationalAlerts.unassigned}</div><div className="text-xs font-medium leading-5 text-muted-foreground">OS pendentes sem técnico atribuído</div></div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 dark:border-amber-900/60 dark:bg-amber-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><UserX className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.unassigned}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS pendentes sem técnico atribuído</div></div>
                     </div>
                   </div>
                 ) : (
