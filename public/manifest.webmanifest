@@ -1,11 +1,12 @@
 {
-  "name": "Central OS - Área do Técnico",
+  "name": "Central OS - Gestão de Serviços",
   "short_name": "Central OS",
-  "start_url": "/tecnico",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#f7f1df",
   "theme_color": "#315b2c",
-  "description": "Aplicativo de campo para técnicos.",
+  "description": "Gestão de ordens de serviço, equipes técnicas e atendimentos.",
   "icons": [
     { "src": "/agri-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
