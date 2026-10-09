@@ -67,7 +67,7 @@ async function getPageData() {
   const requestsQuery = supabase
     .from("ordens_servico")
     .select("*")
-    .eq("solicitacao_os", true)
+    .or("solicitacao_os.eq.true,solicitacao_status.eq.regularizada")
     .order("solicitacao_status", { ascending: true })
     .order("solicitada_em", { ascending: false });
 
@@ -76,6 +76,16 @@ async function getPageData() {
     : await requestsQuery.eq("tecnico_id", authData.user.id);
 
   if (requestsResult.error) throw requestsResult.error;
+
+  const requestIds = (requestsResult.data ?? []).map((item) => item.id);
+  const historyResult = requestIds.length
+    ? await supabase
+        .from("historico_edicoes")
+        .select("id, os_id, acao, detalhe, usuario_email, created_at")
+        .in("os_id", requestIds)
+        .order("created_at", { ascending: false })
+    : { data: [], error: null };
+  if (historyResult.error) throw historyResult.error;
 
   const techniciansResult = isManager
     ? await supabase.from("profiles").select("*").order("nome", { ascending: true })
@@ -106,6 +116,7 @@ async function getPageData() {
     email,
     isManager,
     requests: (requestsResult.data ?? []) as Ordem[],
+    history: historyResult.data ?? [],
     technicians,
     me,
   };
@@ -154,6 +165,7 @@ function SolicitacoesPage() {
   const data = query.data;
   const pending = data.requests.filter((item) => item.solicitacao_status === "aguardando_os");
   const handled = data.requests.filter((item) => item.solicitacao_status === "regularizada");
+  const historyCount = data.history.length;
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["solicitacoes-os"] });
@@ -287,13 +299,17 @@ function SolicitacoesPage() {
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Regularizadas</div>
               <div className="mt-1 text-2xl font-bold">{handled.length}</div>
             </div>
+            <div className="rounded-xl border bg-muted/30 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Registros no histórico</div>
+              <div className="mt-1 text-2xl font-bold">{historyCount}</div>
+            </div>
           </div>
         </section>
 
         {data.isManager ? (
-          <ManagerRequests requests={data.requests} onSelect={setSelected} />
+          <ManagerRequests requests={data.requests} history={data.history} onSelect={setSelected} />
         ) : (
-          <TechnicianRequests requests={data.requests} />
+          <TechnicianRequests requests={data.requests} history={data.history} />
         )}
       </main>
 
@@ -413,7 +429,29 @@ function RequestForm({
   );
 }
 
-function ManagerRequests({ requests, onSelect }: { requests: Ordem[]; onSelect: (request: Ordem) => void }) {
+type HistoryEntry = { id: string; os_id: string; acao: string; detalhe: string | null; usuario_email: string | null; created_at: string };
+
+function HistoryTimeline({ entries }: { entries: HistoryEntry[] }) {
+  if (!entries.length) {
+    return <p className="mt-3 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">Nenhuma alteração foi registrada no histórico para esta solicitação.</p>;
+  }
+  return (
+    <details className="mt-3 rounded-lg border bg-muted/20 p-3">
+      <summary className="cursor-pointer text-sm font-semibold">Ver histórico completo ({entries.length} registros)</summary>
+      <ol className="mt-3 space-y-3 border-l pl-4">
+        {entries.map((entry) => (
+          <li key={entry.id} className="relative">
+            <div className="text-xs font-semibold">{entry.acao.replace(/_/g, " ")}</div>
+            <div className="mt-0.5 text-sm">{entry.detalhe || "Alteração registrada."}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{formatDate(entry.created_at)} · {entry.usuario_email || "Usuário não identificado"}</div>
+          </li>
+        ))}
+      </ol>
+    </details>
+  );
+}
+
+function ManagerRequests({ requests, history, onSelect }: { requests: Ordem[]; history: HistoryEntry[]; onSelect: (request: Ordem) => void }) {
   if (!requests.length) return <EmptyState text="Nenhuma solicitação de OS foi recebida." />;
 
   return (
@@ -441,6 +479,7 @@ function ManagerRequests({ requests, onSelect }: { requests: Ordem[]; onSelect: 
                   <span><strong className="text-foreground">Solicitada:</strong> {formatDate(request.solicitada_em || request.created_at)}</span>
                 </div>
                 <p className="mt-3 line-clamp-2 text-sm">{request.descricao || "Sem descrição."}</p>
+                <HistoryTimeline entries={history.filter((entry) => entry.os_id === request.id)} />
               </div>
               <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-1 lg:block" />
             </div>
@@ -451,7 +490,7 @@ function ManagerRequests({ requests, onSelect }: { requests: Ordem[]; onSelect: 
   );
 }
 
-function TechnicianRequests({ requests }: { requests: Ordem[] }) {
+function TechnicianRequests({ requests, history }: { requests: Ordem[]; history: HistoryEntry[] }) {
   if (!requests.length) return <EmptyState text="Você ainda não enviou nenhuma solicitação." />;
 
   return (
@@ -475,6 +514,7 @@ function TechnicianRequests({ requests }: { requests: Ordem[] }) {
             )}
           </div>
           <p className="mt-3 text-sm">{request.descricao || "Sem descrição."}</p>
+          <HistoryTimeline entries={history.filter((entry) => entry.os_id === request.id)} />
         </div>
       ))}
     </div>
