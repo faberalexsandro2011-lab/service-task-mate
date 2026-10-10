@@ -1768,7 +1768,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       if (!firstSheet) throw new Error("empty");
       // Encontra a linha de cabeçalho (pode não ser a primeira linha da folha)
       const matrix = utils.sheet_to_json<unknown[]>(firstSheet, { header: 1, defval: "", raw: true });
-      let headerIdx = matrix.findIndex((r) => r.map((c) => normKey(String(c))).some((k) => k.includes("frota") || k.includes("numero") || k === "os"));
+      let headerIdx = matrix.findIndex((r) => r.map((c) => normKey(String(c))).some((k) => k.includes("frota") || k.includes("numero") || k === "os" || k === "o_s"));
       if (headerIdx < 0) headerIdx = 0;
       const headers = (matrix[headerIdx] ?? []).map((c, i) => String(c).trim() || `col_${i}`);
       const records = matrix.slice(headerIdx + 1)
@@ -1918,9 +1918,9 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
 
   // Na coluna O.S., pontos são separadores visuais (ex.: 62.737 = 62737).
   const numero = pick(clean, [
-    "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os",
+    "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os", "o_s",
     "ordem", "ordem_servico", "ordem_de_servico", "ordem_servico_numero",
-  ], ["numero_os", "numero", "ordem", "_os", "os_"]).replace(/\./g, "").trim();
+  ], ["numero_os", "numero", "ordem", "_os", "os_", "o_s"]).replace(/\./g, "").trim();
 
   const frota = pick(clean, [
     "frota", "frota_numero", "numero_frota", "viatura", "veiculo", "veiculo_frota",
