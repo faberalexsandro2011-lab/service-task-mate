@@ -271,6 +271,7 @@ function Dashboard() {
   const [online, setOnline] = useState(true);
   const [live, setLive] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [transferTechnicianId, setTransferTechnicianId] = useState("");
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
 
   // Estado da ligação do navegador
@@ -362,6 +363,52 @@ function Dashboard() {
   }
 
   const isPrimaryAdmin = userEmail === "faber.alexsandro2011@gmail.com";
+
+  async function transferSelectedOrders() {
+    if (!isManager || selectedOrderIds.length === 0 || !transferTechnicianId) return;
+    const pendingIds = selectedOrderIds.filter((id) => allOrders.some((order) => order.id === id && order.status === "pendente"));
+    if (pendingIds.length === 0) {
+      toast.error("Selecione pelo menos uma OS pendente.");
+      return;
+    }
+    const technician = data?.technicians.find((item) => item.id === transferTechnicianId);
+    if (!technician) {
+      toast.error("Selecione o técnico que receberá as OS.");
+      return;
+    }
+    if (!confirm(`Transferir ${pendingIds.length} OS pendente(s) para ${technician.nome || technician.email}?`)) return;
+    const { data: updatedRows, error } = await supabase
+      .from("ordens_servico")
+      .update({
+        tecnico_id: technician.id,
+        tecnico_email: technician.email,
+        tecnico_nome: technician.nome || technician.email,
+      })
+      .in("id", pendingIds)
+      .eq("status", "pendente")
+      .select("id, numero_os");
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível transferir as OS selecionadas."));
+      return;
+    }
+    const actorForHistory: Actor = {
+      id: data!.user.id,
+      email: data!.user.email ?? "",
+      name: data!.me?.nome ?? data!.user.email ?? "",
+      isManager: true,
+    };
+    for (const row of updatedRows ?? []) {
+      try {
+        await logHistory(row.id, actorForHistory, "transferida", `OS transferida pelo administrador para ${technician.nome || technician.email} (${technician.email})`);
+      } catch (historyError) {
+        console.error("[OS] Falha ao registrar transferência no histórico:", historyError);
+      }
+    }
+    setSelectedOrderIds([]);
+    setTransferTechnicianId("");
+    toast.success(`${updatedRows?.length ?? 0} OS transferida(s) para ${technician.nome || technician.email}.`);
+    await refresh();
+  }
 
   async function deleteSelectedOrders() {
     if (!isPrimaryAdmin || selectedOrderIds.length === 0) return;
@@ -731,27 +778,53 @@ function Dashboard() {
                       <p className="text-sm text-muted-foreground">Mostrando {t.list.length} {t.list.length === 1 ? "registro" : "registros"}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {isPrimaryAdmin && t.list.length > 0 && (
+                      {isManager && t.list.some((order) => order.status === "pendente") && (
                         <label className="flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm font-semibold hover:bg-muted">
                           <input
                             type="checkbox"
-                            checked={t.list.every((order) => selectedOrderIds.includes(order.id))}
+                            checked={t.list.filter((order) => order.status === "pendente").every((order) => selectedOrderIds.includes(order.id))}
                             onChange={(event) => {
+                              const pendingIds = t.list.filter((order) => order.status === "pendente").map((order) => order.id);
                               if (event.target.checked) {
-                                setSelectedOrderIds((current) => Array.from(new Set([...current, ...t.list.map((order) => order.id)])));
+                                setSelectedOrderIds((current) => Array.from(new Set([...current, ...pendingIds])));
                               } else {
-                                const visibleIds = new Set(t.list.map((order) => order.id));
+                                const visibleIds = new Set(pendingIds);
                                 setSelectedOrderIds((current) => current.filter((id) => !visibleIds.has(id)));
                               }
                             }}
                             className="size-4 cursor-pointer accent-primary"
                           />
-                          Excluir todas
+                          Selecionar pendentes
                         </label>
+                      )}
+                      {isManager && selectedOrderIds.some((id) => allOrders.some((order) => order.id === id && order.status === "pendente")) && (
+                        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
+                          <span className="text-xs font-semibold">{selectedOrderIds.filter((id) => allOrders.some((order) => order.id === id && order.status === "pendente")).length} OS selecionada(s)</span>
+                          <Select value={transferTechnicianId} onValueChange={setTransferTechnicianId}>
+                            <SelectTrigger className="h-9 w-[190px] bg-background">
+                              <SelectValue placeholder="Transferir para técnico..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {data.technicians.map((technician) => (
+                                <SelectItem key={technician.id} value={technician.id}>
+                                  {technician.nome || technician.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" className="h-9 gap-1.5" disabled={!transferTechnicianId} onClick={() => void transferSelectedOrders()}>
+                            <UserRound className="size-4" /> Transferir OS
+                          </Button>
+                          {isPrimaryAdmin && (
+                            <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={() => void deleteSelectedOrders()}>
+                              <Trash2 className="size-4" /> Excluir selecionadas
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
-                  <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isPrimaryAdmin} />
+                  <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isManager} />
                 </TabsContent>
               ))}
             </Tabs>
@@ -993,7 +1066,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-        {canSelect && (
+        {canSelect && order.status === "pendente" && (
           <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
             <input
               type="checkbox"
