@@ -1916,10 +1916,11 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     ]),
   );
 
+  // Na coluna O.S., pontos são separadores visuais (ex.: 62.737 = 62737).
   const numero = pick(clean, [
     "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "numero", "os",
     "ordem", "ordem_servico", "ordem_de_servico", "ordem_servico_numero",
-  ], ["numero_os", "numero", "ordem", "_os", "os_"]);
+  ], ["numero_os", "numero", "ordem", "_os", "os_"]).replace(/\./g, "").trim();
 
   const frota = pick(clean, [
     "frota", "frota_numero", "numero_frota", "viatura", "veiculo", "veiculo_frota",
