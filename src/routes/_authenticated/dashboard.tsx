@@ -1784,11 +1784,11 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
             } else {
               quoted = !quoted;
             }
-          } else if (char === "\\t" && !quoted) {
+          } else if (char.charCodeAt(0) === 9 && !quoted) {
             row.push(cell);
             cell = "";
-          } else if ((char === "\\n" || char === "\\r") && !quoted) {
-            if (char === "\\r" && input[i + 1] === "\\n") i++;
+          } else if ((char.charCodeAt(0) === 10 || char.charCodeAt(0) === 13) && !quoted) {
+            if (char.charCodeAt(0) === 13 && input[i + 1]?.charCodeAt(0) === 10) i++;
             row.push(cell);
             if (row.some((value) => value.trim())) rows.push(row);
             row = [];
