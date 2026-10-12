@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
-const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT"] as const;
+const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT", "STARLINK/CONCENT"] as const;
 type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
 
 function formatEntrada(value: string | null | undefined) {
