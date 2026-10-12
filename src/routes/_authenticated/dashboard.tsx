@@ -1749,6 +1749,11 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       .replace(/&gt;/gi, ">")
       .replace(/&quot;/gi, '"')
       .replace(/&#39;/gi, "'")
+      // Remove formatting artifacts that can arrive when Markdown is pasted as text.
+      .trim()
+      .replace(/^"+|"+$/g, "")
+      .replace(/\\+\s*$/g, "")
+      .replace(/[ \t]+/g, " ")
       .trim();
     const isMarkdownSeparator = (row: string[]) =>
       row.length > 0 && row.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
