@@ -2011,6 +2011,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       return {
         numero_os: row.numero_os,
         entrada: row.entrada || null,
+        sequencia: row.sequencia,
         frota: row.frota,
         localizacao: row.localizacao || null,
         descricao: row.descricao || null,
