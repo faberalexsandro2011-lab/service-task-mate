@@ -335,6 +335,7 @@ function TechnicalAnalysis() {
                     <Bar dataKey="rastreador" name="RASTREADOR" stackId="classes" fill="#7c3aed" />
                     <Bar dataKey="autmIrr" name="AUTM. IRR" stackId="classes" fill="#db2777" />
                     <Bar dataKey="autmPlant" name="AUTM. PLANT" stackId="classes" fill="#65a30d" />
+                    <Bar dataKey="starlinkConcent" name="STARLINK/CONCENT" stackId="classes" fill="#0891b2" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -814,7 +815,7 @@ function buildMonthly(orders: Ordem[]) {
   return months;
 }
 
-const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT"] as const;
+const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT", "STARLINK/CONCENT"] as const;
 const MAINTENANCE_KEYS = [
   { label: "GPS", key: "gps" },
   { label: "SOLINFTEC", key: "solinftec" },
@@ -822,6 +823,7 @@ const MAINTENANCE_KEYS = [
   { label: "RASTREADOR", key: "rastreador" },
   { label: "AUTM. IRR", key: "autmIrr" },
   { label: "AUTM. PLANT", key: "autmPlant" },
+  { label: "STARLINK/CONCENT", key: "starlinkConcent" },
 ] as const;
 
 function buildServiceRows(orders: Ordem[]) {
@@ -842,7 +844,7 @@ function buildTechnicianClassRows(orders: Ordem[]) {
     const name = order.tecnico_nome?.trim() || order.tecnico_email?.trim() || "Sem técnico";
     let row = groups.get(name);
     if (!row) {
-      row = { technician: name, total: 0, gps: 0, solinftec: 0, radio: 0, rastreador: 0, autmIrr: 0, autmPlant: 0 };
+      row = { technician: name, total: 0, gps: 0, solinftec: 0, radio: 0, rastreador: 0, autmIrr: 0, autmPlant: 0, starlinkConcent: 0 };
       groups.set(name, row);
     }
     const key = MAINTENANCE_KEYS.find((item) => item.label === order.classe_manutencao)?.key;
