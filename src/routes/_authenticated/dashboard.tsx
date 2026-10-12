@@ -1797,6 +1797,15 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
             cell += char;
           }
         }
+        // Aspa inicial sem fechamento aparece em algumas colagens de texto
+        // (ex.: descrição iniciada por \"FAZER CONTINGÊNCIA). Nesse caso,
+        // voltamos ao TSV por linha em vez de engolir o restante da planilha.
+        if (quoted) {
+          return input
+            .split(/\\r?\\n/)
+            .filter((line) => line.trim())
+            .map((line) => line.split(String.fromCharCode(9)));
+        }
         row.push(cell);
         if (row.some((value) => value.trim())) rows.push(row);
         return rows;
