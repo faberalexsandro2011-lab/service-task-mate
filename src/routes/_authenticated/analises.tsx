@@ -41,7 +41,7 @@ type Ordem = Tables<"ordens_servico">;
 type Period = "all" | "30" | "90" | "365";
 
 // Início da contagem exclusiva da análise por setor; OS antigas permanecem no histórico geral.
-const SECTOR_ANALYSIS_START = new Date("2026-10-12T16:00:00-03:00");
+const SECTOR_ANALYSIS_START = new Date("2026-10-13T05:00:00-03:00");
 
 export const Route = createFileRoute("/_authenticated/analises")({
   head: () => ({
@@ -226,7 +226,7 @@ function TechnicalAnalysis() {
                 Visão geral da manutenção
               </div>
               <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                Leitura operacional das ordens armazenadas: execução, peças utilizadas, produtividade e sinais de recorrência por frota e tipo de serviço. A análise por setor contabiliza somente OS inseridas a partir de 12/10/2026 às 16h (horário de Brasília); as OS antigas ficam fora dos indicadores por setor.
+                Leitura operacional das ordens armazenadas: execução, peças utilizadas, produtividade e sinais de recorrência por frota e tipo de serviço. A análise por setor contabiliza somente OS inseridas a partir de 13/10/2026 às 05h (horário de Brasília); as OS anteriores a esse horário ficam fora dos indicadores por setor.
               </p>
             </div>
 
