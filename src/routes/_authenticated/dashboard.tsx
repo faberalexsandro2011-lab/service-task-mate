@@ -70,6 +70,7 @@ type ImportRow = {
   descricao: string;
   tecnico_email: string;
   entrada: string;
+  setor: string;
   sequencia: number | null;
   valid: boolean;
   reason?: string;
@@ -1885,6 +1886,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       return {
         numero_os: row.numero_os,
         entrada: row.entrada || null,
+        setor: row.setor || null,
         sequencia: row.sequencia,
         frota: row.frota,
         localizacao: row.localizacao || null,
@@ -2025,6 +2027,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       return {
         numero_os: row.numero_os,
         entrada: row.entrada || null,
+        setor: row.setor || null,
         sequencia: row.sequencia,
         frota: row.frota,
         localizacao: row.localizacao || null,
@@ -2167,6 +2170,7 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     numero_os: numero,
     frota,
     entrada,
+    setor: pick(clean, ["setor", "departamento", "unidade", "area", "area_responsavel"], ["setor", "departamento", "unidade"]),
     sequencia,
     localizacao: pick(clean, [
       "localizacao", "localizacao_os", "local_de_atendimento", "local_atendimento",
