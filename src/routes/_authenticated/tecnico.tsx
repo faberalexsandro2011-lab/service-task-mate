@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
+const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT"] as const;
 type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
 
 function formatEntrada(value: string | null | undefined) {
@@ -191,6 +192,7 @@ function TechnicianPage() {
   const [editNotes, setEditNotes] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [notes, setNotes] = useState("");
+  const [maintenanceClass, setMaintenanceClass] = useState<string>("");
   const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
   const [partsCatalog, setPartsCatalog] = useState<Peca[]>([]);
@@ -313,6 +315,7 @@ function TechnicianPage() {
     }
     setFinish(order);
     setNotes("");
+    setMaintenanceClass("");
     setPartsReplaced("nao");
     setSelectedParts([]);
   }
@@ -368,11 +371,9 @@ function TechnicianPage() {
           const pieces = Array.isArray(rawPieces) && rawPieces.length && typeof rawPieces[0] === "string"
             ? (await (supabase as any).from("pecas_catalogo").select("id,nome").in("nome", rawPieces as string[])).data?.map((item: { id: string; nome: string }) => ({ id: item.id, nome: item.nome, quantidade: 1 })) ?? []
             : rawPieces;
-          const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", {
-            p_os_id: action.orderId,
-            p_notas: action.notes,
-            p_pecas: pieces,
-          });
+          const rpcArgs: Record<string, unknown> = { p_os_id: action.orderId, p_notas: action.notes, p_pecas: pieces };
+          if (action.classeManutencao) rpcArgs.p_classe_manutencao = action.classeManutencao;
+          const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
           if (error) throw error;
         }
 
@@ -591,6 +592,7 @@ function TechnicianPage() {
       return;
     }
     const solution = notes.trim();
+    if (!maintenanceClass) { toast.error("Selecione a classe de manutenção."); return; }
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const pieces = partsReplaced === "sim"
       ? selectedParts.filter((part) => part.id && part.quantidade > 0)
@@ -612,6 +614,7 @@ function TechnicianPage() {
         ...orderToFinish,
         status: "concluida",
         notas_fecho: solution,
+        classe_manutencao: maintenanceClass,
         pecas_utilizadas: pieces.length ? pieces.map((part) => `${part.nome} x${part.quantidade}`).join("\n") : null,
         concluida_em: finishedAt,
         updated_at: finishedAt,
@@ -626,6 +629,7 @@ function TechnicianPage() {
         actorEmail: actor.email,
         notes: solution,
         pieces,
+        classeManutencao: maintenanceClass,
         createdAt: finishedAt,
       });
       setFinish(null);
@@ -643,6 +647,7 @@ function TechnicianPage() {
       p_os_id: orderToFinish.id,
       p_notas: solution,
       p_pecas: pieces,
+      p_classe_manutencao: maintenanceClass,
     });
 
     if (error) {
@@ -879,6 +884,7 @@ function TechnicianPage() {
       if (!open) {
         setFinish(null);
         setNotes("");
+        setMaintenanceClass("");
         setPartsReplaced("nao");
         setSelectedParts([]);
       }
@@ -889,6 +895,14 @@ function TechnicianPage() {
         </DialogHeader>
 
         <div className="grid gap-5">
+          <section className="grid gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <label className="text-sm font-bold" htmlFor="classe-manutencao">Classe de manutenção <span className="text-destructive">*</span></label>
+            <p className="text-xs leading-5 text-muted-foreground">Selecione a área atendida. Essa informação alimenta os indicadores da Análise Técnica.</p>
+            <Select value={maintenanceClass} onValueChange={setMaintenanceClass}>
+              <SelectTrigger id="classe-manutencao" className="h-12 rounded-xl bg-background"><SelectValue placeholder="Selecione a classe de manutenção" /></SelectTrigger>
+              <SelectContent>{MAINTENANCE_CLASSES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+            </Select>
+          </section>
           <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-primary/5 to-muted/20 p-4">
             <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <ClipboardList className="size-5" />

@@ -54,6 +54,7 @@ export type Database = {
       }
       ordens_servico: {
         Row: {
+          classe_manutencao: string | null
           concluida_em: string | null
           created_at: string
           criado_por_email: string | null
@@ -74,6 +75,7 @@ export type Database = {
           valor_total: number | null
         }
         Insert: {
+          classe_manutencao?: string | null
           concluida_em?: string | null
           created_at?: string
           criado_por_email?: string | null
@@ -94,6 +96,7 @@ export type Database = {
           valor_total?: number | null
         }
         Update: {
+          classe_manutencao?: string | null
           concluida_em?: string | null
           created_at?: string
           criado_por_email?: string | null
