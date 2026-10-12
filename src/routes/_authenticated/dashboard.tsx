@@ -1738,10 +1738,41 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       return;
     }
 
-    const matrix = lines.map((line) => line.split("\t").map((cell) => cell.trim()));
+    // Aceita tanto a colagem normal do Excel (tabulações) como tabelas Markdown
+    // copiadas de chats/documentos (colunas separadas por barras verticais).
+    const isPipeTable = lines.some((line) => line.includes("|"));
+    const cleanCell = (value: string) => value
+      .replace(/<br\s*\/?\s*>/gi, " ")
+      .replace(/&#x20;|&#32;|&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .trim();
+    const isMarkdownSeparator = (row: string[]) =>
+      row.length > 0 && row.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
+
+    const matrix = lines
+      .map((line) => {
+        if (isPipeTable) {
+          const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+          return trimmed.split("|").map(cleanCell);
+        }
+        return line.split("\t").map(cleanCell);
+      })
+      .filter((row) => !isMarkdownSeparator(row));
+
+    if (!matrix.length) {
+      toast.error("Não encontrei linhas de dados para importar.");
+      return;
+    }
+
     const first = matrix[0] ?? [];
     const normalizedHeaders = first.map((cell) => normKey(cell));
-    const hasHeader = normalizedHeaders.some((key) => key.includes("frota") || key.includes("numero") || key === "os");
+    const hasHeader = normalizedHeaders.some((key) =>
+      key.includes("frota") || key.includes("numero") || key === "os" || key.startsWith("os_")
+    );
     const headers = hasHeader
       ? first.map((cell, index) => cell || `col_${index}`)
       : ["numero_os", "frota", "localizacao", "descricao", "tecnico_email", "entrada"];
