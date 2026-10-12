@@ -66,6 +66,7 @@ export type Database = {
           numero_os: string
           pecas_utilizadas: string | null
           status: string
+          sequencia: number | null
           tecnico_email: string | null
           tecnico_id: string | null
           tecnico_nome: string | null
@@ -85,6 +86,7 @@ export type Database = {
           numero_os: string
           pecas_utilizadas?: string | null
           status?: string
+          sequencia?: number | null
           tecnico_email?: string | null
           tecnico_id?: string | null
           tecnico_nome?: string | null
@@ -104,6 +106,7 @@ export type Database = {
           numero_os?: string
           pecas_utilizadas?: string | null
           status?: string
+          sequencia?: number | null
           tecnico_email?: string | null
           tecnico_id?: string | null
           tecnico_nome?: string | null
