@@ -556,8 +556,17 @@ function Dashboard() {
 
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button className="gap-2 text-sm font-semibold transition-all">
+                    <Button className="relative gap-2 text-sm font-semibold transition-all">
                       <ClipboardList className="size-4" /> Gestão de OS
+                      {pendingSolicitations > 0 && (
+                        <span
+                          aria-label={`${pendingSolicitations} OS aguardando abertura`}
+                          title={`${pendingSolicitations} OS aguardando abertura`}
+                          className="absolute -right-2 -top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-black leading-none text-destructive-foreground shadow-md"
+                        >
+                          {pendingSolicitations}
+                        </span>
+                      )}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-2xl">
