@@ -1758,15 +1758,38 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
     const isMarkdownSeparator = (row: string[]) =>
       row.length > 0 && row.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
 
-    const matrix = lines
-      .map((line) => {
-        if (isPipeTable) {
-          const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+    let matrix: string[][];
+    if (isPipeTable) {
+      matrix = lines
+        .map((line) => {
+          const trimmed = line.trim().replace(/^\\|/, "").replace(/\\|$/, "");
           return trimmed.split("|").map(cleanCell);
+        })
+        .filter((row) => !isMarkdownSeparator(row));
+    } else {
+      // Algumas colagens chegam com uma quebra de linha dentro de uma célula
+      // (normalmente na Descrição). Reunimos a continuação antes de mapear os
+      // cabeçalhos, sem deslocar Localização e Técnico para outras colunas.
+      const expectedColumns = (lines[0] ?? "").split("\\t").length;
+      matrix = [];
+      for (const line of lines) {
+        const row = line.split("\\t").map(cleanCell);
+        const previous = matrix[matrix.length - 1];
+        if (
+          matrix.length > 1 &&
+          previous &&
+          previous.length < expectedColumns &&
+          row.length < expectedColumns
+        ) {
+          const last = previous.length - 1;
+          previous[last] = cleanCell(`${previous[last] ?? ""} ${row[0] ?? ""}`);
+          previous.push(...row.slice(1));
+        } else {
+          matrix.push(row);
         }
-        return line.split("\t").map(cleanCell);
-      })
-      .filter((row) => !isMarkdownSeparator(row));
+      }
+      matrix = matrix.filter((row) => !isMarkdownSeparator(row));
+    }
 
     if (!matrix.length) {
       toast.error("Não encontrei linhas de dados para importar.");
