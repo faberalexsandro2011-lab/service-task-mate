@@ -194,24 +194,27 @@ function SolicitacoesPage() {
       const technician = data.technicians.find((person) => person.id === values.tecnico_id);
       const now = new Date().toISOString();
 
+      const isPendingRequest = selected.solicitacao_os === true;
+      const editableFields = {
+        numero_os: number,
+        frota: values.frota.trim(),
+        localizacao: values.localizacao.trim() || null,
+        descricao: values.descricao.trim() || null,
+        tecnico_id: technician?.id ?? selected.tecnico_id,
+        tecnico_email: technician?.email ?? selected.tecnico_email,
+        tecnico_nome: technician?.nome ?? selected.tecnico_nome,
+      };
       const { data: updated, error } = await supabase
         .from("ordens_servico")
-        .update({
-          numero_os: number,
-          frota: values.frota.trim(),
-          localizacao: values.localizacao.trim() || null,
-          descricao: values.descricao.trim() || null,
-          tecnico_id: technician?.id ?? selected.tecnico_id,
-          tecnico_email: technician?.email ?? selected.tecnico_email,
-          tecnico_nome: technician?.nome ?? selected.tecnico_nome,
+        .update(isPendingRequest ? {
+          ...editableFields,
           status: selected.status === "em_andamento" ? "em_andamento" : "pendente",
           solicitacao_os: false,
           solicitacao_status: "regularizada",
           regularizada_em: now,
           regularizada_por_email: data.email,
-        })
+        } : editableFields)
         .eq("id", selected.id)
-        .eq("solicitacao_os", true)
         .select("*")
         .single();
 
@@ -219,21 +222,19 @@ function SolicitacoesPage() {
 
       await supabase.from("historico_edicoes").insert({
         os_id: updated.id,
-        acao: "regularizada",
-        detalhe: "Solicitação de OS regularizada pelo gestor e enviada novamente ao técnico.",
+        acao: isPendingRequest ? "regularizada" : "solicitacao_editada",
+        detalhe: isPendingRequest
+          ? "Solicitação de OS regularizada pelo gestor."
+          : "Dados da solicitação de OS atualizados pelo gestor.",
         usuario_id: data.user.id,
         usuario_email: data.email,
       });
 
-      await supabase.from("historico_edicoes").insert({
-        os_id: updated.id,
-        acao: "enviada",
-        detalhe: "OS " + number + " enviada novamente para " + (technician?.nome || technician?.email || selected.tecnico_email),
-        usuario_id: data.user.id,
-        usuario_email: data.email,
-      });
-
-      toast.success("OS " + number + " regularizada e enviada novamente ao técnico.");
+      if (isPendingRequest) {
+        toast.success("OS " + number + " regularizada e enviada ao técnico.");
+      } else {
+        toast.success("OS " + number + " atualizada com sucesso.");
+      }
       setSelected(null);
       await refresh();
     } catch (error) {
@@ -541,6 +542,16 @@ function ManagerRequestDialog({
   const [localizacao, setLocalizacao] = useState(request.localizacao || "");
   const [descricao, setDescricao] = useState(request.descricao || "");
   const [technicianId, setTechnicianId] = useState(request.tecnico_id || technicians[0]?.id || "");
+  const isPendingRequest = request.solicitacao_os === true;
+
+  useEffect(() => {
+    if (!open) return;
+    setNumeroOs(request.numero_os || "");
+    setFrota(request.frota || "");
+    setLocalizacao(request.localizacao || "");
+    setDescricao(request.descricao || "");
+    setTechnicianId(request.tecnico_id || technicians[0]?.id || "");
+  }, [open, request.id, request.numero_os, request.frota, request.localizacao, request.descricao, request.tecnico_id, technicians]);
 
   const technician = technicians.find((item) => item.id === technicianId);
 
@@ -548,9 +559,11 @@ function ManagerRequestDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Inserir OS e enviar ao técnico</DialogTitle>
+          <DialogTitle>{isPendingRequest ? "Regularizar solicitação de OS" : "Editar solicitação de OS"}</DialogTitle>
           <DialogDescription>
-            Informe o número oficial da OS. A mesma OS será devolvida ao técnico mantendo o atendimento em andamento; não será criada uma segunda OS.
+            {isPendingRequest
+              ? "Confira os dados, informe o número oficial e envie a mesma OS ao técnico. Não será criada uma segunda OS."
+              : "Edite os dados desta OS. As alterações serão salvas no mesmo registro, sem duplicar a ordem nem reiniciar seu atendimento."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -583,7 +596,7 @@ function ManagerRequestDialog({
           </div>
           <Field label="Localização"><Input value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} /></Field>
           <Field label="Serviço realizado"><Textarea value={descricao} onChange={(event) => setDescricao(event.target.value)} required rows={5} /></Field>
-          <Field label="Enviar novamente para técnico">
+          <Field label={isPendingRequest ? "Enviar para técnico" : "Técnico responsável"}>
             <Select value={technicianId} onValueChange={setTechnicianId}>
               <SelectTrigger><SelectValue placeholder="Selecionar técnico" /></SelectTrigger>
               <SelectContent>
@@ -596,7 +609,7 @@ function ManagerRequestDialog({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving} className="gap-2"><Send className="size-4" /> {saving ? "Salvando..." : "Inserir OS e enviar"}</Button>
+            <Button type="submit" disabled={saving} className="gap-2"><Send className="size-4" /> {saving ? "Salvando..." : isPendingRequest ? "Inserir OS e enviar" : "Salvar alterações"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
