@@ -40,6 +40,9 @@ import { Input } from "@/components/ui/input";
 type Ordem = Tables<"ordens_servico">;
 type Period = "all" | "30" | "90" | "365";
 
+// Início da contagem exclusiva da análise por setor; OS antigas permanecem no histórico geral.
+const SECTOR_ANALYSIS_START = new Date("2026-10-12T16:00:00-03:00");
+
 export const Route = createFileRoute("/_authenticated/analises")({
   head: () => ({
     meta: [
@@ -111,6 +114,11 @@ function TechnicalAnalysis() {
     return allOrders.filter((order) => new Date(order.created_at) >= minDate);
   }, [allOrders, period]);
 
+  const sectorScopedOrders = useMemo(
+    () => scopedOrders.filter((order) => new Date(order.created_at).getTime() >= SECTOR_ANALYSIS_START.getTime()),
+    [scopedOrders],
+  );
+
   const orders = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return scopedOrders;
@@ -138,12 +146,12 @@ function TechnicalAnalysis() {
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
-  const sectorRows = useMemo(() => buildSectorRows(scopedOrders), [scopedOrders]);
+  const sectorRows = useMemo(() => buildSectorRows(sectorScopedOrders), [sectorScopedOrders]);
   const selectedSectorOrders = useMemo(
     () => selectedSector
-      ? scopedOrders.filter((order) => (String(order.setor ?? "").trim() || "Sem setor").toLocaleLowerCase("pt-BR") === selectedSector.toLocaleLowerCase("pt-BR")).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      ? sectorScopedOrders.filter((order) => (String(order.setor ?? "").trim() || "Sem setor").toLocaleLowerCase("pt-BR") === selectedSector.toLocaleLowerCase("pt-BR")).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       : [],
-    [scopedOrders, selectedSector],
+    [sectorScopedOrders, selectedSector],
   );
   const selectedSectorServices = useMemo(() => buildNamedCounts(selectedSectorOrders.map(serviceCategory)), [selectedSectorOrders]);
   const selectedSectorClasses = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.classe_manutencao || "Sem classe informada")), [selectedSectorOrders]);
@@ -218,7 +226,7 @@ function TechnicalAnalysis() {
                 Visão geral da manutenção
               </div>
               <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                Leitura operacional das ordens armazenadas: execução, peças utilizadas, produtividade e sinais de recorrência por frota e tipo de serviço.
+                Leitura operacional das ordens armazenadas: execução, peças utilizadas, produtividade e sinais de recorrência por frota e tipo de serviço. A análise por setor contabiliza somente OS inseridas a partir de 12/10/2026 às 16h (horário de Brasília); as OS antigas ficam fora dos indicadores por setor.
               </p>
             </div>
 
