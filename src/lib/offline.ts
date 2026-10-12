@@ -16,6 +16,7 @@ export type OfflineAction =
       actorEmail: string;
       notes: string;
       pieces?: Array<{ id: string; nome: string; quantidade: number }> | string[];
+      classeManutencao?: string;
       createdAt: string;
     };
 
