@@ -90,6 +90,16 @@ function formatDateTime(value: string | null | undefined, emptyLabel: string) {
   });
 }
 
+function formatAberturaDateTime(entrada: string | null | undefined, createdAt: string | null | undefined) {
+  const openingDate = formatEntrada(entrada) || formatDataAberturaFallback(createdAt);
+  if (openingDate === "—") return "—";
+  const timestamp = createdAt ? new Date(createdAt) : null;
+  const time = timestamp && !Number.isNaN(timestamp.getTime())
+    ? timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  return time ? `${openingDate} às ${time}` : openingDate;
+}
+
 function getReplacedParts(value: string | null | undefined) {
   if (!value?.trim()) return [];
   return value
@@ -800,7 +810,7 @@ function TechnicianPage() {
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>
             <p className="rounded-2xl border bg-background p-4 leading-6 text-muted-foreground">{order.descricao || "Sem descrição do problema."}</p>
             <div className="grid gap-2 rounded-2xl border bg-muted/30 p-3 sm:grid-cols-3">
-              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at)}</p></div>
+              <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatAberturaDateTime(order.entrada, order.created_at)}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Início</p><p className="mt-1 font-semibold">{formatDateTime(order.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-semibold">{formatDateTime(order.concluida_em, order.status === "em_andamento" ? "Em andamento" : "—")}</p></div>            </div>
           </div>          <div className="mt-5 flex flex-wrap gap-2">
@@ -833,7 +843,7 @@ function TechnicianPage() {
           <div className="rounded-2xl border bg-muted/30 p-4">
             <p className="text-xs font-bold uppercase text-muted-foreground">Horários do atendimento</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatEntrada(details.entrada) || formatDataAberturaFallback(details.created_at)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Abertura da OS</p><p className="mt-1 font-semibold">{formatAberturaDateTime(details.entrada, details.created_at)}</p></div>
               <div><p className="text-xs text-muted-foreground">Início do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.data_inicio, "Não iniciado")}</p></div>
               <div><p className="text-xs text-muted-foreground">Fim do atendimento</p><p className="mt-1 font-semibold">{formatDateTime(details.concluida_em, details.status === "em_andamento" ? "Em andamento" : "—")}</p></div>
             </div>
