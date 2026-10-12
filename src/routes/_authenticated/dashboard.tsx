@@ -1767,28 +1767,62 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         })
         .filter((row) => !isMarkdownSeparator(row));
     } else {
-      // Algumas colagens chegam com uma quebra de linha dentro de uma célula
-      // (normalmente na Descrição). Reunimos a continuação antes de mapear os
-      // cabeçalhos, sem deslocar Localização e Técnico para outras colunas.
-      const expectedColumns = (lines[0] ?? "").split("\\t").length;
-      matrix = [];
-      for (const line of lines) {
-        const row = line.split("\\t").map(cleanCell);
-        const previous = matrix[matrix.length - 1];
-        if (
-          matrix.length > 1 &&
-          previous &&
-          previous.length < expectedColumns &&
-          row.length < expectedColumns
-        ) {
-          const last = previous.length - 1;
-          previous[last] = cleanCell(`${previous[last] ?? ""} ${row[0] ?? ""}`);
-          previous.push(...row.slice(1));
+      // O texto copiado do Excel é TSV: o separador é uma tabulação real (\\t),
+      // não os dois caracteres barra invertida + t. Também respeitamos aspas
+      // para que quebras de linha dentro da Descrição não virem novas OS.
+      const parseTsv = (input: string): string[][] => {
+        const rows: string[][] = [];
+        let row: string[] = [];
+        let cell = "";
+        let quoted = false;
+        for (let i = 0; i < input.length; i++) {
+          const char = input[i];
+          if (char === '"') {
+            if (quoted && input[i + 1] === '"') {
+              cell += '"';
+              i++;
+            } else {
+              quoted = !quoted;
+            }
+          } else if (char === "\\t" && !quoted) {
+            row.push(cell);
+            cell = "";
+          } else if ((char === "\\n" || char === "\\r") && !quoted) {
+            if (char === "\\r" && input[i + 1] === "\\n") i++;
+            row.push(cell);
+            if (row.some((value) => value.trim())) rows.push(row);
+            row = [];
+            cell = "";
+          } else {
+            cell += char;
+          }
+        }
+        row.push(cell);
+        if (row.some((value) => value.trim())) rows.push(row);
+        return rows;
+      };
+
+      matrix = parseTsv(value).map((row) => row.map(cleanCell));
+      // Se uma colagem vier sem aspas ao redor de uma célula multilinha,
+      // juntamos linhas incompletas com a anterior, preservando as colunas
+      // quando a soma das células fecha a quantidade esperada.
+      const expectedColumns = matrix[0]?.length ?? 0;
+      const repaired: string[][] = [];
+      for (const row of matrix) {
+        const previous = repaired[repaired.length - 1];
+        if (previous && expectedColumns > 0 && previous.length < expectedColumns && row.length < expectedColumns) {
+          if (previous.length + row.length === expectedColumns) {
+            previous.push(...row);
+          } else {
+            const last = previous.length - 1;
+            previous[last] = cleanCell(`${previous[last] ?? ""} ${row[0] ?? ""}`);
+            previous.push(...row.slice(1));
+          }
         } else {
-          matrix.push(row);
+          repaired.push(row);
         }
       }
-      matrix = matrix.filter((row) => !isMarkdownSeparator(row));
+      matrix = repaired.filter((row) => !isMarkdownSeparator(row));
     }
 
     if (!matrix.length) {
