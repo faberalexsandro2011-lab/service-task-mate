@@ -1951,9 +1951,16 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
 }
 
 function normKey(key: string) {
-  return key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  return String(key ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/\u00A0/g, " ")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
-
 function pick(clean: Record<string, string>, keys: string[], contains?: string[]) {
   for (const k of keys) if (clean[k]) return clean[k];
   if (contains) for (const [k, v] of Object.entries(clean)) if (v && contains.some((c) => k.includes(c))) return v;
@@ -1961,15 +1968,14 @@ function pick(clean: Record<string, string>, keys: string[], contains?: string[]
 }
 
 function normalizePerson(value: string) {
-  return value
+  return String(value ?? "")
     .normalize("NFD")
-    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[^a-z0-9@._-]+/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
-
 function findTechnician(value: string, technicians: Perfil[]) {
   const target = normalizePerson(value);
   if (!target) return undefined;
@@ -2033,7 +2039,10 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     numero_os: numero,
     frota,
     entrada,
-    localizacao: pick(clean, ["localizacao", "local", "morada", "endereco", "fazenda"], ["local", "endereco", "fazenda"]),
+    localizacao: pick(clean, [
+      "localizacao", "localizacao_os", "local_de_atendimento", "local_atendimento",
+      "local", "morada", "endereco", "fazenda",
+    ], ["localizacao", "local", "endereco", "fazenda"]),
     descricao: pick(clean, [
       "descricao", "descricao_do_problema", "descricao_problema", "problema",
       "observacoes", "observacao", "servico", "servico_descricao",
