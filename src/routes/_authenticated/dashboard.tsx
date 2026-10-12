@@ -1924,7 +1924,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         />
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          Colunas reconhecidas: <strong>Número da OS · SEQ · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
+          Colunas reconhecidas: <strong>Número da OS · seq · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
         </div>
 
         <DialogFooter>
