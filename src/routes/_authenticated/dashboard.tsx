@@ -70,6 +70,7 @@ type ImportRow = {
   descricao: string;
   tecnico_email: string;
   entrada: string;
+  sequencia: number | null;
   valid: boolean;
   reason?: string;
 };
@@ -120,7 +121,12 @@ async function getDashboardData() {
     me,
     technicians,
     team,
-    orders: ordersResult.data,
+    orders: [...ordersResult.data].sort((a, b) => {
+      if (a.sequencia != null && b.sequencia != null) return a.sequencia - b.sequencia;
+      if (a.sequencia != null) return -1;
+      if (b.sequencia != null) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    }),
   };
 }
 
@@ -1865,6 +1871,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       return {
         numero_os: row.numero_os,
         entrada: row.entrada || null,
+        sequencia: row.sequencia,
         frota: row.frota,
         localizacao: row.localizacao || null,
         descricao: row.descricao || null,
@@ -1917,7 +1924,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         />
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          Colunas reconhecidas: <strong>Número da OS · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
+          Colunas reconhecidas: <strong>Número da OS · SEQUENCIA · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
         </div>
 
         <DialogFooter>
@@ -2041,7 +2048,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
           <div>
             <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2"><div className="min-w-0"><div className="truncate text-sm font-medium">{fileName}</div><div className="text-xs text-muted-foreground">{validRows.length} válidas · {rows.length - validRows.length} com erros</div></div><Button variant="ghost" size="icon" onClick={() => { setRows([]); setFileName(""); }} title="Remover ficheiro"><X /></Button></div>
             <div className="mt-3 max-h-72 overflow-auto rounded-md border">
-              <table className="w-full min-w-[650px] text-left text-xs"><thead className="sticky top-0 bg-muted"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Técnico</th><th className="p-2">Observação</th></tr></thead><tbody className="divide-y">{rows.slice(0, 100).map((row, index) => <tr key={`${row.numero_os}-${index}`}><td className="p-2">{row.valid ? <CheckCircle2 className="size-4 text-primary" /> : <X className="size-4 text-destructive" />}</td><td className="p-2 font-medium">{row.numero_os || "—"}</td><td className="p-2">{row.frota || "—"}</td><td className="p-2">{row.tecnico_email || "—"}</td><td className="p-2 text-muted-foreground">{row.reason || "Pronta"}</td></tr>)}</tbody></table>
+              <table className="w-full min-w-[650px] text-left text-xs"><thead className="sticky top-0 bg-muted"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Sequência</th><th className="p-2">Frota</th><th className="p-2">Técnico</th><th className="p-2">Observação</th></tr></thead><tbody className="divide-y">{rows.slice(0, 100).map((row, index) => <tr key={`${row.numero_os}-${index}`}><td className="p-2">{row.valid ? <CheckCircle2 className="size-4 text-primary" /> : <X className="size-4 text-destructive" />}</td><td className="p-2 font-medium">{row.numero_os || "—"}</td><td className="p-2">{row.sequencia ?? "—"}</td><td className="p-2">{row.frota || "—"}</td><td className="p-2">{row.tecnico_email || "—"}</td><td className="p-2 text-muted-foreground">{row.reason || "Pronta"}</td></tr>)}</tbody></table>
             </div>
           </div>
         )}
@@ -2123,6 +2130,10 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     "entrada", "data_entrada", "entrada_data", "data_de_entrada",
   ], ["entrada"]);
 
+  const sequenciaRaw = pick(clean, ["sequencia", "seq", "ordem_atendimento", "sequencia_atendimento"], ["sequencia", "ordem_atendimento"]);
+  const sequenciaParsed = sequenciaRaw.trim() ? Number(sequenciaRaw.trim().replace(",", ".")) : NaN;
+  const sequencia = Number.isFinite(sequenciaParsed) ? sequenciaParsed : null;
+
   const tecnico = pick(clean, [
     "tecnico_email", "email_tecnico", "tecnico", "tecnico_atribuido",
     "nome_tecnico", "tecnico_nome", "responsavel", "responsavel_tecnico",
@@ -2141,6 +2152,7 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     numero_os: numero,
     frota,
     entrada,
+    sequencia,
     localizacao: pick(clean, [
       "localizacao", "localizacao_os", "local_de_atendimento", "local_atendimento",
       "local", "morada", "endereco", "fazenda",
