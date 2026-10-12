@@ -340,7 +340,20 @@ function Dashboard() {
       return matchesOS && matchesFrota && matchesTecnico && matchesFrom && matchesTo;
     });
 
-    // No painel administrativo, coloca as OS prioritárias no topo e as mais antigas primeiro.
+    // Se houver qualquer valor em seq, a sequência manual prevalece sobre a prioridade por atraso.
+    if (matches.some((order) => order.sequencia != null)) {
+      return matches.sort((a, b) => {
+        if (a.sequencia != null && b.sequencia != null) {
+          if (a.sequencia !== b.sequencia) return a.sequencia - b.sequencia;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
+        if (a.sequencia != null) return -1;
+        if (b.sequencia != null) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    }
+
+    // Sem valores em seq, mantém a prioridade administrativa por atraso.
     if (!isManager) return matches;
     return matches.sort((a, b) => {
       const aPriority = isPriorityOrder(a);
