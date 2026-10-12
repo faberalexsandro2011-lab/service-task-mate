@@ -382,6 +382,7 @@ function Dashboard() {
   }
 
   const isPrimaryAdmin = userEmail === "faber.alexsandro2011@gmail.com";
+  const canDeleteOrders = isPrimaryAdmin || userEmail === "juliocesar@coa.com";
 
   async function transferSelectedOrders() {
     if (!isManager || selectedOrderIds.length === 0 || !transferTechnicianId) return;
@@ -430,7 +431,7 @@ function Dashboard() {
   }
 
   async function deleteSelectedOrders() {
-    if (!isPrimaryAdmin || selectedOrderIds.length === 0) return;
+    if (!canDeleteOrders || selectedOrderIds.length === 0) return;
     if (!confirm("Excluir permanentemente " + selectedOrderIds.length + " OS selecionada(s)? Esta ação não pode ser desfeita.")) return;
     const ids = [...selectedOrderIds];
     const { error } = await supabase.from("ordens_servico").delete().in("id", ids);
@@ -567,7 +568,7 @@ function Dashboard() {
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
                 {isManager && <TechnicianManagerDialog team={data.team} actor={actor} onChanged={refresh} />}
                 {isManager && <PartsCatalogDialog />}
-                {isPrimaryAdmin && selectedOrderIds.length > 0 && (
+                {canDeleteOrders && selectedOrderIds.length > 0 && (
                   <Button variant="destructive" className="gap-2 text-sm font-semibold" onClick={() => void deleteSelectedOrders()}>
                     <Trash2 className="size-4" /> Excluir {selectedOrderIds.length} OS
                   </Button>
@@ -843,7 +844,7 @@ function Dashboard() {
                           <Button size="sm" className="h-9 gap-1.5" disabled={!transferTechnicianId} onClick={() => void transferSelectedOrders()}>
                             <UserRound className="size-4" /> Transferir OS
                           </Button>
-                          {isPrimaryAdmin && (
+                          {canDeleteOrders && (
                             <Button size="sm" variant="destructive" className="h-9 gap-1.5" onClick={() => void deleteSelectedOrders()}>
                               <Trash2 className="size-4" /> Excluir selecionadas
                             </Button>
@@ -953,7 +954,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.isManager && status === "concluida" && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
-  const canDelete = isPrimaryAdmin;
+  const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
   const priority = actor.isManager && isPriorityOrder(order);
 
