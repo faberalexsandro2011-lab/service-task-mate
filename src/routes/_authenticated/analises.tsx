@@ -80,6 +80,7 @@ function TechnicalAnalysis() {
   const [period, setPeriod] = useState<Period>("all");
   const [search, setSearch] = useState("");
   const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["technical-analysis"],
     queryFn: getAnalysisData,
@@ -117,6 +118,7 @@ function TechnicalAnalysis() {
       [
         order.numero_os,
         order.frota,
+        order.setor,
         order.localizacao,
         order.descricao,
         order.tecnico_nome,
@@ -136,6 +138,18 @@ function TechnicalAnalysis() {
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
+  const sectorRows = useMemo(() => buildSectorRows(scopedOrders), [scopedOrders]);
+  const selectedSectorOrders = useMemo(
+    () => selectedSector
+      ? scopedOrders.filter((order) => (String(order.setor ?? "").trim() || "Sem setor").toLocaleLowerCase("pt-BR") === selectedSector.toLocaleLowerCase("pt-BR")).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      : [],
+    [scopedOrders, selectedSector],
+  );
+  const selectedSectorServices = useMemo(() => buildNamedCounts(selectedSectorOrders.map(serviceCategory)), [selectedSectorOrders]);
+  const selectedSectorClasses = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.classe_manutencao || "Sem classe informada")), [selectedSectorOrders]);
+  const selectedSectorParts = useMemo(() => buildNamedCounts(selectedSectorOrders.flatMap((order) => extractParts(order.pecas_utilizadas))), [selectedSectorOrders]);
+  const selectedSectorTechnicians = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.tecnico_nome || order.tecnico_email || "Sem técnico")), [selectedSectorOrders]);
+  const selectedSectorFleets = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.frota || "Sem frota")), [selectedSectorOrders]);
   const fleetRows = useMemo(
     () => buildFleetRows(allOrders.filter((order) => order.status === "concluida")),
     [allOrders],
@@ -435,6 +449,65 @@ function TechnicalAnalysis() {
             ) : (
               <EmptyState text="Ainda não há técnicos com OS atribuídas." />
             )}
+          </Panel>
+        </section>
+
+        <section className="space-y-5">
+          <Panel
+            title="Análise detalhada por setor"
+            subtitle="Selecione um setor para ver volume, situação das OS, serviços, classes de manutenção, peças, técnicos, frotas e cada ordem individual. Os filtros de período e pesquisa acima também se aplicam."
+            icon={<ClipboardList className="size-4" />}
+          >
+            {sectorRows.length ? (
+              <div className="grid gap-4 xl:grid-cols-[0.8fr_1.7fr]">
+                <div className="max-h-[560px] space-y-2 overflow-y-auto">
+                  {sectorRows.map((row) => (
+                    <button key={row.sector} type="button" onClick={() => setSelectedSector(row.sector)}
+                      className={["w-full rounded-xl border p-3 text-left transition-colors", selectedSector?.toLocaleLowerCase("pt-BR") === row.sector.toLocaleLowerCase("pt-BR") ? "border-primary bg-primary/5" : "hover:bg-muted/40"].join(" ")}>
+                      <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-bold">{row.sector}</span><span className="rounded-full bg-muted px-2 py-1 text-xs font-bold">{row.total} OS</span></div>
+                      <div className="mt-1 text-xs text-muted-foreground">{row.completed} concluídas · {row.open} abertas · {row.fleets} frotas</div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: (row.total ? row.completed / row.total * 100 : 0) + "%" }} /></div>
+                    </button>
+                  ))}
+                </div>
+                {!selectedSector ? (
+                  <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed p-8 text-center"><div><Activity className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 text-sm font-semibold">Selecione um setor</p><p className="mt-1 text-xs text-muted-foreground">Os indicadores detalhados e todas as OS do setor serão exibidos aqui.</p></div></div>
+                ) : (
+                  <div className="min-w-0 space-y-4">
+                    <div><h3 className="text-lg font-bold">{selectedSector}</h3><p className="text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado</p></div>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      <Kpi icon={<ClipboardList />} label="Total de OS" value={formatNumber(selectedSectorOrders.length)} detail="Setor selecionado" />
+                      <Kpi icon={<CheckCircle2 />} label="Concluídas" value={formatNumber(selectedSectorOrders.filter((o) => o.status === "concluida").length)} detail="Serviços finalizados" />
+                      <Kpi icon={<Clock3 />} label="Em aberto" value={formatNumber(selectedSectorOrders.filter((o) => o.status === "pendente" || o.status === "em_andamento").length)} detail="Pendentes + andamento" />
+                      <Kpi icon={<Tractor />} label="Frotas" value={formatNumber(new Set(selectedSectorOrders.map((o) => o.frota).filter(Boolean)).size)} detail="Frotas atendidas" />
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <CountList title="Serviços mais atendidos" rows={selectedSectorServices} empty="Sem descrições de serviço." />
+                      <CountList title="Classes de manutenção" rows={selectedSectorClasses} empty="Nenhuma classe informada." />
+                      <CountList title="Peças mais usadas" rows={selectedSectorParts} empty="Nenhuma peça registrada nas OS deste setor." />
+                      <CountList title="Técnicos que atenderam" rows={selectedSectorTechnicians} empty="Nenhum técnico associado." />
+                      <CountList title="Frotas mais atendidas" rows={selectedSectorFleets} empty="Nenhuma frota registrada." />
+                      <CountList title="Situação das OS" rows={buildNamedCounts(selectedSectorOrders.map((o) => ({ pendente: "Pendente", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" } as Record<string, string>)[o.status] || o.status))} empty="Sem OS no setor." />
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border">
+                      <div className="border-b bg-muted/30 px-3 py-3"><h4 className="text-sm font-bold">Todas as OS deste setor</h4><p className="mt-1 text-xs text-muted-foreground">Cada linha mostra a ordem, frota, data, técnico, serviço, classe, peças e situação.</p></div>
+                      {selectedSectorOrders.length ? (
+                        <table className="w-full min-w-[1050px] text-left text-xs">
+                          <thead><tr className="border-b text-[10px] uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2">OS</th><th className="px-3 py-2">Entrada</th><th className="px-3 py-2">Frota</th><th className="px-3 py-2">Localização</th><th className="px-3 py-2">Técnico</th><th className="px-3 py-2">Serviço / problema</th><th className="px-3 py-2">Classe</th><th className="px-3 py-2">Peças usadas</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2">Início</th><th className="px-3 py-2">Conclusão</th></tr></thead>
+                          <tbody className="divide-y">
+                            {selectedSectorOrders.map((order) => (
+                              <tr key={order.id} className="align-top hover:bg-muted/20">
+                                <td className="px-3 py-3 font-bold">{order.numero_os}</td><td className="px-3 py-3 whitespace-nowrap">{order.entrada || formatDateOnly(order.created_at)}</td><td className="px-3 py-3 font-semibold">{order.frota}</td><td className="px-3 py-3">{order.localizacao || "—"}</td><td className="px-3 py-3">{order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td><td className="px-3 py-3 max-w-[260px] whitespace-normal">{order.descricao || order.notas_fecho || "Sem descrição"}</td><td className="px-3 py-3">{order.classe_manutencao || "—"}</td><td className="px-3 py-3 whitespace-normal">{extractParts(order.pecas_utilizadas).join(", ") || "—"}</td><td className="px-3 py-3"><StatusBadge status={order.status} /></td><td className="px-3 py-3 whitespace-nowrap">{formatDate(order.data_inicio)}</td><td className="px-3 py-3 whitespace-nowrap">{formatDate(order.concluida_em)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : <EmptyState text="Nenhuma OS encontrada para este setor no período." />}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : <EmptyState text="Nenhum setor informado nas OS deste período. Quando importar a coluna Setor, os indicadores serão agrupados aqui." />}
           </Panel>
         </section>
 
@@ -908,6 +981,45 @@ function buildRecurrenceRows(orders: Ordem[]) {
   return [...groups.values()]
     .filter((row) => row.total >= 2)
     .sort((a, b) => b.total - a.total || new Date(b.lastDate).getTime() - new Date(a.lastDate).getTime());
+}
+
+function buildSectorRows(orders: Ordem[]) {
+  const groups = new Map<string, { sector: string; total: number; completed: number; open: number; fleets: Set<string> }>();
+  for (const order of orders) {
+    const sector = String(order.setor ?? "").trim() || "Sem setor";
+    const key = sector.toLocaleLowerCase("pt-BR");
+    const row = groups.get(key) ?? { sector, total: 0, completed: 0, open: 0, fleets: new Set<string>() };
+    row.total++;
+    if (order.status === "concluida") row.completed++;
+    if (order.status === "pendente" || order.status === "em_andamento") row.open++;
+    if (order.frota) row.fleets.add(String(order.frota));
+    groups.set(key, row);
+  }
+  return [...groups.values()].map((row) => ({ sector: row.sector, total: row.total, completed: row.completed, open: row.open, fleets: row.fleets.size })).sort((a, b) => b.total - a.total || a.sector.localeCompare(b.sector, "pt-BR"));
+}
+
+function buildNamedCounts(values: string[]) {
+  const counts = new Map<string, { name: string; total: number }>();
+  for (const raw of values) {
+    const name = String(raw ?? "").trim() || "Não informado";
+    const key = name.toLocaleLowerCase("pt-BR");
+    const row = counts.get(key) ?? { name, total: 0 };
+    row.total++;
+    counts.set(key, row);
+  }
+  return [...counts.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "pt-BR"));
+}
+
+function CountList({ title, rows, empty }: { title: string; rows: Array<{ name: string; total: number }>; empty: string }) {
+  return (
+    <div className="rounded-xl border p-3">
+      <h4 className="text-xs font-bold uppercase tracking-wide">{title}</h4>
+      {rows.length ? <div className="mt-2 space-y-2">
+        {rows.slice(0, 8).map((row) => <div key={row.name} className="flex items-center justify-between gap-2 text-xs"><span className="min-w-0 truncate">{row.name}</span><span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-bold">{row.total}</span></div>)}
+        {rows.length > 8 && <p className="text-[10px] text-muted-foreground">+ {rows.length - 8} outros registros</p>}
+      </div> : <p className="mt-2 text-xs text-muted-foreground">{empty}</p>}
+    </div>
+  );
 }
 
 function buildFleetRows(orders: Ordem[]) {
