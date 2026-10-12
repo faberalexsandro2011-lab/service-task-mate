@@ -1924,7 +1924,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         />
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          Colunas reconhecidas: <strong>Número da OS · SEQUENCIA · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
+          Colunas reconhecidas: <strong>Número da OS · SEQ · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
         </div>
 
         <DialogFooter>
@@ -2131,7 +2131,7 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
     "entrada", "data_entrada", "entrada_data", "data_de_entrada",
   ], ["entrada"]);
 
-  const sequenciaRaw = pick(clean, ["sequencia", "seq", "ordem_atendimento", "sequencia_atendimento"], ["sequencia", "ordem_atendimento"]);
+  const sequenciaRaw = pick(clean, ["seq", "sequencia", "ordem_atendimento", "sequencia_atendimento"], ["seq", "sequencia", "ordem_atendimento"]);
   const sequenciaParsed = sequenciaRaw.trim() ? Number(sequenciaRaw.trim().replace(",", ".")) : NaN;
   const sequencia = Number.isFinite(sequenciaParsed) ? sequenciaParsed : null;
 
