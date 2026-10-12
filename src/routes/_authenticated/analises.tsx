@@ -132,6 +132,7 @@ function TechnicalAnalysis() {
   const metrics = useMemo(() => buildMetrics(scopedOrders), [scopedOrders]);
   const monthly = useMemo(() => buildMonthly(allOrders), [allOrders]);
   const serviceRows = useMemo(() => buildServiceRows(scopedOrders), [scopedOrders]);
+  const technicianClassRows = useMemo(() => buildTechnicianClassRows(scopedOrders), [scopedOrders]);
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
   const recurrenceRows = useMemo(() => buildRecurrenceRows(scopedOrders), [scopedOrders]);
   const technicianRows = useMemo(() => buildTechnicianRows(scopedOrders), [scopedOrders]);
@@ -298,7 +299,7 @@ function TechnicalAnalysis() {
         <section className="grid gap-5 xl:grid-cols-[1fr_1fr]">
           <Panel
             title="Serviços realizados"
-            subtitle="Classificação automática da descrição e notas de fechamento."
+            subtitle="OS por classe de manutenção selecionada pelo técnico."
             icon={<Wrench className="size-4" />}
           >
             <div className="h-[320px] w-full">
@@ -312,6 +313,34 @@ function TechnicalAnalysis() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </Panel>
+
+          <Panel
+            title="Atuação por técnico e classe"
+            subtitle="Quantidade de OS concluídas por técnico em cada área."
+            icon={<Activity className="size-4" />}
+          >
+            {technicianClassRows.length ? (
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={technicianClassRows} layout="vertical" margin={{ top: 5, right: 16, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.35} />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="technician" width={110} tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="gps" name="GPS" stackId="classes" fill="#2563eb" />
+                    <Bar dataKey="solinftec" name="SOLINFTEC" stackId="classes" fill="#0f766e" />
+                    <Bar dataKey="radio" name="RÁDIO" stackId="classes" fill="#d97706" />
+                    <Bar dataKey="rastreador" name="RASTREADOR" stackId="classes" fill="#7c3aed" />
+                    <Bar dataKey="autmIrr" name="AUTM. IRR" stackId="classes" fill="#db2777" />
+                    <Bar dataKey="autmPlant" name="AUTM. PLANT" stackId="classes" fill="#65a30d" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">As classes aparecerão aqui quando os técnicos finalizarem OS com essa informação.</p>
+            )}
           </Panel>
 
           <Panel
@@ -785,20 +814,42 @@ function buildMonthly(orders: Ordem[]) {
   return months;
 }
 
+const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT"] as const;
+const MAINTENANCE_KEYS = [
+  { label: "GPS", key: "gps" },
+  { label: "SOLINFTEC", key: "solinftec" },
+  { label: "RÁDIO", key: "radio" },
+  { label: "RASTREADOR", key: "rastreador" },
+  { label: "AUTM. IRR", key: "autmIrr" },
+  { label: "AUTM. PLANT", key: "autmPlant" },
+] as const;
+
 function buildServiceRows(orders: Ordem[]) {
   const completedOrders = orders.filter((order) => order.status === "concluida");
   const source = completedOrders.length ? completedOrders : orders;
-  const counts = new Map<string, number>();
-
+  const counts = new Map<string, number>(MAINTENANCE_CLASSES.map((label) => [label, 0]));
   for (const order of source) {
-    const category = serviceCategory(order);
-    counts.set(category, (counts.get(category) ?? 0) + 1);
+    const category = order.classe_manutencao;
+    if (category && counts.has(category)) counts.set(category, (counts.get(category) ?? 0) + 1);
   }
+  return MAINTENANCE_CLASSES.map((service) => ({ service, total: counts.get(service) ?? 0 }))
+    .sort((a, b) => b.total - a.total);
+}
 
-  return [...counts.entries()]
-    .map(([service, total]) => ({ service, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 8);
+function buildTechnicianClassRows(orders: Ordem[]) {
+  const groups = new Map<string, Record<string, string | number>>();
+  for (const order of orders.filter((item) => item.status === "concluida" && item.classe_manutencao)) {
+    const name = order.tecnico_nome?.trim() || order.tecnico_email?.trim() || "Sem técnico";
+    let row = groups.get(name);
+    if (!row) {
+      row = { technician: name, total: 0, gps: 0, solinftec: 0, radio: 0, rastreador: 0, autmIrr: 0, autmPlant: 0 };
+      groups.set(name, row);
+    }
+    const key = MAINTENANCE_KEYS.find((item) => item.label === order.classe_manutencao)?.key;
+    if (key) row[key] = Number(row[key] ?? 0) + 1;
+    row.total = Number(row.total ?? 0) + 1;
+  }
+  return [...groups.values()].sort((a, b) => Number(b.total) - Number(a.total)).slice(0, 10);
 }
 
 function buildPartRows(orders: Ordem[]) {
