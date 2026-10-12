@@ -88,18 +88,24 @@ function HistoryPage() {
     return o && filteredOrders.some(x => x.id === o.id);
   }), [logs, orderMap, filteredOrders]);
 
-  function formatDate(value: string | null) {
+  function formatDateTime(value: string | null) {
     if (!value) return "";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("pt-BR");
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   function exportExcel() {
     const wb = utils.book_new();
     utils.book_append_sheet(wb, utils.json_to_sheet(filteredOrders.map(o => ({
       OS: o.numero_os, Frota: o.frota, Localização: o.localizacao, Técnico: o.tecnico_nome || o.tecnico_email,
-      Status: o.status === "concluida" ? "Finalizada" : o.status, Aberta: formatDate(o.created_at), Início: formatDate(o.data_inicio), Fim: formatDate(o.concluida_em),
+      Status: o.status === "concluida" ? "Finalizada" : o.status, Aberta: formatDateTime(o.created_at), Início: formatDateTime(o.data_inicio), Fim: formatDateTime(o.concluida_em),
       "Peças trocadas": o.pecas_utilizadas || "", Serviço: o.notas_fecho
     }))), "OS");
     utils.book_append_sheet(wb, utils.json_to_sheet(filteredLogs.map(l => ({
@@ -134,9 +140,9 @@ function HistoryPage() {
               <div className="rounded-xl border bg-muted/20 p-4 sm:col-span-2"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição do problema</p><p className="mt-1 whitespace-pre-wrap">{selectedOrder.descricao || "—"}</p></div>
               <div className="rounded-xl border bg-muted/20 p-4 sm:col-span-2"><p className="flex items-center gap-2 text-xs font-semibold uppercase text-muted-foreground"><Package className="size-4" /> Peças trocadas</p><p className="mt-1 whitespace-pre-wrap">{selectedOrder.pecas_utilizadas || "Nenhuma peça registrada."}</p></div>
               <div className="rounded-xl border bg-muted/20 p-4 sm:col-span-2"><p className="text-xs font-semibold uppercase text-muted-foreground">Serviço realizado</p><p className="mt-1 whitespace-pre-wrap">{selectedOrder.notas_fecho || "—"}</p></div>
-              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Aberta</p><p className="mt-1 font-medium">{formatDate(selectedOrder.created_at) || "—"}</p></div>
-              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Início</p><p className="mt-1 font-medium">{formatDate(selectedOrder.data_inicio) || "—"}</p></div>
-              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-medium">{formatDate(selectedOrder.concluida_em) || "—"}</p></div>
+              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Aberta</p><p className="mt-1 font-medium">{formatDateTime(selectedOrder.created_at) || "—"}</p></div>
+              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Início</p><p className="mt-1 font-medium">{formatDateTime(selectedOrder.data_inicio) || "—"}</p></div>
+              <div className="rounded-xl border bg-muted/20 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Fim</p><p className="mt-1 font-medium">{formatDateTime(selectedOrder.concluida_em) || "—"}</p></div>
             </div>
           )}
         </DialogContent>
