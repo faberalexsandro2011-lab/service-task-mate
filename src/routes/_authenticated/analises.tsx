@@ -154,7 +154,7 @@ function TechnicalAnalysis() {
     [sectorScopedOrders, selectedSector],
   );
   const selectedSectorServices = useMemo(() => buildNamedCounts(selectedSectorOrders.map(serviceCategory)), [selectedSectorOrders]);
-  const selectedSectorClasses = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.classe_manutencao || "Sem classe informada")), [selectedSectorOrders]);
+  const selectedSectorClasses = useMemo(() => buildNamedCounts(selectedSectorOrders.flatMap((order) => splitMaintenanceClasses(order.classe_manutencao).length ? splitMaintenanceClasses(order.classe_manutencao) : ["Sem classe informada"])), [selectedSectorOrders]);
   const selectedSectorParts = useMemo(() => buildNamedCounts(selectedSectorOrders.flatMap((order) => extractParts(order.pecas_utilizadas))), [selectedSectorOrders]);
   const selectedSectorTechnicians = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.tecnico_nome || order.tecnico_email || "Sem técnico")), [selectedSectorOrders]);
   const selectedSectorFleets = useMemo(() => buildNamedCounts(selectedSectorOrders.map((order) => order.frota || "Sem frota")), [selectedSectorOrders]);
@@ -907,13 +907,18 @@ const MAINTENANCE_KEYS = [
   { label: "STARLINK/CONCENT", key: "starlinkConcent" },
 ] as const;
 
+function splitMaintenanceClasses(value: string | null | undefined): string[] {
+  return (value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+}
+
 function buildServiceRows(orders: Ordem[]) {
   const completedOrders = orders.filter((order) => order.status === "concluida");
   const source = completedOrders.length ? completedOrders : orders;
   const counts = new Map<string, number>(MAINTENANCE_CLASSES.map((label) => [label, 0]));
   for (const order of source) {
-    const category = order.classe_manutencao;
-    if (category && counts.has(category)) counts.set(category, (counts.get(category) ?? 0) + 1);
+    for (const category of new Set(splitMaintenanceClasses(order.classe_manutencao))) {
+      if (counts.has(category)) counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
   }
   return MAINTENANCE_CLASSES.map((service) => ({ service, total: counts.get(service) ?? 0 }))
     .sort((a, b) => b.total - a.total);
@@ -928,8 +933,10 @@ function buildTechnicianClassRows(orders: Ordem[]) {
       row = { technician: name, total: 0, gps: 0, solinftec: 0, radio: 0, rastreador: 0, autmIrr: 0, autmPlant: 0, starlinkConcent: 0 };
       groups.set(name, row);
     }
-    const key = MAINTENANCE_KEYS.find((item) => item.label === order.classe_manutencao)?.key;
-    if (key) row[key] = Number(row[key] ?? 0) + 1;
+    for (const category of new Set(splitMaintenanceClasses(order.classe_manutencao))) {
+      const key = MAINTENANCE_KEYS.find((item) => item.label === category)?.key;
+      if (key) row[key] = Number(row[key] ?? 0) + 1;
+    }
     row.total = Number(row.total ?? 0) + 1;
   }
   return [...groups.values()].sort((a, b) => Number(b.total) - Number(a.total)).slice(0, 10);
