@@ -907,12 +907,12 @@ function TechnicianPage() {
 
         <div className="grid gap-5">
           <section className="grid gap-2 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <label className="text-sm font-bold" htmlFor="classe-manutencao">Classe de manutenção <span className="text-destructive">*</span></label>
-            <p className="text-xs leading-5 text-muted-foreground">Selecione a área atendida. Essa informação alimenta os indicadores da Análise Técnica.</p>
-            <Select value={maintenanceClass} onValueChange={setMaintenanceClass}>
-              <SelectTrigger id="classe-manutencao" className="h-12 rounded-xl bg-background"><SelectValue placeholder="Selecione a classe de manutenção" /></SelectTrigger>
-              <SelectContent>{MAINTENANCE_CLASSES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-            </Select>
+            <p className="text-sm font-bold">Classes de manutenção <span className="text-destructive">*</span></p>
+            <p className="text-xs leading-5 text-muted-foreground">Selecione todas as áreas atendidas nesta OS.</p>
+            <div className="grid gap-2 sm:grid-cols-2">{MAINTENANCE_CLASSES.map((item) => <label key={item} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border bg-background px-3 py-2 text-sm font-medium hover:bg-muted/60">
+              <input type="checkbox" className="size-4 accent-primary" checked={maintenanceClasses.includes(item)} onChange={(event) => setMaintenanceClasses((current) => event.target.checked ? [...current, item] : current.filter((value) => value !== item))} />
+              <span>{item}</span>
+            </label>)}</div>
           </section>
           <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-primary/5 to-muted/20 p-4">
             <div className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
