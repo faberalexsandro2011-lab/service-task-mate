@@ -804,6 +804,9 @@ function extractParts(value: string | null) {
 }
 
 function serviceCategory(order: Ordem) {
+  const selectedClasses = splitMaintenanceClasses(order.classe_manutencao);
+  if (selectedClasses.length) return selectedClasses.join(", ");
+
   const text = (
     (order.descricao ?? "") +
     " " +
