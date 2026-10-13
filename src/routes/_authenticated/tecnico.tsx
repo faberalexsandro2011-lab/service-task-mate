@@ -202,7 +202,7 @@ function TechnicianPage() {
   const [editNotes, setEditNotes] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [notes, setNotes] = useState("");
-  const [maintenanceClass, setMaintenanceClass] = useState<string>("");
+  const [maintenanceClasses, setMaintenanceClasses] = useState<string[]>([]);
   const [partsReplaced, setPartsReplaced] = useState<"sim" | "nao">("nao");
   const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
   const [partsCatalog, setPartsCatalog] = useState<Peca[]>([]);
@@ -325,7 +325,7 @@ function TechnicianPage() {
     }
     setFinish(order);
     setNotes("");
-    setMaintenanceClass("");
+    setMaintenanceClasses([]);
     setPartsReplaced("nao");
     setSelectedParts([]);
   }
@@ -602,7 +602,8 @@ function TechnicianPage() {
       return;
     }
     const solution = notes.trim();
-    if (!maintenanceClass) { toast.error("Selecione a classe de manutenção."); return; }
+    if (!maintenanceClasses.length) { toast.error("Selecione pelo menos uma classe de manutenção."); return; }
+    const maintenanceClass = maintenanceClasses.join(", ");
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const pieces = partsReplaced === "sim"
       ? selectedParts.filter((part) => part.id && part.quantidade > 0)
@@ -894,7 +895,7 @@ function TechnicianPage() {
       if (!open) {
         setFinish(null);
         setNotes("");
-        setMaintenanceClass("");
+        setMaintenanceClasses([]);
         setPartsReplaced("nao");
         setSelectedParts([]);
       }
