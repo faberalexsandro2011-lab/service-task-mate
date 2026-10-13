@@ -199,6 +199,7 @@ function SolicitacoesPage() {
         numero_os: number,
         frota: values.frota.trim(),
         localizacao: values.localizacao.trim() || null,
+        setor: values.setor.trim() || null,
         descricao: values.descricao.trim() || null,
         tecnico_id: technician?.id ?? selected.tecnico_id,
         tecnico_email: technician?.email ?? selected.tecnico_email,
@@ -336,6 +337,7 @@ type RegisterValues = {
   numero_os: string;
   frota: string;
   localizacao: string;
+  setor: string;
   descricao: string;
   tecnico_id: string;
 };
@@ -362,6 +364,7 @@ function RequestForm({
     const form = new FormData(event.currentTarget);
     const frota = String(form.get("frota") ?? "").trim();
     const localizacao = String(form.get("localizacao") ?? "").trim();
+    const setor = String(form.get("setor") ?? "").trim();
     const descricao = String(form.get("descricao") ?? "").trim();
 
     if (!frota || !descricao) {
@@ -375,6 +378,7 @@ function RequestForm({
         numero_os: null,
         frota,
         localizacao: localizacao || null,
+        setor: setor || null,
         descricao,
         tecnico_id: profile?.id ?? user.id,
         tecnico_email: profile?.email?.trim() || user.email || "",
@@ -415,6 +419,7 @@ function RequestForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Frota"><Input name="frota" required placeholder="TR-024" /></Field>
             <Field label="Localização"><Input name="localizacao" placeholder="Fazenda / Oficina / Talhão" /></Field>
+            <Field label="Setor"><Input name="setor" placeholder="Digite o setor onde o serviço foi realizado" /></Field>
           </div>
           <Field label="Serviço realizado"><Textarea name="descricao" required rows={5} placeholder="Descreva o trabalho realizado..." /></Field>
           <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -477,6 +482,7 @@ function ManagerRequests({ requests, history, onSelect }: { requests: Ordem[]; h
                   <span><strong className="text-foreground">Frota:</strong> {request.frota}</span>
                   <span><strong className="text-foreground">Técnico:</strong> {request.tecnico_nome || request.tecnico_email}</span>
                   <span><strong className="text-foreground">Local:</strong> {request.localizacao || "—"}</span>
+                  <span><strong className="text-foreground">Setor:</strong> {request.setor || "—"}</span>
                   <span><strong className="text-foreground">Solicitada:</strong> {formatDate(request.solicitada_em || request.created_at)}</span>
                 </div>
                 <p className="mt-3 line-clamp-2 text-sm">{request.descricao || "Sem descrição."}</p>
@@ -540,6 +546,7 @@ function ManagerRequestDialog({
   const [numeroOs, setNumeroOs] = useState(request.numero_os || "");
   const [frota, setFrota] = useState(request.frota);
   const [localizacao, setLocalizacao] = useState(request.localizacao || "");
+  const [setor, setSetor] = useState(request.setor || "");
   const [descricao, setDescricao] = useState(request.descricao || "");
   const [technicianId, setTechnicianId] = useState(request.tecnico_id || technicians[0]?.id || "");
   const isPendingRequest = request.solicitacao_os === true;
@@ -549,9 +556,10 @@ function ManagerRequestDialog({
     setNumeroOs(request.numero_os || "");
     setFrota(request.frota || "");
     setLocalizacao(request.localizacao || "");
+    setSetor(request.setor || "");
     setDescricao(request.descricao || "");
     setTechnicianId(request.tecnico_id || technicians[0]?.id || "");
-  }, [open, request.id, request.numero_os, request.frota, request.localizacao, request.descricao, request.tecnico_id, technicians]);
+  }, [open, request.id, request.numero_os, request.frota, request.localizacao, request.setor, request.descricao, request.tecnico_id, technicians]);
 
   const technician = technicians.find((item) => item.id === technicianId);
 
@@ -577,6 +585,7 @@ function ManagerRequestDialog({
               numero_os: numeroOs,
               frota,
               localizacao,
+              setor,
               descricao,
               tecnico_id: technicianId,
             });
@@ -594,7 +603,10 @@ function ManagerRequestDialog({
             <Field label="Número da OS"><Input value={numeroOs} onChange={(event) => setNumeroOs(event.target.value)} required /></Field>
             <Field label="Frota"><Input value={frota} onChange={(event) => setFrota(event.target.value)} required /></Field>
           </div>
-          <Field label="Localização"><Input value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} /></Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Localização"><Input value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} /></Field>
+            <Field label="Setor"><Input value={setor} onChange={(event) => setSetor(event.target.value)} placeholder="Digite o setor onde o serviço foi realizado" /></Field>
+          </div>
           <Field label="Serviço realizado"><Textarea value={descricao} onChange={(event) => setDescricao(event.target.value)} required rows={5} /></Field>
           <Field label={isPendingRequest ? "Enviar para técnico" : "Técnico responsável"}>
             <Select value={technicianId} onValueChange={setTechnicianId}>
