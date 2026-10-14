@@ -1632,6 +1632,7 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
       numero_os,
       frota: String(form.get("frota") ?? "").trim(),
       localizacao: String(form.get("localizacao") ?? "").trim() || null,
+      setor: String(form.get("setor") ?? "").trim() || null,
       descricao: String(form.get("descricao") ?? "").trim() || null,
       tecnico_id: technician.id,
       tecnico_email: technician.email,
@@ -1709,7 +1710,10 @@ function CreateDialog({ open, onOpenChange, technicians, creator, onCreated }: {
         <DialogHeader><DialogTitle>Abrir ordem de serviço</DialogTitle><DialogDescription>Registe o trabalho e atribua-o a um técnico.</DialogDescription></DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
           <div className="grid gap-4 sm:grid-cols-2"><Field label="Número da OS"><Input name="numero_os" required placeholder="OS-2026-001" /></Field><Field label="Frota"><Input name="frota" required placeholder="FT-024" /></Field></div>
-          <Field label="Localização"><Input name="localizacao" placeholder="Oficina Norte" /></Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Localização"><Input name="localizacao" placeholder="Oficina Norte" /></Field>
+            <Field label="Setor"><Input name="setor" placeholder="Digite o setor" /></Field>
+          </div>
           <Field label="Técnico"><Select value={technicianId} onValueChange={setTechnicianId}><SelectTrigger><SelectValue placeholder="Selecionar técnico" /></SelectTrigger><SelectContent>{technicians.map((person) => <SelectItem key={person.id} value={person.id}>{person.nome || person.email} · {person.email}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Descrição do problema"><Textarea name="descricao" rows={4} placeholder="Descreva o problema identificado..." /></Field>
           <DialogFooter><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button><Button type="submit" disabled={saving}>{saving ? "A guardar..." : "Criar ordem"}</Button></DialogFooter>
