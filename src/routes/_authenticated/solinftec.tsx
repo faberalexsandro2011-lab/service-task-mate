@@ -73,6 +73,8 @@ function SolinftecPage() {
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState("");
   const [pesquisa, setPesquisa] = useState("");
+  const [grupoSelecionado, setGrupoSelecionado] = useState("todos");
+  const [operacaoSelecionada, setOperacaoSelecionada] = useState("todas");
   const [somenteAlertas, setSomenteAlertas] = useState(false);
   const [alertaOS, setAlertaOS] = useState<EquipamentoSolinftec | null>(null);
   const [numeroOS, setNumeroOS] = useState("");
@@ -134,6 +136,19 @@ function SolinftecPage() {
     ? Date.now() - new Date(ultimaColeta).getTime() > 60 * 60 * 1000
     : true;
 
+  const gruposDisponiveis = useMemo(
+    () => [...new Set(registros.map((item) => item.grupo?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [registros],
+  );
+
+  const operacoesDisponiveis = useMemo(
+    () => [...new Set(registros
+      .filter((item) => grupoSelecionado === "todos" || item.grupo?.trim() === grupoSelecionado)
+      .map((item) => item.operacao?.trim())
+      .filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [registros, grupoSelecionado],
+  );
+
   const registrosVisiveis = useMemo(() => {
     const term = pesquisa.trim().toLocaleLowerCase("pt-BR");
     return registros.filter((item) => {
@@ -147,11 +162,13 @@ function SolinftecPage() {
         item.tipo,
         item.funcionario,
       ].some((value) => (value ?? "").toLocaleLowerCase("pt-BR").includes(term));
+      const matchesGrupo = grupoSelecionado === "todos" || item.grupo?.trim() === grupoSelecionado;
+      const matchesOperacao = operacaoSelecionada === "todas" || item.operacao?.trim() === operacaoSelecionada;
       const matchesAlert = !somenteAlertas ||
         (item.horas_sem_comunicacao != null && item.horas_sem_comunicacao >= 72);
-      return matchesTerm && matchesAlert;
+      return matchesTerm && matchesGrupo && matchesOperacao && matchesAlert;
     });
-  }, [registros, pesquisa, somenteAlertas]);
+  }, [registros, pesquisa, grupoSelecionado, operacaoSelecionada, somenteAlertas]);
 
   function iniciarOS(item: EquipamentoSolinftec) {
     if (!PODE_CRIAR_OS) {
@@ -294,11 +311,32 @@ function SolinftecPage() {
               <h2 className="font-bold">Equipamentos</h2>
               <p className="text-sm text-muted-foreground">{registrosVisiveis.length} de {registros.length} registros exibidos</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative min-w-0 sm:w-72">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <div className="relative min-w-0 sm:w-64">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={pesquisa} onChange={(event) => setPesquisa(event.target.value)} placeholder="Buscar frota, grupo, código..." className="pl-9" />
+                <Input value={pesquisa} onChange={(event) => setPesquisa(event.target.value)} placeholder="Buscar frota, código..." className="pl-9" />
               </div>
+              <select
+                aria-label="Filtrar por grupo"
+                value={grupoSelecionado}
+                onChange={(event) => {
+                  setGrupoSelecionado(event.target.value);
+                  setOperacaoSelecionada("todas");
+                }}
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-52"
+              >
+                <option value="todos">Todos os grupos</option>
+                {gruposDisponiveis.map((grupo) => <option key={grupo} value={grupo}>{grupo}</option>)}
+              </select>
+              <select
+                aria-label="Filtrar por operação"
+                value={operacaoSelecionada}
+                onChange={(event) => setOperacaoSelecionada(event.target.value)}
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-52"
+              >
+                <option value="todas">Todas as operações</option>
+                {operacoesDisponiveis.map((operacao) => <option key={operacao} value={operacao}>{operacao}</option>)}
+              </select>
               <Button
                 variant={somenteAlertas ? "default" : "outline"}
                 onClick={() => setSomenteAlertas((value) => !value)}
