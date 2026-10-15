@@ -1131,16 +1131,16 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-        {canSelect && order.status === "pendente" && (
+        <div className={actor.isManager ? "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center" : "flex flex-wrap items-center gap-x-2.5 gap-y-1.5"}>
+        {actor.isManager ? (
+          canSelect && order.status === "pendente" ? (
+            <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
+              <input type="checkbox" checked={selected} onChange={() => onToggleSelect(order.id)} aria-label={"Selecionar OS " + order.numero_os} className="size-4 cursor-pointer rounded border-input accent-primary" />
+            </label>
+          ) : <span aria-hidden="true" />
+        ) : canSelect && order.status === "pendente" && (
           <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
-            <input
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggleSelect(order.id)}
-              aria-label={"Selecionar OS " + order.numero_os}
-              className="size-4 cursor-pointer rounded border-input accent-primary"
-            />
+            <input type="checkbox" checked={selected} onChange={() => onToggleSelect(order.id)} aria-label={"Selecionar OS " + order.numero_os} className="size-4 cursor-pointer rounded border-input accent-primary" />
           </label>
         )}
           <div className="flex min-w-[110px] items-center gap-2">
