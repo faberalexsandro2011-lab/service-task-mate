@@ -11,6 +11,9 @@ import {
   ChevronRight,
   Gauge,
   Package,
+  Pencil,
+  Save,
+  X,
   RefreshCw,
   Search,
   Settings2,
@@ -84,11 +87,53 @@ function TechnicalAnalysis() {
   const [search, setSearch] = useState("");
   const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    numero_os: string; frota: string; setor: string; localizacao: string; descricao: string;
+    classe_manutencao: string; pecas_utilizadas: string; tecnico_nome: string; tecnico_email: string;
+  } | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const query = useQuery({
     queryKey: ["technical-analysis"],
     queryFn: getAnalysisData,
     staleTime: 30_000,
   });
+  const canEditBase = query.data?.user.email?.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
+
+  function beginEdit(order: Ordem) {
+    setEditingOrderId(order.id);
+    setEditDraft({
+      numero_os: order.numero_os ?? "", frota: order.frota ?? "", setor: order.setor ?? "",
+      localizacao: order.localizacao ?? "", descricao: order.descricao ?? "",
+      classe_manutencao: order.classe_manutencao ?? "", pecas_utilizadas: order.pecas_utilizadas ?? "",
+      tecnico_nome: order.tecnico_nome ?? "", tecnico_email: order.tecnico_email ?? "",
+    });
+  }
+
+  async function saveEdit(orderId: string) {
+    if (!editDraft || !canEditBase) return;
+    setSavingEdit(true);
+    const { error } = await supabase.from("ordens_servico").update({
+      numero_os: editDraft.numero_os.trim(),
+      frota: editDraft.frota.trim(),
+      setor: editDraft.setor.trim() || null,
+      localizacao: editDraft.localizacao.trim() || null,
+      descricao: editDraft.descricao.trim() || null,
+      classe_manutencao: editDraft.classe_manutencao.trim() || null,
+      pecas_utilizadas: editDraft.pecas_utilizadas.trim() || null,
+      tecnico_nome: editDraft.tecnico_nome.trim() || null,
+      tecnico_email: editDraft.tecnico_email.trim() || null,
+    }).eq("id", orderId);
+    setSavingEdit(false);
+    if (error) {
+      window.alert("Não foi possível salvar a alteração: " + error.message);
+      return;
+    }
+    setEditingOrderId(null);
+    setEditDraft(null);
+    await queryClient.invalidateQueries({ queryKey: ["technical-analysis"] });
+    window.alert("Base técnica atualizada. Os indicadores serão recalculados com os dados salvos.");
+  }
 
   useEffect(() => {
     const channel = supabase
@@ -622,51 +667,37 @@ function TechnicalAnalysis() {
 
         <section className="rounded-2xl border bg-card shadow-sm">
           <div className="border-b p-4 sm:p-5">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <div className="flex items-center gap-2">
-                  <ClipboardList className="size-4 text-primary" />
-                  <h2 className="font-bold">Base técnica · todas as OS</h2>
-                </div>
+                <div className="flex items-center gap-2"><ClipboardList className="size-4 text-primary" /><h2 className="font-bold">Base técnica · todas as OS</h2></div>
                 <p className="mt-1 text-xs text-muted-foreground">{orders.length} registros exibidos · dados persistidos na base oficial do Central OS.</p>
+                {canEditBase && <p className="mt-1 text-xs font-medium text-primary">Edição habilitada para o gestor Faber; os indicadores serão recalculados após salvar.</p>}
               </div>
               <span className="text-xs font-medium text-muted-foreground">{periodLabel(period)}</span>
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left text-sm">
-              <thead className="bg-muted/45 text-[11px] uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2.5">OS</th>
-                  <th className="px-3 py-2.5">Frota</th>
-                  <th className="px-3 py-2.5">Serviço / problema</th>
-                  <th className="px-3 py-2.5">Peças</th>
-                  <th className="px-3 py-2.5">Técnico</th>
-                  <th className="px-3 py-2.5">Abertura</th>
-                  <th className="px-3 py-2.5">Início</th>
-                  <th className="px-3 py-2.5">Fechamento</th>
-                  <th className="px-3 py-2.5">Status</th>
-                </tr>
-              </thead>
+            <table className="w-full min-w-[1550px] text-left text-sm">
+              <thead className="bg-muted/45 text-[11px] uppercase tracking-wide text-muted-foreground"><tr>
+                <th className="px-3 py-2.5">OS</th><th className="px-3 py-2.5">Frota</th><th className="px-3 py-2.5">Setor</th><th className="px-3 py-2.5">Localização</th><th className="px-3 py-2.5">Serviço / problema</th><th className="px-3 py-2.5">Classe</th><th className="px-3 py-2.5">Peças</th><th className="px-3 py-2.5">Técnico</th><th className="px-3 py-2.5">Abertura</th><th className="px-3 py-2.5">Início</th><th className="px-3 py-2.5">Fechamento</th><th className="px-3 py-2.5">Status</th>{canEditBase && <th className="px-3 py-2.5">Ação</th>}
+              </tr></thead>
               <tbody className="divide-y">
                 {orders.map((order) => {
                   const partCount = extractParts(order.pecas_utilizadas).length;
-                  return (
-                    <tr key={order.id} className="hover:bg-muted/25">
-                      <td className="px-3 py-3 font-bold">{order.numero_os}</td>
-                      <td className="px-3 py-3 font-semibold">{order.frota}</td>
-                      <td className="max-w-[320px] px-3 py-3">
-                        <div className="truncate font-medium">{order.descricao || "Sem descrição"}</div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">{serviceCategory(order)}</div>
-                      </td>
-                      <td className="px-3 py-3">{partCount ? partCount + " lançada(s)" : "—"}</td>
-                      <td className="px-3 py-3">{order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{formatDate(order.created_at)}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.data_inicio ? formatDate(order.data_inicio) : "Não iniciado"}</td>
-                      <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.concluida_em ? formatDate(order.concluida_em) : "Em andamento"}</td>
-                      <td className="px-3 py-3"><StatusBadge status={order.status} /></td>
-                    </tr>
-                  );
+                  const isEditing = editingOrderId === order.id && !!editDraft;
+                  const editInput = (key: keyof NonNullable<typeof editDraft>, placeholder: string) => <Input value={editDraft?.[key] ?? ""} placeholder={placeholder} onChange={(event) => setEditDraft((current) => current ? { ...current, [key]: event.target.value } : current)} className="h-8 min-w-28 text-xs" />;
+                  return <tr key={order.id} className="align-top hover:bg-muted/25">
+                    <td className="px-3 py-3 font-bold">{isEditing ? editInput("numero_os","Número da OS") : order.numero_os}</td>
+                    <td className="px-3 py-3 font-semibold">{isEditing ? editInput("frota","Frota") : order.frota}</td>
+                    <td className="px-3 py-3">{isEditing ? editInput("setor","Setor") : order.setor || "—"}</td>
+                    <td className="px-3 py-3">{isEditing ? editInput("localizacao","Localização") : order.localizacao || "—"}</td>
+                    <td className="max-w-[320px] px-3 py-3">{isEditing ? <textarea value={editDraft?.descricao ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, descricao: event.target.value } : current)} placeholder="Descrição do serviço" className="min-h-20 w-56 rounded-md border bg-background p-2 text-xs" /> : <><div className="max-w-[260px] whitespace-normal font-medium">{order.descricao || "Sem descrição"}</div><div className="mt-1 text-[11px] text-muted-foreground">{serviceCategory(order)}</div></>}</td>
+                    <td className="px-3 py-3">{isEditing ? editInput("classe_manutencao","Classe de manutenção") : order.classe_manutencao || "—"}</td>
+                    <td className="px-3 py-3">{isEditing ? <textarea value={editDraft?.pecas_utilizadas ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, pecas_utilizadas: event.target.value } : current)} placeholder="Peças utilizadas (uma por linha)" className="min-h-20 w-48 rounded-md border bg-background p-2 text-xs" /> : partCount ? partCount + " lançada(s)" : "—"}</td>
+                    <td className="px-3 py-3">{isEditing ? <div className="grid gap-1.5">{editInput("tecnico_nome","Nome do técnico")}{editInput("tecnico_email","E-mail do técnico")}</div> : order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td>
+                    <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{formatDate(order.created_at)}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.data_inicio ? formatDate(order.data_inicio) : "Não iniciado"}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.concluida_em ? formatDate(order.concluida_em) : "Em andamento"}</td><td className="px-3 py-3"><StatusBadge status={order.status} /></td>
+                    {canEditBase && <td className="px-3 py-3"><div className="flex gap-1.5">{isEditing ? <><Button size="sm" disabled={savingEdit || !editDraft?.numero_os.trim() || !editDraft?.frota.trim()} onClick={() => void saveEdit(order.id)} className="gap-1"><Save className="size-3.5" />Salvar</Button><Button size="icon" variant="outline" disabled={savingEdit} onClick={() => {setEditingOrderId(null);setEditDraft(null);}} aria-label="Cancelar edição"><X className="size-4" /></Button></> : <Button size="sm" variant="outline" onClick={() => beginEdit(order)} className="gap-1"><Pencil className="size-3.5" />Editar</Button>}</div></td>}
+                  </tr>;
                 })}
               </tbody>
             </table>
