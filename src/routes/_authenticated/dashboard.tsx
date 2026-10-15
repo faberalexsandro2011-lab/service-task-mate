@@ -815,7 +815,7 @@ function Dashboard() {
                     </div>
                   )}
                   {isManager && (
-                    <>
+                    <div className="grid min-w-0 grid-cols-1 content-start gap-2 xl:col-start-6 xl:row-start-1">
                       <div className="grid min-w-0 gap-1">
                         <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
                         <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
@@ -825,13 +825,11 @@ function Dashboard() {
                         <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
                       </div>
                       {(dateFrom || dateTo) && (
-                        <div className="flex items-end">
-                          <Button variant="outline" size="sm" className="h-9 w-full gap-1 px-2 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
-                            <X className="size-3.5" /> Limpar datas
-                          </Button>
-                        </div>
+                        <Button variant="outline" size="sm" className="h-9 w-full gap-1 px-2 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                          <X className="size-3.5" /> Limpar datas
+                        </Button>
                       )}
-                    </>
+                    </div>
                   )}
                 </div>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
