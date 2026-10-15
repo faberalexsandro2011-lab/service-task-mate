@@ -1164,6 +1164,13 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             </div>
           )}
 
+          {actor.isManager && (
+            <div className="min-w-[130px] max-w-[220px]">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Localização</span>
+              <p className="break-words text-sm font-medium">{order.localizacao?.trim() || "Não informada"}</p>
+            </div>
+          )}
+
           <div className="min-w-[125px] flex-1">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Técnico</span>
             <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
