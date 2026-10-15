@@ -268,7 +268,7 @@ function Dashboard() {
   const [filterOS, setFilterOS] = useState("");
   const [filterFrota, setFilterFrota] = useState("");
   const [filterTecnico, setFilterTecnico] = useState("");
-  const [filterSetor, setFilterSetor] = useState("");
+  const [filterSetores, setFilterSetores] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
@@ -328,7 +328,7 @@ function Dashboard() {
     const osTerm = filterOS.trim().toLocaleLowerCase("pt");
     const frotaTerm = filterFrota.trim().toLocaleLowerCase("pt");
     const tecnicoTerm = filterTecnico.trim().toLocaleLowerCase("pt");
-    const setorTerm = filterSetor.trim().toLocaleLowerCase("pt");
+    const setoresSelecionados = new Set(filterSetores.map((setor) => setor.trim().toLocaleLowerCase("pt")));
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
     const to = dateTo ? new Date(dateTo + "T23:59:59.999") : null;
 
@@ -337,7 +337,8 @@ function Dashboard() {
       const matchesFrota = !frotaTerm || (order.frota ?? "").toLocaleLowerCase("pt").includes(frotaTerm);
       const technician = [order.tecnico_nome, order.tecnico_email].filter(Boolean).join(" ").toLocaleLowerCase("pt");
       const matchesTecnico = !tecnicoTerm || technician.includes(tecnicoTerm);
-      const matchesSetor = !setorTerm || String(order.setor ?? "").trim().toLocaleLowerCase("pt").includes(setorTerm);
+      const setorDaOS = String(order.setor ?? "").trim().toLocaleLowerCase("pt");
+      const matchesSetor = setoresSelecionados.size === 0 || setoresSelecionados.has(setorDaOS);
       const openedAt = new Date(order.created_at);
       const matchesFrom = !from || openedAt >= from;
       const matchesTo = !to || openedAt <= to;
@@ -366,7 +367,7 @@ function Dashboard() {
       if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
       return 0;
     });
-  }, [orders, filterOS, filterFrota, filterTecnico, filterSetor, dateFrom, dateTo, isManager]);
+  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, dateFrom, dateTo, isManager]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -723,23 +724,20 @@ function Dashboard() {
                   {isManager && (
                     <div className="grid gap-1">
                       <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por setor</label>
-                      <SearchableFilter
-                        value={filterSetor || "__todos_setores__"}
-                        onValueChange={(value) => setFilterSetor(value === "__todos_setores__" ? "" : value)}
+                      <SectorMultiFilter
+                        value={filterSetores}
+                        onValueChange={setFilterSetores}
                         placeholder="Todos os setores"
                         searchPlaceholder="Buscar setor..."
-                        options={[
-                          { value: "__todos_setores__", label: "Todos os setores" },
-                          ...[...new Set(orders.map((order) => String(order.setor ?? "").trim()).filter(Boolean))]
-                            .sort((a, b) => a.localeCompare(b, "pt-BR"))
-                            .map((setor) => ({ value: setor, label: setor })),
-                        ]}
+                        options={[...new Set(orders.map((order) => String(order.setor ?? "").trim()).filter(Boolean))]
+                          .sort((a, b) => a.localeCompare(b, "pt-BR"))
+                          .map((setor) => ({ value: setor, label: setor }))}
                       />
                     </div>
                   )}
-                  {(filterOS || filterFrota || filterTecnico || filterSetor) && (
+                  {(filterOS || filterFrota || filterTecnico || filterSetores.length > 0) && (
                     <div className="sm:col-span-3">
-                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetor(""); }}>Limpar filtros</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); }}>Limpar filtros</Button>
                     </div>
                   )}
                   {isManager && (
@@ -2220,6 +2218,49 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
 
 type SearchableFilterOption = { value: string; label: string };
 
+function SectorMultiFilter({
+  value, onValueChange, placeholder, searchPlaceholder, options,
+}: {
+  value: string[];
+  onValueChange: (value: string[]) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+  options: SearchableFilterOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabels = options.filter((option) => value.includes(option.value)).map((option) => option.label);
+  const buttonLabel = value.length === 0 ? placeholder : value.length === 1 ? (selectedLabels[0] ?? value[0]) : value.length + " setores selecionados";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-11 w-full justify-between bg-background font-normal">
+          <span className="truncate">{buttonLabel}</span><Search className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>Nenhum setor encontrado.</CommandEmpty>
+            <CommandItem value="todos os setores" onSelect={() => onValueChange([])} className="gap-2">
+              <input type="checkbox" checked={value.length === 0} readOnly tabIndex={-1} className="size-4 rounded border-input accent-primary" />
+              Todos os setores
+            </CommandItem>
+            {options.map((option) => {
+              const checked = value.includes(option.value);
+              return (
+                <CommandItem key={option.value} value={option.label} onSelect={() => onValueChange(checked ? value.filter((item) => item !== option.value) : [...value, option.value])} className="gap-2">
+                  <input type="checkbox" checked={checked} readOnly tabIndex={-1} className="size-4 rounded border-input accent-primary" />
+                  <span className="truncate">{option.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 function SearchableFilter({
   value,
   onValueChange,
