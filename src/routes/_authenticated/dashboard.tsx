@@ -730,7 +730,7 @@ function Dashboard() {
                 })}
               </div>
             </div>
-                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
+                <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
                     <SearchableFilter
@@ -810,26 +810,28 @@ function Dashboard() {
                     </>
                   )}
                   {(filterOS || filterFrota || filterTecnico || filterSetores.length > 0 || filterLocalizacoes.length > 0) && (
-                    <div className="sm:col-span-3">
-                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); setFilterLocalizacoes([]); }}>Limpar filtros</Button>
+                    <div className="flex items-end">
+                      <Button variant="outline" size="sm" className="h-9 w-full text-xs" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); setFilterLocalizacoes([]); }}>Limpar filtros</Button>
                     </div>
                   )}
                   {isManager && (
-                    <div className="sm:col-span-3 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
-                      <div className="grid min-w-[145px] flex-1 gap-1">
+                    <>
+                      <div className="grid min-w-0 gap-1">
                         <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
-                        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10 bg-background" />
+                        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
                       </div>
-                      <div className="grid min-w-[145px] flex-1 gap-1">
+                      <div className="grid min-w-0 gap-1">
                         <label className="text-[11px] font-semibold text-muted-foreground">Data final</label>
-                        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-10 bg-background" />
+                        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
                       </div>
                       {(dateFrom || dateTo) && (
-                        <Button variant="outline" size="sm" className="h-10 gap-1.5" onClick={() => { setDateFrom(""); setDateTo(""); }}>
-                          <X className="size-4" /> Limpar datas
-                        </Button>
+                        <div className="flex items-end">
+                          <Button variant="outline" size="sm" className="h-9 w-full gap-1 px-2 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+                            <X className="size-3.5" /> Limpar datas
+                          </Button>
+                        </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -2260,7 +2262,7 @@ function SectorMultiFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-11 w-full justify-between bg-background font-normal">
+        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-9 w-full min-w-0 justify-between bg-background px-2 text-xs font-normal">
           <span className="truncate">{buttonLabel}</span><Search className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -2306,7 +2308,7 @@ function SearchableFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-11 w-full justify-between bg-background font-normal">
+        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-9 w-full min-w-0 justify-between bg-background px-2 text-xs font-normal">
           <span className="truncate">{selected?.label ?? placeholder}</span>
           <Search className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>
