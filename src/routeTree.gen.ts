@@ -15,6 +15,7 @@ import { Route as AuthenticatedAnalisesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
 import { Route as AuthenticatedSolicitacoesRouteImport } from './routes/_authenticated/solicitacoes'
+import { Route as AuthenticatedSolinftecRouteImport } from './routes/_authenticated/solinftec'
 import { Route as AuthenticatedTecnicoRouteImport } from './routes/_authenticated/tecnico'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const AuthenticatedSolicitacoesRoute =
     path: '/solicitacoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSolinftecRoute = AuthenticatedSolinftecRouteImport.update({
+  id: '/solinftec',
+  path: '/solinftec',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTecnicoRoute = AuthenticatedTecnicoRouteImport.update({
   id: '/tecnico',
   path: '/tecnico',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/historico': typeof AuthenticatedHistoricoRoute
   '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
+  '/solinftec': typeof AuthenticatedSolinftecRoute
   '/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRoutesByTo {
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/historico': typeof AuthenticatedHistoricoRoute
   '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
+  '/solinftec': typeof AuthenticatedSolinftecRoute
   '/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRoutesById {
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
   '/_authenticated/solicitacoes': typeof AuthenticatedSolicitacoesRoute
+  '/_authenticated/solinftec': typeof AuthenticatedSolinftecRoute
   '/_authenticated/tecnico': typeof AuthenticatedTecnicoRoute
 }
 export interface FileRouteTypes {
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/historico'
     | '/solicitacoes'
+    | '/solinftec'
     | '/tecnico'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/historico'
     | '/solicitacoes'
+    | '/solinftec'
     | '/tecnico'
   id:
     | '__root__'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/historico'
     | '/_authenticated/solicitacoes'
+    | '/_authenticated/solinftec'
     | '/_authenticated/tecnico'
   fileRoutesById: FileRoutesById
 }
@@ -156,6 +168,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSolicitacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/solinftec': {
+      id: '/_authenticated/solinftec'
+      path: '/solinftec'
+      fullPath: '/solinftec'
+      preLoaderRoute: typeof AuthenticatedSolinftecRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/tecnico': {
       id: '/_authenticated/tecnico'
       path: '/tecnico'
@@ -171,6 +190,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
   AuthenticatedSolicitacoesRoute: typeof AuthenticatedSolicitacoesRoute
+  AuthenticatedSolinftecRoute: typeof AuthenticatedSolinftecRoute
   AuthenticatedTecnicoRoute: typeof AuthenticatedTecnicoRoute
 }
 
@@ -179,6 +199,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
   AuthenticatedSolicitacoesRoute: AuthenticatedSolicitacoesRoute,
+  AuthenticatedSolinftecRoute: AuthenticatedSolinftecRoute,
   AuthenticatedTecnicoRoute: AuthenticatedTecnicoRoute,
 }
 
