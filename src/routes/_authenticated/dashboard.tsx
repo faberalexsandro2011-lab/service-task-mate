@@ -520,17 +520,17 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[190px_1fr]">
+    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <aside className="hidden border-r bg-sidebar lg:flex lg:min-h-screen lg:flex-col">
         <Brand />
-        <nav className="flex-1 px-2 py-3">
-          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Área de trabalho</div>
-          <div className="flex items-center gap-2 rounded-lg bg-sidebar-accent px-2.5 py-2 text-sm font-semibold transition-colors text-sidebar-accent-foreground">
+        <nav className="flex-1 px-1.5 py-3">
+          <div className="mb-1 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Área de trabalho</div>
+          <div className="flex items-center gap-1.5 rounded-lg bg-sidebar-accent px-2 py-2 text-[13px] font-semibold transition-colors text-sidebar-accent-foreground">
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
           {isManager && (
             <>
-              <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+              <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <BarChart3 className="size-4" /> Análise técnica
               </button>
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
@@ -562,7 +562,7 @@ function Dashboard() {
             Sem ligação à internet. As alterações serão mostradas quando a ligação voltar.
           </div>
         )}
-        <div className="mx-auto w-full max-w-[1800px] p-3 sm:p-5 lg:p-8 agri-fade-up">
+        <div className="w-full min-w-0 p-2 sm:p-3 lg:p-4 agri-fade-up">
           <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
