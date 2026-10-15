@@ -1201,9 +1201,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
-            {actionButtons}
-          </div>
+          {!actor.isManager && (
+            <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
+              {actionButtons}
+            </div>
+          )}
         </div>
       </article>
 
@@ -1245,8 +1247,9 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               )}
             </div>
             {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
-            {(canStart || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
+            {(canStart || canClose || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
               {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
+              {canClose && <Button variant="outline" disabled={busy} onClick={() => void closeOrder()}><CheckCircle2 /> Fechar OS</Button>}
               {canFinish && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
               {canCancel && <Button variant="outline" disabled={busy} onClick={() => void cancel()}><Ban /> Cancelar OS</Button>}
               {canDelete && <Button variant="destructive" disabled={busy} onClick={() => void deleteOrder()}><Trash2 /> Excluir OS</Button>}
