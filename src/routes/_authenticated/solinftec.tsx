@@ -73,8 +73,7 @@ function SolinftecPage() {
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState("");
   const [pesquisa, setPesquisa] = useState("");
-  const [grupoSelecionado, setGrupoSelecionado] = useState("todos");
-  const [operacaoSelecionada, setOperacaoSelecionada] = useState("todas");
+  const [grupoOperacaoSelecionado, setGrupoOperacaoSelecionado] = useState("todos");
   const [somenteAlertas, setSomenteAlertas] = useState(false);
   const [alertaOS, setAlertaOS] = useState<EquipamentoSolinftec | null>(null);
   const [numeroOS, setNumeroOS] = useState("");
@@ -136,18 +135,18 @@ function SolinftecPage() {
     ? Date.now() - new Date(ultimaColeta).getTime() > 60 * 60 * 1000
     : true;
 
-  const gruposDisponiveis = useMemo(
-    () => [...new Set(registros.map((item) => item.grupo?.trim()).filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [registros],
-  );
-
-  const operacoesDisponiveis = useMemo(
-    () => [...new Set(registros
-      .filter((item) => grupoSelecionado === "todos" || item.grupo?.trim() === grupoSelecionado)
-      .map((item) => item.operacao?.trim())
-      .filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [registros, grupoSelecionado],
-  );
+  const opcoesGrupoOperacao = useMemo(() => {
+    const combinacoes = new Map<string, { valor: string; rotulo: string }>();
+    for (const item of registros) {
+      const grupo = item.grupo?.trim() || "";
+      const operacao = item.operacao?.trim() || "";
+      if (!grupo && !operacao) continue;
+      const valor = JSON.stringify([grupo, operacao]);
+      const rotulo = [grupo, operacao].filter(Boolean).join(" / ");
+      combinacoes.set(valor, { valor, rotulo });
+    }
+    return [...combinacoes.values()].sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
+  }, [registros]);
 
   const registrosVisiveis = useMemo(() => {
     const term = pesquisa.trim().toLocaleLowerCase("pt-BR");
@@ -162,13 +161,13 @@ function SolinftecPage() {
         item.tipo,
         item.funcionario,
       ].some((value) => (value ?? "").toLocaleLowerCase("pt-BR").includes(term));
-      const matchesGrupo = grupoSelecionado === "todos" || item.grupo?.trim() === grupoSelecionado;
-      const matchesOperacao = operacaoSelecionada === "todas" || item.operacao?.trim() === operacaoSelecionada;
+      const combinacao = JSON.stringify([item.grupo?.trim() || "", item.operacao?.trim() || ""]);
+      const matchesGrupoOperacao = grupoOperacaoSelecionado === "todos" || combinacao === grupoOperacaoSelecionado;
       const matchesAlert = !somenteAlertas ||
         (item.horas_sem_comunicacao != null && item.horas_sem_comunicacao >= 72);
-      return matchesTerm && matchesGrupo && matchesOperacao && matchesAlert;
+      return matchesTerm && matchesGrupoOperacao && matchesAlert;
     });
-  }, [registros, pesquisa, grupoSelecionado, operacaoSelecionada, somenteAlertas]);
+  }, [registros, pesquisa, grupoOperacaoSelecionado, somenteAlertas]);
 
   function iniciarOS(item: EquipamentoSolinftec) {
     if (!PODE_CRIAR_OS) {
@@ -317,25 +316,15 @@ function SolinftecPage() {
                 <Input value={pesquisa} onChange={(event) => setPesquisa(event.target.value)} placeholder="Buscar frota, código..." className="pl-9" />
               </div>
               <select
-                aria-label="Filtrar por grupo"
-                value={grupoSelecionado}
-                onChange={(event) => {
-                  setGrupoSelecionado(event.target.value);
-                  setOperacaoSelecionada("todas");
-                }}
-                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-52"
+                aria-label="Filtrar por grupo/operação"
+                value={grupoOperacaoSelecionado}
+                onChange={(event) => setGrupoOperacaoSelecionado(event.target.value)}
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-64"
               >
-                <option value="todos">Todos os grupos</option>
-                {gruposDisponiveis.map((grupo) => <option key={grupo} value={grupo}>{grupo}</option>)}
-              </select>
-              <select
-                aria-label="Filtrar por operação"
-                value={operacaoSelecionada}
-                onChange={(event) => setOperacaoSelecionada(event.target.value)}
-                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-52"
-              >
-                <option value="todas">Todas as operações</option>
-                {operacoesDisponiveis.map((operacao) => <option key={operacao} value={operacao}>{operacao}</option>)}
+                <option value="todos">Todos os grupos/operações</option>
+                {opcoesGrupoOperacao.map((opcao) => (
+                  <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>
+                ))}
               </select>
               <Button
                 variant={somenteAlertas ? "default" : "outline"}
