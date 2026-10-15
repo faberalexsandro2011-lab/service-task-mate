@@ -73,7 +73,7 @@ function SolinftecPage() {
   const [atualizando, setAtualizando] = useState(false);
   const [erro, setErro] = useState("");
   const [pesquisa, setPesquisa] = useState("");
-  const [grupoOperacaoSelecionado, setGrupoOperacaoSelecionado] = useState("todos");
+  const [grupoOperacaoSelecionado, setGrupoOperacaoSelecionado] = useState<string[]>([]);
   const [somenteAlertas, setSomenteAlertas] = useState(false);
   const [alertaOS, setAlertaOS] = useState<EquipamentoSolinftec | null>(null);
   const [numeroOS, setNumeroOS] = useState("");
@@ -148,6 +148,15 @@ function SolinftecPage() {
     return [...combinacoes.values()].sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
   }, [registros]);
 
+  useEffect(() => {
+    if (opcoesGrupoOperacao.length === 0) return;
+    setGrupoOperacaoSelecionado((selecionados) => {
+      if (selecionados.length === 0) return opcoesGrupoOperacao.map((opcao) => opcao.valor);
+      const valoresDisponiveis = new Set(opcoesGrupoOperacao.map((opcao) => opcao.valor));
+      return selecionados.filter((valor) => valoresDisponiveis.has(valor));
+    });
+  }, [opcoesGrupoOperacao]);
+
   const registrosVisiveis = useMemo(() => {
     const term = pesquisa.trim().toLocaleLowerCase("pt-BR");
     return registros.filter((item) => {
@@ -162,7 +171,7 @@ function SolinftecPage() {
         item.funcionario,
       ].some((value) => (value ?? "").toLocaleLowerCase("pt-BR").includes(term));
       const combinacao = JSON.stringify([item.grupo?.trim() || "", item.operacao?.trim() || ""]);
-      const matchesGrupoOperacao = grupoOperacaoSelecionado === "todos" || combinacao === grupoOperacaoSelecionado;
+      const matchesGrupoOperacao = grupoOperacaoSelecionado.includes(combinacao);
       const matchesAlert = !somenteAlertas ||
         (item.horas_sem_comunicacao != null && item.horas_sem_comunicacao >= 72);
       return matchesTerm && matchesGrupoOperacao && matchesAlert;
@@ -315,17 +324,31 @@ function SolinftecPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={pesquisa} onChange={(event) => setPesquisa(event.target.value)} placeholder="Buscar frota, código..." className="pl-9" />
               </div>
-              <select
-                aria-label="Filtrar por grupo/operação"
-                value={grupoOperacaoSelecionado}
-                onChange={(event) => setGrupoOperacaoSelecionado(event.target.value)}
-                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 py-2 text-sm sm:w-64"
-              >
-                <option value="todos">Todos os grupos/operações</option>
-                {opcoesGrupoOperacao.map((opcao) => (
-                  <option key={opcao.valor} value={opcao.valor}>{opcao.rotulo}</option>
-                ))}
-              </select>
+              <details className="relative min-w-0 sm:w-64">
+                <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <span className="truncate">{grupoOperacaoSelecionado.length === opcoesGrupoOperacao.length ? "Todos os grupos/operações" : `${grupoOperacaoSelecionado.length} grupo(s)/operação(ões) selecionado(s)`}</span>
+                  <span aria-hidden="true">▾</span>
+                </summary>
+                <div className="absolute right-0 z-30 mt-1 max-h-72 w-full min-w-64 overflow-y-auto rounded-md border bg-popover p-2 text-popover-foreground shadow-lg">
+                  <div className="mb-2 flex items-center justify-between gap-2 border-b pb-2">
+                    <span className="text-xs text-muted-foreground">Marque todos que deseja exibir</span>
+                    <button type="button" className="text-xs font-medium underline" onClick={() => setGrupoOperacaoSelecionado(opcoesGrupoOperacao.map((opcao) => opcao.valor))}>Marcar todos</button>
+                  </div>
+                  {opcoesGrupoOperacao.map((opcao) => (
+                    <label key={opcao.valor} className="flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted">
+                      <input
+                        type="checkbox"
+                        checked={grupoOperacaoSelecionado.includes(opcao.valor)}
+                        onChange={(event) => setGrupoOperacaoSelecionado((selecionados) => event.target.checked
+                          ? [...selecionados, opcao.valor]
+                          : selecionados.filter((valor) => valor !== opcao.valor))}
+                        className="size-4 accent-primary"
+                      />
+                      <span>{opcao.rotulo}</span>
+                    </label>
+                  ))}
+                </div>
+              </details>
               <Button
                 variant={somenteAlertas ? "default" : "outline"}
                 onClick={() => setSomenteAlertas((value) => !value)}
