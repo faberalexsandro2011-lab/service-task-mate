@@ -268,6 +268,8 @@ function Dashboard() {
   const [filterOS, setFilterOS] = useState("");
   const [filterFrota, setFilterFrota] = useState("");
   const [filterTecnico, setFilterTecnico] = useState("");
+  const [filterSetores, setFilterSetores] = useState<string[]>([]);
+  const [filterLocalizacoes, setFilterLocalizacoes] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [scope, setScope] = useState<"minhas" | "fila">("minhas");
@@ -327,6 +329,8 @@ function Dashboard() {
     const osTerm = filterOS.trim().toLocaleLowerCase("pt");
     const frotaTerm = filterFrota.trim().toLocaleLowerCase("pt");
     const tecnicoTerm = filterTecnico.trim().toLocaleLowerCase("pt");
+    const setoresSelecionados = new Set(filterSetores.map((setor) => setor.trim().toLocaleLowerCase("pt")));
+    const localizacoesSelecionadas = new Set(filterLocalizacoes.map((localizacao) => localizacao.trim().toLocaleLowerCase("pt")));
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
     const to = dateTo ? new Date(dateTo + "T23:59:59.999") : null;
 
@@ -335,10 +339,14 @@ function Dashboard() {
       const matchesFrota = !frotaTerm || (order.frota ?? "").toLocaleLowerCase("pt").includes(frotaTerm);
       const technician = [order.tecnico_nome, order.tecnico_email].filter(Boolean).join(" ").toLocaleLowerCase("pt");
       const matchesTecnico = !tecnicoTerm || technician.includes(tecnicoTerm);
+      const setorDaOS = String(order.setor ?? "").trim().toLocaleLowerCase("pt");
+      const matchesSetor = setoresSelecionados.size === 0 || setoresSelecionados.has(setorDaOS);
+      const localizacaoDaOS = String(order.localizacao ?? "").trim().toLocaleLowerCase("pt");
+      const matchesLocalizacao = localizacoesSelecionadas.size === 0 || localizacoesSelecionadas.has(localizacaoDaOS);
       const openedAt = new Date(order.created_at);
       const matchesFrom = !from || openedAt >= from;
       const matchesTo = !to || openedAt <= to;
-      return matchesOS && matchesFrota && matchesTecnico && matchesFrom && matchesTo;
+      return matchesOS && matchesFrota && matchesTecnico && matchesSetor && matchesLocalizacao && matchesFrom && matchesTo;
     });
 
     // Se houver qualquer valor em seq, a sequência manual prevalece sobre a prioridade por atraso.
@@ -363,7 +371,7 @@ function Dashboard() {
       if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
       return 0;
     });
-  }, [orders, filterOS, filterFrota, filterTecnico, dateFrom, dateTo, isManager]);
+  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isManager]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -717,9 +725,39 @@ function Dashboard() {
                       ]}
                     />
                   </div>
-                  {(filterOS || filterFrota || filterTecnico) && (
+                  {isManager && (
+                    <>
+                      <div className="grid gap-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por setor</label>
+                        <SectorMultiFilter
+                          value={filterSetores}
+                          onValueChange={setFilterSetores}
+                          placeholder="Todos os setores"
+                          searchPlaceholder="Buscar setor..."
+                          itemName="setor"
+                          options={[...new Set(orders.map((order) => String(order.setor ?? "").trim()).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, "pt-BR"))
+                            .map((setor) => ({ value: setor, label: setor }))}
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por localização</label>
+                        <SectorMultiFilter
+                          value={filterLocalizacoes}
+                          onValueChange={setFilterLocalizacoes}
+                          placeholder="Todas as localizações"
+                          searchPlaceholder="Buscar localização..."
+                          itemName="localização"
+                          options={[...new Set(orders.map((order) => String(order.localizacao ?? "").trim()).filter(Boolean))]
+                            .sort((a, b) => a.localeCompare(b, "pt-BR"))
+                            .map((localizacao) => ({ value: localizacao, label: localizacao }))}
+                        />
+                      </div>
+                    </>
+                  )}
+                  {(filterOS || filterFrota || filterTecnico || filterSetores.length > 0 || filterLocalizacoes.length > 0) && (
                     <div className="sm:col-span-3">
-                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); }}>Limpar filtros</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); setFilterLocalizacoes([]); }}>Limpar filtros</Button>
                     </div>
                   )}
                   {isManager && (
@@ -1119,6 +1157,20 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <p className="text-sm font-semibold text-primary">{order.frota || "—"}</p>
           </div>
 
+          {actor.isManager && (
+            <div className="min-w-[110px] max-w-[180px]">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Setor</span>
+              <p className="break-words text-sm font-semibold">{order.setor?.trim() || "Não informado"}</p>
+            </div>
+          )}
+
+          {actor.isManager && (
+            <div className="min-w-[130px] max-w-[220px]">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground">Localização</span>
+              <p className="break-words text-sm font-medium">{order.localizacao?.trim() || "Não informada"}</p>
+            </div>
+          )}
+
           <div className="min-w-[125px] flex-1">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground">Técnico</span>
             <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
@@ -1170,6 +1222,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frota</p><p className="mt-1 text-sm font-bold">{order.frota}</p></div>
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Técnico</p><p className="mt-1 truncate font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p></div>
             </div>
+            {actor.isManager && <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Setor</p><p className="mt-1 text-sm font-semibold">{order.setor?.trim() || "Não informado"}</p></div>}
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -1944,7 +1997,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
         />
 
         <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-          Colunas reconhecidas: <strong>Número da OS · seq · Frota · Localização · Descrição · Técnico · ENTRADA</strong>
+          Colunas reconhecidas: <strong>Número da OS · seq · Frota · Setor · Localização · Descrição · Técnico · ENTRADA</strong>
         </div>
 
         <DialogFooter>
@@ -2192,6 +2245,51 @@ function normalizeImportRow(record: Record<string, unknown>, technicians: Perfil
 
 type SearchableFilterOption = { value: string; label: string };
 
+function SectorMultiFilter({
+  value, onValueChange, placeholder, searchPlaceholder, itemName = "setor", options,
+}: {
+  value: string[];
+  onValueChange: (value: string[]) => void;
+  placeholder: string;
+  searchPlaceholder: string;
+  itemName?: string;
+  options: SearchableFilterOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabels = options.filter((option) => value.includes(option.value)).map((option) => option.label);
+  const plural = itemName === "localização" ? "localizações" : "setores";
+  const buttonLabel = value.length === 0 ? placeholder : value.length === 1 ? (selectedLabels[0] ?? value[0]) : value.length + " " + plural + " selecionados";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-11 w-full justify-between bg-background font-normal">
+          <span className="truncate">{buttonLabel}</span><Search className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+            <CommandItem value={"todas " + plural} onSelect={() => onValueChange([])} className="gap-2">
+              <input type="checkbox" checked={value.length === 0} readOnly tabIndex={-1} className="size-4 rounded border-input accent-primary" />
+              {placeholder}
+            </CommandItem>
+            {options.map((option) => {
+              const checked = value.includes(option.value);
+              return (
+                <CommandItem key={option.value} value={option.label} onSelect={() => onValueChange(checked ? value.filter((item) => item !== option.value) : [...value, option.value])} className="gap-2">
+                  <input type="checkbox" checked={checked} readOnly tabIndex={-1} className="size-4 rounded border-input accent-primary" />
+                  <span className="truncate">{option.label}</span>
+                </CommandItem>
+              );
+            })}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 function SearchableFilter({
   value,
   onValueChange,
