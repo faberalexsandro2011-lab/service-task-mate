@@ -32,6 +32,9 @@ import {
 
 type EquipamentoSolinftec = Tables<"solinftec_monitoramento">;
 
+// A criação de OS fica bloqueada por padrão até validar o backend de TESTE.
+const PODE_CRIAR_OS = import.meta.env.VITE_SOLINFTEC_ENABLE_OS_CREATION === "true";
+
 export const Route = createFileRoute("/_authenticated/solinftec")({
   head: () => ({
     meta: [
@@ -151,11 +154,19 @@ function SolinftecPage() {
   }, [registros, pesquisa, somenteAlertas]);
 
   function iniciarOS(item: EquipamentoSolinftec) {
+    if (!PODE_CRIAR_OS) {
+      toast.error("A abertura de OS será habilitada após validar a base de teste.");
+      return;
+    }
     setAlertaOS(item);
     setNumeroOS("");
   }
 
   async function criarOS() {
+    if (!PODE_CRIAR_OS) {
+      toast.error("A abertura de OS está bloqueada até validar a base de teste.");
+      return;
+    }
     if (!alertaOS) return;
     const numero = numeroOS.trim();
     if (!numero) {
@@ -347,8 +358,8 @@ function SolinftecPage() {
                         <td className="px-4 py-3">{item.funcionario || "—"}</td>
                         <td className="px-4 py-3">
                           {critical ? (
-                            <Button size="sm" onClick={() => iniciarOS(item)} className="whitespace-nowrap">
-                              <FilePlus2 className="mr-1.5 size-4" /> Abrir OS
+                            <Button size="sm" onClick={() => iniciarOS(item)} disabled={!PODE_CRIAR_OS} title={!PODE_CRIAR_OS ? "Abertura de OS será habilitada após validar a base de teste" : "Abrir OS pendente para este equipamento"} className="whitespace-nowrap">
+                              <FilePlus2 className="mr-1.5 size-4" /> {PODE_CRIAR_OS ? "Abrir OS" : "OS bloqueada no teste"}
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground">Sem ação</span>
@@ -399,7 +410,7 @@ function SolinftecPage() {
             <Button variant="outline" onClick={() => setAlertaOS(null)} disabled={salvandoOS}>
               <X className="mr-2 size-4" /> Cancelar
             </Button>
-            <Button onClick={() => void criarOS()} disabled={salvandoOS || !numeroOS.trim()}>
+            <Button onClick={() => void criarOS()} disabled={!PODE_CRIAR_OS || salvandoOS || !numeroOS.trim()}>
               {salvandoOS && <LoaderCircle className="mr-2 size-4 animate-spin" />}
               Criar OS pendente
             </Button>
