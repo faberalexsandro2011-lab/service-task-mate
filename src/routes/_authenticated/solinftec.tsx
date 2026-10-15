@@ -117,11 +117,6 @@ function SolinftecPage() {
     };
   }, [carregar]);
 
-  const alertas = useMemo(
-    () => registros.filter((item) => item.horas_sem_comunicacao != null && item.horas_sem_comunicacao >= 72),
-    [registros],
-  );
-
   const ultimaColeta = useMemo(() => {
     let latest = 0;
     for (const item of registros) {
@@ -177,6 +172,13 @@ function SolinftecPage() {
       return matchesTerm && matchesGrupoOperacao && matchesAlert;
     });
   }, [registros, pesquisa, grupoOperacaoSelecionado, somenteAlertas]);
+
+  const alertasFiltrados = useMemo(
+    () => registrosVisiveis.filter(
+      (item) => item.horas_sem_comunicacao != null && item.horas_sem_comunicacao >= 72,
+    ),
+    [registrosVisiveis],
+  );
 
   function iniciarOS(item: EquipamentoSolinftec) {
     if (!PODE_CRIAR_OS) {
@@ -309,7 +311,7 @@ function SolinftecPage() {
 
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Metric icon={<Activity className="size-5" />} label="Equipamentos recebidos" value={loading ? "—" : String(registros.length)} detail="Registros armazenados no backend" tone="green" />
-          <Metric icon={<AlertTriangle className="size-5" />} label="72 horas ou mais" value={loading ? "—" : String(alertas.length)} detail="Precisam de verificação operacional" tone="red" />
+          <Metric icon={<AlertTriangle className="size-5" />} label="Atrasados (72h ou mais)" value={loading ? "—" : String(alertasFiltrados.length)} detail="Dentro dos filtros selecionados" tone="red" />
           <Metric icon={<Clock3 className="size-5" />} label="Tempo da coleta" value={ultimaColeta ? formatarColeta(ultimaColeta) : "—"} detail="Horário informado pelo coletor" tone="neutral" />
         </section>
 
