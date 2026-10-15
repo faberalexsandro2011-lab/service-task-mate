@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      solinftec_monitoramento: {
+        Row: {
+          codigo: string
+          equipamento: string
+          regional: string | null
+          unidade: string | null
+          grupo: string | null
+          operacao: string | null
+          tipo: string | null
+          data_inicial: string | null
+          data_final: string | null
+          funcionario: string | null
+          tempo_sem_comunicacao: string
+          horas_sem_comunicacao: number | null
+          coletado_em: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          codigo: string
+          equipamento: string
+          regional?: string | null
+          unidade?: string | null
+          grupo?: string | null
+          operacao?: string | null
+          tipo?: string | null
+          data_inicial?: string | null
+          data_final?: string | null
+          funcionario?: string | null
+          tempo_sem_comunicacao?: string
+          horas_sem_comunicacao?: number | null
+          coletado_em?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          codigo?: string
+          equipamento?: string
+          regional?: string | null
+          unidade?: string | null
+          grupo?: string | null
+          operacao?: string | null
+          tipo?: string | null
+          data_inicial?: string | null
+          data_final?: string | null
+          funcionario?: string | null
+          tempo_sem_comunicacao?: string
+          horas_sem_comunicacao?: number | null
+          coletado_em?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       historico_edicoes: {
         Row: {
           acao: string
