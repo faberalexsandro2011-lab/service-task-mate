@@ -11,14 +11,15 @@ Esta funcionalidade está na branch `feature/solinftec-monitoring`. Ela não foi
 
 ## Segurança e configuração
 
-1. **Confirme primeiro o projeto Supabase de teste.** O `supabase/config.toml` conserva o ID existente no repositório. Não rode `supabase db push` nem publique a função até verificar no Dashboard que o projeto ligado é o ambiente de teste, não a produção.
+1. **Confirme primeiro o projeto Supabase de teste.** Atenção: o `supabase/config.toml` deste repositório está com o ID `bshykkaqimjpgayzzxch`, enquanto a conexão Supabase exibida no status do GitHub aponta para `ehrnygruasnjgkeybrkf`. Essa divergência precisa ser resolvida e conferida no Dashboard. Não rode `supabase db push` nem publique a função até confirmar que o projeto selecionado é o ambiente de teste — nunca publique a migration na produção por engano.
 2. Gere um segredo forte localmente, por exemplo com `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Configure o mesmo valor como Edge Function secret `SOLINFTEC_INGEST_TOKEN` no Supabase de teste e como variável de ambiente de usuário do Windows. Não grave o valor neste repositório, não o coloque no código e não o compartilhe no chat.
 3. Depois de confirmar o projeto de teste, aplique a migration e publique `solinftec-ingest`. A configuração define `verify_jwt = false`, pois o coletor Python usa um token de ingestão próprio; a função verifica esse token antes de permitir qualquer gravação.
-4. O coletor também precisa das variáveis de ambiente do Windows:
+4. A abertura de OS fica bloqueada por padrão. Só depois de validar que o preview usa o backend de teste, configure `VITE_SOLINFTEC_ENABLE_OS_CREATION=true` no ambiente Preview da Vercel e gere uma nova prévia. Não defina essa variável em Production nesta fase.
+5. O coletor também precisa das variáveis de ambiente do Windows:
    - `SOLINFTEC_SUPABASE_URL`: URL base do projeto Supabase de teste, por exemplo `https://SEU-PROJETO.supabase.co`.
    - `SOLINFTEC_SUPABASE_PUBLISHABLE_KEY`: chave publicável do mesmo projeto de teste.
    - `SOLINFTEC_INGEST_TOKEN`: o mesmo segredo forte configurado na função.
-5. Use o arquivo atualizado `solinftec_monitoramento_central_os.py` junto com a função já publicada. Sem essas três variáveis, o coletor continua salvando os CSVs locais, mas não envia dados ao app.
+6. Use o arquivo atualizado `solinftec_monitoramento_central_os.py` junto com a função já publicada. Sem essas três variáveis, o coletor continua salvando os CSVs locais, mas não envia dados ao app.
 
 ## Como validar antes da produção
 
