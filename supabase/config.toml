@@ -1,1 +1,6 @@
 project_id = "bshykkaqimjpgayzzxch"
+
+# A função usa seu próprio token de ingestão SOLINFTEC_INGEST_TOKEN.
+# Não usa um JWT de usuário na Authorization, por isso valida o token no código.
+[functions.solinftec-ingest]
+verify_jwt = false
