@@ -525,6 +525,9 @@ function Dashboard() {
               <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <BarChart3 className="size-4" /> Análise técnica
               </button>
+              <button type="button" onClick={() => void navigate({ to: "/solinftec" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <WifiOff className="size-4" /> Monitoramento Solinftec
+              </button>
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <History className="size-4" /> Histórico
               </button>
@@ -542,6 +545,9 @@ function Dashboard() {
               <>
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                   <BarChart3 />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/solinftec" })} title="Monitoramento Solinftec">
+                  <WifiOff />
                 </Button>
               </>
             )}
