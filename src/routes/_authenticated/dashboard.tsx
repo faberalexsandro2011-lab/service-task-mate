@@ -676,7 +676,64 @@ function Dashboard() {
                     {filtered.length} {filtered.length === 1 ? "ordem encontrada" : "ordens encontradas"} · clique numa aba para filtrar rapidamente.
                   </p>
                 </div>
-                <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:max-w-3xl">
+                
+              </div>
+              <section className="mt-5 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold">Monitoramento operacional</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">Indicadores atualizados conforme as ordens registadas.</p>
+                  </div>
+                  {isManager && (
+                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void navigate({ to: "/analises" })}>
+                      <BarChart3 className="size-4" /> Análise técnica
+                    </Button>
+                  )}
+                </div>
+                {isManager ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/70 p-2 dark:border-rose-900/60 dark:bg-rose-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.priorityOpen}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS prioritárias abertas há 3 dias ou mais</div></div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/70 p-2 dark:border-violet-900/60 dark:bg-violet-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><Clock3 className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.staleInProgress}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">Atendimentos em andamento há mais de 24 h</div></div>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 dark:border-amber-900/60 dark:bg-amber-950/20">
+                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><UserX className="size-4" /></div>
+                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.unassigned}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS pendentes sem técnico atribuído</div></div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Acompanhe as suas OS e atualizações diretamente nesta tela.</p>
+                )}
+              </section>
+              <div className="mt-6 grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
+                {tabs.map((t) => {
+                  const selected = activeTab === t.value;
+                  const tone = statusChipStyles[t.value] ?? statusChipStyles["todas"]!;
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setActiveTab(t.value)}
+                      className={[
+                        "group flex min-h-10 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
+                        selected ? tone.active : tone.inactive,
+                      ].join(" ")}
+                    >
+                      <span className="min-w-0 truncate">{t.label}</span>
+                      <span className={"inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>
+                        {t.list.length}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mt-4 grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <div className="grid gap-1">
                     <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
                     <SearchableFilter
@@ -756,12 +813,12 @@ function Dashboard() {
                     </>
                   )}
                   {(filterOS || filterFrota || filterTecnico || filterSetores.length > 0 || filterLocalizacoes.length > 0) && (
-                    <div className="sm:col-span-3">
+                    <div className="sm:col-span-2 xl:col-span-5">
                       <Button variant="outline" size="sm" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); setFilterLocalizacoes([]); }}>Limpar filtros</Button>
                     </div>
                   )}
                   {isManager && (
-                    <div className="sm:col-span-3 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
+                    <div className="sm:col-span-2 xl:col-span-5 flex flex-wrap items-end gap-2 rounded-lg border bg-muted/30 p-2">
                       <div className="grid min-w-[145px] flex-1 gap-1">
                         <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
                         <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10 bg-background" />
@@ -778,62 +835,6 @@ function Dashboard() {
                     </div>
                   )}
                 </div>
-              </div>
-              <section className="mt-5 rounded-xl border bg-card p-3 shadow-sm sm:p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold">Monitoramento operacional</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Indicadores atualizados conforme as ordens registadas.</p>
-                  </div>
-                  {isManager && (
-                    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void navigate({ to: "/analises" })}>
-                      <BarChart3 className="size-4" /> Análise técnica
-                    </Button>
-                  )}
-                </div>
-                {isManager ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/70 p-2 dark:border-rose-900/60 dark:bg-rose-950/20">
-                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-4" /></div>
-                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.priorityOpen}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS prioritárias abertas há 3 dias ou mais</div></div>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-violet-200 bg-violet-50/70 p-2 dark:border-violet-900/60 dark:bg-violet-950/20">
-                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><Clock3 className="size-4" /></div>
-                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.staleInProgress}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">Atendimentos em andamento há mais de 24 h</div></div>
-                    </div>
-                    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 p-2 dark:border-amber-900/60 dark:bg-amber-950/20">
-                      <div className="grid size-8 shrink-0 place-items-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"><UserX className="size-4" /></div>
-                      <div className="min-w-0"><div className="text-xl font-bold tabular-nums">{operationalAlerts.unassigned}</div><div className="text-[11px] font-medium leading-4 text-muted-foreground">OS pendentes sem técnico atribuído</div></div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Acompanhe as suas OS e atualizações diretamente nesta tela.</p>
-                )}
-              </section>
-              <div className="mt-6 grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2">
-                {tabs.map((t) => {
-                  const selected = activeTab === t.value;
-                  const tone = statusChipStyles[t.value] ?? statusChipStyles["todas"]!;
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => setActiveTab(t.value)}
-                      className={[
-                        "group flex min-h-10 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2",
-                        selected ? tone.active : tone.inactive,
-                      ].join(" ")}
-                    >
-                      <span className="min-w-0 truncate">{t.label}</span>
-                      <span className={"inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>
-                        {t.list.length}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="sr-only">
                 {tabs.map((t) => <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>)}
