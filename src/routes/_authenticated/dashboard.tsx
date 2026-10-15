@@ -732,7 +732,6 @@ function Dashboard() {
             </div>
                 <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   <div className="grid gap-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por OS</label>
                     <SearchableFilter
                       value={filterOS || "__todas__"}
                       onValueChange={(value) => setFilterOS(value === "__todas__" ? "" : value)}
@@ -747,7 +746,6 @@ function Dashboard() {
                     />
                   </div>
                   <div className="grid gap-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por frota</label>
                     <SearchableFilter
                       value={filterFrota || "__todas__"}
                       onValueChange={(value) => setFilterFrota(value === "__todas__" ? "" : value)}
@@ -762,7 +760,6 @@ function Dashboard() {
                     />
                   </div>
                   <div className="grid gap-1">
-                    <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por técnico</label>
                     <SearchableFilter
                       value={filterTecnico || "__todos__"}
                       onValueChange={(value) => setFilterTecnico(value === "__todos__" ? "" : value)}
@@ -782,7 +779,6 @@ function Dashboard() {
                   {isManager && (
                     <>
                       <div className="grid gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por setor</label>
                         <SectorMultiFilter
                           value={filterSetores}
                           onValueChange={setFilterSetores}
@@ -795,7 +791,6 @@ function Dashboard() {
                         />
                       </div>
                       <div className="grid gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">Filtrar por localização</label>
                         <SectorMultiFilter
                           value={filterLocalizacoes}
                           onValueChange={setFilterLocalizacoes}
@@ -817,12 +812,10 @@ function Dashboard() {
                   {isManager && (
                     <div className="grid min-w-0 grid-cols-1 content-start gap-2 xl:col-start-6 xl:row-start-1">
                       <div className="grid min-w-0 gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">Data inicial</label>
-                        <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
+                        <Input type="date" aria-label="Data inicial" title="Data inicial" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
                       </div>
                       <div className="grid min-w-0 gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">Data final</label>
-                        <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
+                        <Input type="date" aria-label="Data final" title="Data final" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
                       </div>
                       {(dateFrom || dateTo) && (
                         <Button variant="outline" size="sm" className="h-9 w-full gap-1 px-2 text-xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
