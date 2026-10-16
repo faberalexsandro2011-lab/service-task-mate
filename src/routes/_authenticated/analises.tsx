@@ -29,6 +29,9 @@ import {
   Legend,
   Line,
   LineChart,
+  PieChart,
+  Pie,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -509,6 +512,27 @@ function TechnicalAnalysis() {
           >
             {technicianRows.length ? (
               <div className="space-y-3">
+                {technicianRows.some((row) => row.completed > 0) && (
+                  <div className="flex items-center gap-3 rounded-xl border bg-muted/20 p-2.5">
+                    <div className="h-[104px] w-[104px] shrink-0" aria-label="Gráfico de pizza da participação dos técnicos nas OS concluídas">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={technicianRows.filter((row) => row.completed > 0)} dataKey="completed" nameKey="name" cx="50%" cy="50%" innerRadius={25} outerRadius={43} paddingAngle={2} stroke="none">
+                            {technicianRows.filter((row) => row.completed > 0).map((row, index) => (
+                              <Cell key={row.name} fill={[\"#2563eb\", \"#0f766e\", \"#d97706\", \"#7c3aed\", \"#0891b2\", \"#db2777\", \"#65a30d\", \"#64748b\"][index % 8]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => [value, \"OS concluídas\"]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold">Participação nas OS concluídas</p>
+                      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">Cada fatia representa a quantidade concluída por técnico.</p>
+                      <div className="mt-1 text-xs font-bold">{formatNumber(technicianRows.reduce((sum, row) => sum + row.completed, 0))} OS concluídas</div>
+                    </div>
+                  </div>
+                )}
                 {technicianRows.slice(0, 8).map((row, index) => (
                   <div key={row.name} className="flex items-center gap-3">
                     <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-xs font-bold">{index + 1}</div>
