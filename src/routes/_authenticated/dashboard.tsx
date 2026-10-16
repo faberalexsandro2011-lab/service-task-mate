@@ -909,15 +909,32 @@ function Dashboard() {
                         return (
                           <div key={field} className="min-w-0">
                             {sortable ? (
-                              <button
-                                type="button"
-                                onClick={() => setSortOrdersBy(active ? (direction === "az" ? field + "-za" : "padrao") : field + "-az")}
-                                className={"inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:text-primary " + (active ? "text-primary" : "text-muted-foreground")}
-                                aria-label={"Ordenar por " + labels[field] + (direction === "az" ? ", A a Z" : direction === "za" ? ", Z a A" : "")}
-                                title={active ? (direction === "az" ? "Ordem A–Z; clique para Z–A" : "Ordem Z–A; clique para voltar à ordem padrão") : "Clique para ordenar A–Z"}
-                              >
-                                {labels[field]} <span aria-hidden="true">{direction === "az" ? "↑" : direction === "za" ? "↓" : "↕"}</span>
-                              </button>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={"h-7 -ml-2 gap-1 px-2 text-[10px] font-semibold uppercase tracking-wide " + (active ? "text-primary" : "text-muted-foreground")}
+                                    aria-label={"Opções de classificação: " + labels[field]}
+                                  >
+                                    {labels[field]}
+                                    <span aria-hidden="true" className="text-xs">{direction === "az" ? "↑" : direction === "za" ? "↓" : "▾"}</span>
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-52 p-1">
+                                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Classificar por {labels[field]}</div>
+                                  <button type="button" onClick={() => setSortOrdersBy(field + "-az")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                    <span className="mr-2 w-5 text-center">↑</span> Classificar de A a Z
+                                  </button>
+                                  <button type="button" onClick={() => setSortOrdersBy(field + "-za")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                    <span className="mr-2 w-5 text-center">↓</span> Classificar de Z a A
+                                  </button>
+                                  <button type="button" onClick={() => setSortOrdersBy("padrao")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                    <span className="mr-2 w-5 text-center">↺</span> Limpar classificação
+                                  </button>
+                                </PopoverContent>
+                              </Popover>
                             ) : <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{labels[field]}</span>}
                           </div>
                         );
