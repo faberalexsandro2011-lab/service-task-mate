@@ -744,23 +744,6 @@ function Dashboard() {
                 })}
               </div>
             </div>
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Ordenar OS por:</span>
-                  <Select value={sortOrdersBy} onValueChange={setSortOrdersBy}>
-                    <SelectTrigger className="h-9 w-full max-w-[230px] bg-background text-xs">
-                      <SelectValue placeholder="Ordem padrão" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="padrao">Ordem padrão / prioridade</SelectItem>
-                      <SelectItem value="frota-az">Frota · A a Z</SelectItem>
-                      <SelectItem value="frota-za">Frota · Z a A</SelectItem>
-                      <SelectItem value="setor-az">Setor · A a Z</SelectItem>
-                      <SelectItem value="setor-za">Setor · Z a A</SelectItem>
-                      <SelectItem value="tecnico-az">Técnico · A a Z</SelectItem>
-                      <SelectItem value="tecnico-za">Técnico · Z a A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   <div className="grid gap-1">
                     <SearchableFilter
@@ -914,6 +897,35 @@ function Dashboard() {
                       )}
                     </div>
                   </div>
+                  {isManager && t.list.length > 0 && (
+                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
+                      <span aria-hidden="true" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
+                      {(["frota", "setor", "localizacao", "tecnico"] as const).map((field) => {
+                        const labels = { frota: "Frota", setor: "Setor", localizacao: "Localização", tecnico: "Técnico" };
+                        const sortable = field !== "localizacao";
+                        const active = sortOrdersBy.startsWith(field + "-");
+                        const direction = active ? sortOrdersBy.endsWith("-za") ? "za" : "az" : null;
+                        return (
+                          <div key={field} className="min-w-0">
+                            {sortable ? (
+                              <button
+                                type="button"
+                                onClick={() => setSortOrdersBy(active ? (direction === "az" ? field + "-za" : "padrao") : field + "-az")}
+                                className={"inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide transition-colors hover:text-primary " + (active ? "text-primary" : "text-muted-foreground")}
+                                aria-label={"Ordenar por " + labels[field] + (direction === "az" ? ", A a Z" : direction === "za" ? ", Z a A" : "")}
+                                title={active ? (direction === "az" ? "Ordem A–Z; clique para Z–A" : "Ordem Z–A; clique para voltar à ordem padrão") : "Clique para ordenar A–Z"}
+                              >
+                                {labels[field]} <span aria-hidden="true">{direction === "az" ? "↑" : direction === "za" ? "↓" : "↕"}</span>
+                              </button>
+                            ) : <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{labels[field]}</span>}
+                          </div>
+                        );
+                      })}
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Status</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Datas</span>
+                    </div>
+                  )}
                   <OrderList orders={t.list} empty="Não existem ordens nesta vista." actor={actor} onChanged={refresh} selectedIds={selectedOrderIds} onToggleSelect={(id) => setSelectedOrderIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} canSelect={isManager} />
                 </TabsContent>
               ))}
