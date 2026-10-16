@@ -268,6 +268,7 @@ function Dashboard() {
   const [filterOS, setFilterOS] = useState("");
   const [filterFrota, setFilterFrota] = useState("");
   const [filterTecnico, setFilterTecnico] = useState("");
+  const [sortOrdersBy, setSortOrdersBy] = useState("padrao");
   const [filterSetores, setFilterSetores] = useState<string[]>([]);
   const [filterLocalizacoes, setFilterLocalizacoes] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState("");
@@ -349,6 +350,19 @@ function Dashboard() {
       return matchesOS && matchesFrota && matchesTecnico && matchesSetor && matchesLocalizacao && matchesFrom && matchesTo;
     });
 
+    // Ordenação opcional por Frota, Setor ou Técnico. O modo padrão preserva a prioridade atual.
+    if (sortOrdersBy !== "padrao") {
+      const [field, direction] = sortOrdersBy.split("-");
+      const valueFor = (order: Ordem) => {
+        if (field === "frota") return String(order.frota ?? "");
+        if (field === "setor") return String(order.setor ?? "");
+        if (field === "tecnico") return String(order.tecnico_nome || order.tecnico_email || "Fila geral");
+        return "";
+      };
+      const multiplier = direction === "za" ? -1 : 1;
+      return matches.sort((a, b) => valueFor(a).localeCompare(valueFor(b), "pt-BR", { numeric: true, sensitivity: "base" }) * multiplier);
+    }
+
     // Se houver qualquer valor em seq, a sequência manual prevalece sobre a prioridade por atraso.
     if (matches.some((order) => order.sequencia != null)) {
       return matches.sort((a, b) => {
@@ -371,7 +385,7 @@ function Dashboard() {
       if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
       return 0;
     });
-  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isManager]);
+  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isManager, sortOrdersBy]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -730,6 +744,23 @@ function Dashboard() {
                 })}
               </div>
             </div>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Ordenar OS por:</span>
+                  <Select value={sortOrdersBy} onValueChange={setSortOrdersBy}>
+                    <SelectTrigger className="h-9 w-full max-w-[230px] bg-background text-xs">
+                      <SelectValue placeholder="Ordem padrão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="padrao">Ordem padrão / prioridade</SelectItem>
+                      <SelectItem value="frota-az">Frota · A a Z</SelectItem>
+                      <SelectItem value="frota-za">Frota · Z a A</SelectItem>
+                      <SelectItem value="setor-az">Setor · A a Z</SelectItem>
+                      <SelectItem value="setor-za">Setor · Z a A</SelectItem>
+                      <SelectItem value="tecnico-az">Técnico · A a Z</SelectItem>
+                      <SelectItem value="tecnico-za">Técnico · Z a A</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
                   <div className="grid gap-1">
                     <SearchableFilter
