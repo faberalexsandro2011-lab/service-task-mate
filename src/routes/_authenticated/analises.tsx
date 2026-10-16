@@ -186,6 +186,7 @@ function TechnicalAnalysis() {
 
   const metrics = useMemo(() => buildMetrics(scopedOrders), [scopedOrders]);
   const monthly = useMemo(() => buildMonthly(allOrders), [allOrders]);
+  const daily = useMemo(() => buildDaily(allOrders), [allOrders]);
   const serviceRows = useMemo(() => buildServiceRows(scopedOrders), [scopedOrders]);
   const technicianClassRows = useMemo(() => buildTechnicianClassRows(scopedOrders), [scopedOrders]);
   const partRows = useMemo(() => buildPartRows(scopedOrders), [scopedOrders]);
@@ -320,6 +321,29 @@ function TechnicalAnalysis() {
           <Kpi icon={<Package />} label="Peças lançadas" value={formatNumber(metrics.partsLines)} detail={metrics.uniqueParts + " tipos diferentes"} />
           <Kpi icon={<TrendingUpIcon />} label="OS em recorrência" value={formatNumber(metrics.recurrentOrders)} detail={metrics.recurrenceRate + "% do período"} />
           <Kpi icon={<Clock3 />} label="Tempo médio" value={formatDuration(metrics.averageHours)} detail="Início → fechamento" />
+        </section>
+
+        <section className="grid gap-5">
+          <Panel
+            title="OS diárias"
+            subtitle="Quantidade de ordens abertas por dia nos últimos 30 dias, com a situação atual de cada OS."
+            icon={<ClipboardList className="size-4" />}
+          >
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={daily} margin={{ top: 10, right: 12, left: -18, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.35} />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="total" name="Total de OS" stroke="#2563eb" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="concluidas" name="Concluídas" stroke="#16a34a" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="pendentes" name="Pendentes" stroke="#d97706" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Panel>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
@@ -899,6 +923,35 @@ function buildMetrics(orders: Ordem[]) {
       { label: "Cancelada", total: canceled },
     ],
   };
+}
+
+function buildDaily(orders: Ordem[]) {
+  const days: Array<{ key: string; day: string; total: number; concluidas: number; pendentes: number }> = [];
+  const now = new Date();
+
+  for (let offset = 29; offset >= 0; offset--) {
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset);
+    const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    days.push({
+      key,
+      day: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      total: 0,
+      concluidas: 0,
+      pendentes: 0,
+    });
+  }
+
+  for (const order of orders) {
+    const date = new Date(order.created_at);
+    const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    const row = days.find((item) => item.key === key);
+    if (!row) continue;
+    row.total++;
+    if (order.status === "concluida") row.concluidas++;
+    if (order.status === "pendente") row.pendentes++;
+  }
+
+  return days;
 }
 
 function buildMonthly(orders: Ordem[]) {
