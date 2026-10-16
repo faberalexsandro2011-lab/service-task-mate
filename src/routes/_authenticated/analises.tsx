@@ -90,6 +90,7 @@ function TechnicalAnalysis() {
   const [search, setSearch] = useState("");
   const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [selectedSectorCard, setSelectedSectorCard] = useState<"total" | "completed" | "open" | "fleets">("total");
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
     numero_os: string; frota: string; setor: string; localizacao: string; descricao: string;
@@ -202,6 +203,11 @@ function TechnicalAnalysis() {
       : [],
     [sectorScopedOrders, selectedSector],
   );
+  const selectedSectorDisplayOrders = useMemo(() => {
+    if (selectedSectorCard === "completed") return selectedSectorOrders.filter((order) => order.status === "concluida");
+    if (selectedSectorCard === "open") return selectedSectorOrders.filter((order) => order.status === "pendente" || order.status === "em_andamento");
+    return selectedSectorOrders;
+  }, [selectedSectorOrders, selectedSectorCard]);
   const selectedSectorServices = useMemo(() => buildNamedCounts(selectedSectorOrders.map(serviceCategory)), [selectedSectorOrders]);
   const selectedSectorClasses = useMemo(() => buildNamedCounts(selectedSectorOrders.flatMap((order) => splitMaintenanceClasses(order.classe_manutencao).length ? splitMaintenanceClasses(order.classe_manutencao) : ["Sem classe informada"])), [selectedSectorOrders]);
   const selectedSectorParts = useMemo(() => buildNamedCounts(selectedSectorOrders.flatMap((order) => extractParts(order.pecas_utilizadas))), [selectedSectorOrders]);
@@ -577,10 +583,23 @@ function TechnicalAnalysis() {
                   <div className="min-w-0 space-y-4">
                     <div><h3 className="text-lg font-bold">{selectedSector}</h3><p className="text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado</p></div>
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                      <Kpi icon={<ClipboardList />} label="Total de OS" value={formatNumber(selectedSectorOrders.length)} detail="Setor selecionado" />
-                      <Kpi icon={<CheckCircle2 />} label="Concluídas" value={formatNumber(selectedSectorOrders.filter((o) => o.status === "concluida").length)} detail="Serviços finalizados" />
-                      <Kpi icon={<Clock3 />} label="Em aberto" value={formatNumber(selectedSectorOrders.filter((o) => o.status === "pendente" || o.status === "em_andamento").length)} detail="Pendentes + andamento" />
-                      <Kpi icon={<Tractor />} label="Frotas" value={formatNumber(new Set(selectedSectorOrders.map((o) => o.frota).filter(Boolean)).size)} detail="Frotas atendidas" />
+                      {([
+                        { key: "total" as const, icon: <ClipboardList />, label: "Total de OS", value: selectedSectorOrders.length, detail: "Todas as ordens" },
+                        { key: "completed" as const, icon: <CheckCircle2 />, label: "Concluídas", value: selectedSectorOrders.filter((o) => o.status === "concluida").length, detail: "Serviços finalizados" },
+                        { key: "open" as const, icon: <Clock3 />, label: "Em aberto", value: selectedSectorOrders.filter((o) => o.status === "pendente" || o.status === "em_andamento").length, detail: "Pendentes + andamento" },
+                        { key: "fleets" as const, icon: <Tractor />, label: "Frotas", value: new Set(selectedSectorOrders.map((o) => o.frota).filter(Boolean)).size, detail: "Frotas atendidas" },
+                      ]).map((item) => (
+                        <button key={item.key} type="button" onClick={() => setSelectedSectorCard(item.key)}
+                          aria-pressed={selectedSectorCard === item.key}
+                          className={"rounded-2xl border p-4 text-left shadow-sm transition hover:border-primary/60 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " + (selectedSectorCard === item.key ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "bg-card")}>
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            <span className="grid size-8 place-items-center rounded-lg bg-muted text-primary">{item.icon}</span>{item.label}
+                          </div>
+                          <div className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{formatNumber(item.value)}</div>
+                          <div className="mt-1 text-xs text-muted-foreground">{item.detail}</div>
+                          <div className="mt-2 text-[10px] font-semibold text-primary">Clique para ver detalhes</div>
+                        </button>
+                      ))}
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <CountList title="Serviços mais atendidos" rows={selectedSectorServices} empty="Sem descrições de serviço." />
@@ -596,14 +615,14 @@ function TechnicalAnalysis() {
                         <table className="w-full min-w-[1050px] text-left text-xs">
                           <thead><tr className="border-b text-[10px] uppercase tracking-wide text-muted-foreground"><th className="px-3 py-2">OS</th><th className="px-3 py-2">Entrada</th><th className="px-3 py-2">Frota</th><th className="px-3 py-2">Localização</th><th className="px-3 py-2">Técnico</th><th className="px-3 py-2">Serviço / problema</th><th className="px-3 py-2">Classe</th><th className="px-3 py-2">Peças usadas</th><th className="px-3 py-2">Situação</th><th className="px-3 py-2">Início</th><th className="px-3 py-2">Conclusão</th></tr></thead>
                           <tbody className="divide-y">
-                            {selectedSectorOrders.map((order) => (
+                            {selectedSectorDisplayOrders.map((order) => (
                               <tr key={order.id} className="align-top hover:bg-muted/20">
                                 <td className="px-3 py-3 font-bold">{order.numero_os}</td><td className="px-3 py-3 whitespace-nowrap">{order.entrada || formatDateOnly(order.created_at)}</td><td className="px-3 py-3 font-semibold">{order.frota}</td><td className="px-3 py-3">{order.localizacao || "—"}</td><td className="px-3 py-3">{order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td><td className="px-3 py-3 max-w-[260px] whitespace-normal">{order.descricao || order.notas_fecho || "Sem descrição"}</td><td className="px-3 py-3">{order.classe_manutencao || "—"}</td><td className="px-3 py-3 whitespace-normal">{extractParts(order.pecas_utilizadas).join(", ") || "—"}</td><td className="px-3 py-3"><StatusBadge status={order.status} /></td><td className="px-3 py-3 whitespace-nowrap">{formatDate(order.data_inicio)}</td><td className="px-3 py-3 whitespace-nowrap">{formatDate(order.concluida_em)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                      ) : <EmptyState text="Nenhuma OS encontrada para este setor no período." />}
+                      ) : <EmptyState text={selectedSectorCard === "completed" ? "Não há OS concluídas neste setor no período." : selectedSectorCard === "open" ? "Não há OS pendentes ou em andamento neste setor." : "Nenhuma OS encontrada para este setor no período."} />}
                     </div>
                   </div>
                 )}
