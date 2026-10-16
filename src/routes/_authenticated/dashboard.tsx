@@ -899,7 +899,6 @@ function Dashboard() {
                   </div>
                   {isManager && t.list.length > 0 && (
                     <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
-                      <span className="text-xs text-muted-foreground">Classificar:</span>
                       {(["frota", "setor", "tecnico"] as const).map((field) => {
                         const labels = { frota: "Frota", setor: "Setor", tecnico: "Técnico" };
                         const active = sortOrdersBy.startsWith(field + "-");
