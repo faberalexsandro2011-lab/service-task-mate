@@ -519,10 +519,10 @@ function TechnicalAnalysis() {
                         <PieChart>
                           <Pie data={technicianRows.filter((row) => row.completed > 0)} dataKey="completed" nameKey="name" cx="50%" cy="50%" innerRadius={25} outerRadius={43} paddingAngle={2} stroke="none">
                             {technicianRows.filter((row) => row.completed > 0).map((row, index) => (
-                              <Cell key={row.name} fill={[\"#2563eb\", \"#0f766e\", \"#d97706\", \"#7c3aed\", \"#0891b2\", \"#db2777\", \"#65a30d\", \"#64748b\"][index % 8]} />
+                              <Cell key={row.name} fill={["#2563eb", "#0f766e", "#d97706", "#7c3aed", "#0891b2", "#db2777", "#65a30d", "#64748b"][index % 8]} />
                             ))}
                           </Pie>
-                          <Tooltip formatter={(value) => [value, \"OS concluídas\"]} />
+                          <Tooltip formatter={(value) => [value, "OS concluídas"]} />
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
