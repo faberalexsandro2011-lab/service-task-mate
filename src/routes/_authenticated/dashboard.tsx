@@ -898,6 +898,37 @@ function Dashboard() {
                     </div>
                   </div>
                   {isManager && t.list.length > 0 && (
+                    <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
+                      <span className="text-xs text-muted-foreground">Classificar:</span>
+                      {(["frota", "setor", "tecnico"] as const).map((field) => {
+                        const labels = { frota: "Frota", setor: "Setor", tecnico: "Técnico" };
+                        const active = sortOrdersBy.startsWith(field + "-");
+                        const direction = active ? (sortOrdersBy.endsWith("-za") ? "za" : "az") : null;
+                        return (
+                          <Popover key={field}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant={active ? "secondary" : "outline"} size="sm" className="h-8 gap-1 px-2.5 text-xs">
+                                {labels[field]} <span aria-hidden="true">{direction === "az" ? "↑" : direction === "za" ? "↓" : "▾"}</span>
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-52 p-1">
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Classificar por {labels[field]}</div>
+                              <button type="button" onClick={() => setSortOrdersBy(field + "-az")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                <span className="mr-2 w-5 text-center">↑</span> Classificar de A a Z
+                              </button>
+                              <button type="button" onClick={() => setSortOrdersBy(field + "-za")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                <span className="mr-2 w-5 text-center">↓</span> Classificar de Z a A
+                              </button>
+                              <button type="button" onClick={() => setSortOrdersBy("padrao")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+                                <span className="mr-2 w-5 text-center">↺</span> Limpar classificação
+                              </button>
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {isManager && t.list.length > 0 && (
                     <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
