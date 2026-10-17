@@ -1329,7 +1329,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             {(canStart || canClose || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
               {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
               {canClose && <Button variant="outline" disabled={busy} onClick={() => void closeOrder()}><CheckCircle2 /> Fechar OS</Button>}
-              {canFinish && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> Finalizar serviço</Button>}
+              {canFinish && (String(order.numero_os ?? "").trim() || !order.concluida_em) && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> {String(order.numero_os ?? "").trim() ? (order.concluida_em ? "Concluir serviço" : "Finalizar serviço") : "Registrar horário de finalização"}</Button>}
+              {canFinish && !String(order.numero_os ?? "").trim() && Boolean(order.concluida_em) && <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">Horário registrado · aguardando número da OS do ADM</span>}
               {canCancel && <Button variant="outline" disabled={busy} onClick={() => void cancel()}><Ban /> Cancelar OS</Button>}
               {canDelete && <Button variant="destructive" disabled={busy} onClick={() => void deleteOrder()}><Trash2 /> Excluir OS</Button>}
             </div>}
@@ -1353,20 +1354,33 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
       return;
     }
     setSaving(true);
+    const hasOsNumber = Boolean(String(order.numero_os ?? "").trim());
+    const alreadyRecordedFinishTime = Boolean(order.concluida_em);
+    const finishedAt = order.concluida_em ?? new Date().toISOString();
+    // Sem número de OS, registra o horário e aguarda o ADM antes de concluir.
+    const updateValues = !hasOsNumber
+      ? { notas_fecho: solucao, concluida_em: finishedAt }
+      : { status: "concluida", notas_fecho: solucao, concluida_em: finishedAt };
     const { data, error } = await supabase
       .from("ordens_servico")
-      .update({ status: "concluida", notas_fecho: solucao, concluida_em: new Date().toISOString() })
+      .update(updateValues)
       .eq("id", order.id)
       .eq("status", "em_andamento")
       .select("id");
     if (error || !data?.length) {
       setSaving(false);
-      toast.error(error ? friendlyError(error, "Não foi possível finalizar a OS.") : "Esta OS já não está em andamento.");
+      toast.error(error ? friendlyError(error, "Não foi possível registrar a finalização.") : "Esta OS já não está em andamento.");
       return;
     }
-    await logHistory(order.id, actor, "finalizada", `Finalizada por ${actor.email}: ${solucao}`);
+    const historyAction = !hasOsNumber ? "horario_finalizacao_registrado" : "finalizada";
+    const historyDetail = !hasOsNumber
+      ? `Horário de finalização registrado por ${actor.email}: ${finishedAt}. Aguardando o ADM informar o número da OS. ${solucao}`
+      : `${alreadyRecordedFinishTime ? "Serviço concluído após receber o número da OS" : "Finalizada"} por ${actor.email}: ${solucao}`;
+    await logHistory(order.id, actor, historyAction, historyDetail);
     setSaving(false);
-    toast.success(`OS ${order.numero_os} finalizada.`);
+    toast.success(!hasOsNumber
+      ? "Horário registrado. A OS aguardará o número informado pelo ADM."
+      : `Serviço da OS ${order.numero_os} concluído.`);
     onOpenChange(false);
     await onDone();
   }
@@ -1375,8 +1389,8 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Finalizar OS {order.numero_os}</DialogTitle>
-          <DialogDescription>Registe o que foi feito para concluir o serviço.</DialogDescription>
+          <DialogTitle>{String(order.numero_os ?? "").trim() ? (order.concluida_em ? `Concluir serviço da OS ${order.numero_os}` : `Finalizar OS ${order.numero_os}`) : "Registrar finalização do serviço"}</DialogTitle>
+          <DialogDescription>{String(order.numero_os ?? "").trim() ? (order.concluida_em ? "O horário de finalização já foi registrado. Confirme para concluir a OS agora que o ADM informou o número." : "Registre o serviço realizado; esta OS já tem número e será concluída.") : "Registre a descrição e a hora de finalização. A OS ficará aguardando o ADM informar o número antes de ser concluída."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
@@ -1385,7 +1399,7 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Voltar</Button>
-            <Button type="submit" disabled={saving}>{saving ? "A gravar…" : "Concluir serviço"}</Button>
+            <Button type="submit" disabled={saving}>{saving ? "A gravar…" : !String(order.numero_os ?? "").trim() ? "Registrar horário" : order.concluida_em ? "Concluir serviço" : "Finalizar serviço"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
