@@ -319,13 +319,9 @@ function TechnicianPage() {
   }
 
   function openFinish(order: Ordem) {
-    if (!order.numero_os?.trim()) {
-      toast.info("Aguardando o ADM informar o número da OS. Depois disso, você poderá finalizar o serviço.");
-      return;
-    }
     setFinish(order);
-    setNotes("");
-    setMaintenanceClasses([]);
+    setNotes(order.notas_fecho ?? "");
+    setMaintenanceClasses(order.classe_manutencao ? order.classe_manutencao.split(",").map((item) => item.trim()).filter(Boolean) : []);
     setPartsReplaced("nao");
     setSelectedParts([]);
   }
@@ -596,14 +592,35 @@ function TechnicianPage() {
 
   async function finalize() {
     if (!actor || !finish) return;
-    if (!finish.numero_os?.trim()) {
-      toast.warning("Esta OS ainda não possui número. O ADM precisa informar o número antes do fechamento.");
-      setFinish(null);
-      return;
-    }
     const solution = notes.trim();
     if (!maintenanceClasses.length) { toast.error("Selecione pelo menos uma classe de manutenção."); return; }
     const maintenanceClass = maintenanceClasses.join(", ");
+
+    // Sem número de OS: registrar o horário real e o relato, sem concluir a OS nem movimentar estoque.
+    if (!finish.numero_os?.trim()) {
+      if (!solution) { toast.error("Informe o serviço realizado."); return; }
+      const finishedAt = finish.concluida_em ?? new Date().toISOString();
+      const { error } = await (supabase as any).from("ordens_servico")
+        .update({ notas_fecho: solution, classe_manutencao: maintenanceClass, concluida_em: finishedAt, updated_at: new Date().toISOString() })
+        .eq("id", finish.id)
+        .eq("status", "em_andamento");
+      if (error) {
+        toast.error(error.message || "Não foi possível registrar o horário de finalização.");
+        return;
+      }
+      const { error: historyError } = await supabase.from("historico_edicoes").insert({
+        os_id: finish.id,
+        acao: "horario_finalizacao_registrado",
+        detalhe: `Horário de finalização registrado por ${actor.email}; aguardando o ADM informar o número da OS.`,
+        usuario_id: actor.id,
+        usuario_email: actor.email,
+      });
+      if (historyError) console.warn("Horário salvo, mas o histórico ficou pendente:", historyError);
+      setFinish(null);
+      toast.success("Horário registrado. A OS aguarda o número informado pelo ADM.");
+      await load();
+      return;
+    }
     if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const pieces = partsReplaced === "sim"
       ? selectedParts.filter((part) => part.id && part.quantidade > 0)
@@ -617,7 +634,8 @@ function TechnicianPage() {
       return;
     }
 
-    const finishedAt = new Date().toISOString();
+    const recordedFinishedAt = finish.concluida_em;
+    const finishedAt = recordedFinishedAt ?? new Date().toISOString();
     const orderToFinish = finish;
 
     const queueAction = async () => {
@@ -673,6 +691,12 @@ function TechnicianPage() {
     setFinish(null);
     setNotes("");
     setSelectedParts([]);
+    if (recordedFinishedAt) {
+      const { error: timeError } = await (supabase as any).from("ordens_servico")
+        .update({ concluida_em: recordedFinishedAt })
+        .eq("id", orderToFinish.id);
+      if (timeError) toast.warning("OS concluída, mas não foi possível restaurar o horário de finalização previamente registrado.");
+    }
     toast.success("Serviço finalizado e estoque atualizado.");
     await load();
     await loadPartsCatalog();
@@ -817,12 +841,9 @@ function TechnicianPage() {
           </div>          <div className="mt-5 flex flex-wrap gap-2">
             {order.localizacao && <Button variant="outline" size="lg" className="rounded-xl" onClick={(e) => { e.stopPropagation(); openMap(order.localizacao); }}><ExternalLink /> Abrir mapa</Button>}
             {order.status === "pendente" && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); void start(order); }}><Play /> Iniciar serviço</Button>}
-            {order.status === "em_andamento" && order.numero_os?.trim() && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Finalizar serviço</Button>}
-            {order.status === "em_andamento" && !order.numero_os?.trim() && (
-              <Button type="button" size="lg" variant="secondary" className="rounded-xl" disabled>
-                <LockKeyhole /> Aguardando número da OS
-              </Button>
-            )}
+            {order.status === "em_andamento" && order.numero_os?.trim() && <Button size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> {order.concluida_em ? "Concluir serviço" : "Finalizar serviço"}</Button>}
+            {order.status === "em_andamento" && !order.numero_os?.trim() && !order.concluida_em && <Button type="button" size="lg" className="rounded-xl shadow-md" onClick={(e) => { e.stopPropagation(); openFinish(order); }}><CheckCircle2 /> Registrar horário de finalização</Button>}
+            {order.status === "em_andamento" && !order.numero_os?.trim() && Boolean(order.concluida_em) && <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Horário registrado · aguardando número da OS do ADM</div>}
           </div>
         </article>)}
         {!visible.length && <div className="lg:col-span-2 rounded-3xl border border-dashed bg-card p-14 text-center text-muted-foreground"><Clock3 className="mx-auto mb-3 size-9 text-primary" /><p className="font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm">Altere o filtro ou a pesquisa para ver outros serviços.</p></div>}
@@ -881,12 +902,9 @@ function TechnicianPage() {
             {(details as Ordem & { fechada_em?: string | null }).fechada_em && <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-800">Fechada pelo administrador · somente leitura</span>}
             {details.localizacao && <Button variant="outline" className="rounded-xl" onClick={() => openMap(details.localizacao)}>Abrir mapa</Button>}
             {details.status === "pendente" && <Button className="rounded-xl" onClick={() => { setDetails(null); void start(details); }}><Play /> Iniciar serviço</Button>}
-            {details.status === "em_andamento" && details.numero_os?.trim() && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Finalizar serviço</Button>}
-            {details.status === "em_andamento" && !details.numero_os?.trim() && (
-              <Button type="button" className="rounded-xl" variant="secondary" disabled>
-                <LockKeyhole /> Aguardando número da OS
-              </Button>
-            )}
+            {details.status === "em_andamento" && details.numero_os?.trim() && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> {details.concluida_em ? "Concluir serviço" : "Finalizar serviço"}</Button>}
+            {details.status === "em_andamento" && !details.numero_os?.trim() && !details.concluida_em && <Button className="rounded-xl" onClick={() => { setDetails(null); openFinish(details); }}><CheckCircle2 /> Registrar horário de finalização</Button>}
+            {details.status === "em_andamento" && !details.numero_os?.trim() && Boolean(details.concluida_em) && <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Horário registrado · aguardando número da OS do ADM</div>}
           </div>
         </div>}
       </DialogContent>
@@ -902,7 +920,7 @@ function TechnicianPage() {
     }}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-3xl overscroll-contain touch-pan-y sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Finalizar OS {finish?.numero_os}</DialogTitle>
+          <DialogTitle>{finish?.numero_os?.trim() ? (finish?.concluida_em ? `Concluir serviço — OS ${finish.numero_os}` : `Finalizar serviço — OS ${finish.numero_os}`) : "Registrar horário de finalização"}</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-5">
@@ -921,11 +939,12 @@ function TechnicianPage() {
             <div className="min-w-0">
               <p className="font-bold tracking-tight">Registro do atendimento</p>
               <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                Confirme se houve troca de peças e descreva o serviço realizado antes de concluir a OS.
+                {finish?.numero_os?.trim() ? "Confirme as peças e os detalhes antes de concluir a OS." : "Registre o horário real e descreva o serviço. A OS ficará aguardando o número informado pelo ADM."}
               </p>
             </div>
           </div>
 
+          {finish?.numero_os?.trim() && (
           <section className="grid gap-3 rounded-2xl border p-4">
             <div>
               <p className="text-sm font-bold">Houve troca de peças?</p>
@@ -1118,6 +1137,8 @@ function TechnicianPage() {
             </section>
           ) : null}
 
+          )}
+
           <section className="grid gap-2 rounded-2xl border p-4">
             <div>
               <p className="text-sm font-bold">Relato do serviço</p>
@@ -1145,7 +1166,7 @@ function TechnicianPage() {
             Voltar
           </Button>
           <Button className="rounded-xl" onClick={finalize}>
-            Finalizar serviço
+            {finish?.numero_os?.trim() ? (finish?.concluida_em ? "Concluir serviço" : "Finalizar serviço") : "Registrar horário"}
           </Button>
         </DialogFooter>
       </DialogContent>
