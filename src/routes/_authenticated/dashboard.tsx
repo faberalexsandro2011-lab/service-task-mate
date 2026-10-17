@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,6 +29,9 @@ import {
   PackagePlus,
   X,
   Inbox,
+  MapPin,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import { read, utils } from "xlsx";
 import { toast } from "sonner";
@@ -63,6 +66,7 @@ import {
 type Ordem = Tables<"ordens_servico">;
 type Peca = Tables<"pecas_catalogo">;
 type Perfil = Tables<"profiles">;
+type SharedLocation = { id: string; user_id: string; latitude: number; longitude: number; accuracy_m: number | null; created_at: string };
 type ImportRow = {
   numero_os: string;
   frota: string;
@@ -282,7 +286,50 @@ function Dashboard() {
   const [live, setLive] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [transferTechnicianId, setTransferTechnicianId] = useState("");
+  const [technicianLocations, setTechnicianLocations] = useState<SharedLocation[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  const [locationsError, setLocationsError] = useState("");
+  const [selectedLocationUserId, setSelectedLocationUserId] = useState<string | null>(null);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
+
+  const loadTechnicianLocations = useCallback(async () => {
+    if (!isManager) return;
+    setLocationsLoading(true);
+    setLocationsError("");
+    const { data: rows, error } = await (supabase as any)
+      .from("tecnico_localizacoes")
+      .select("id,user_id,latitude,longitude,accuracy_m,created_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    setLocationsLoading(false);
+    if (error) {
+      console.error("[Central OS] Falha ao consultar localizações:", error);
+      setLocationsError("Não foi possível carregar as localizações. Verifique a conexão e tente atualizar.");
+      return;
+    }
+    setTechnicianLocations((rows ?? []) as SharedLocation[]);
+  }, [isManager]);
+
+  const latestTechnicianLocations = useMemo(() => {
+    const latestByUser = new Map<string, SharedLocation>();
+    for (const location of technicianLocations) {
+      if (!latestByUser.has(location.user_id)) latestByUser.set(location.user_id, location);
+    }
+    return Array.from(latestByUser.values());
+  }, [technicianLocations]);
+
+  const selectedTechnicianLocation = latestTechnicianLocations.find((location) => location.user_id === selectedLocationUserId) ?? latestTechnicianLocations[0] ?? null;
+
+  useEffect(() => {
+    if (isManager) void loadTechnicianLocations();
+  }, [isManager, loadTechnicianLocations]);
+
+  function shareTechnicianLocation(location: SharedLocation, technicianName: string) {
+    const mapsUrl = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`;
+    const sentAt = new Date(location.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+    const message = `Localização compartilhada pelo Central OS — ${technicianName}\nÚltimo envio: ${sentAt}\n${mapsUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  }
 
   // Estado da ligação do navegador
   useEffect(() => {
@@ -577,6 +624,65 @@ function Dashboard() {
           </div>
         )}
         <div className="w-full min-w-0 p-2 sm:p-3 lg:p-4 agri-fade-up">
+          {isManager && (
+            <section className="mb-5 rounded-xl border bg-card p-4 shadow-sm sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2"><MapPin className="size-5 text-primary" /><h2 className="text-lg font-bold">Localizações compartilhadas</h2></div>
+                  <p className="mt-1 text-sm text-muted-foreground">Mostra apenas as posições que os técnicos enviaram manualmente, com data e hora do envio.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => void loadTechnicianLocations()} disabled={locationsLoading}><RefreshCw className={`mr-1 size-4 ${locationsLoading ? "animate-spin" : ""}`} />Atualizar mapa</Button>
+              </div>
+              {locationsError && <p role="alert" className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{locationsError}</p>}
+              {!locationsError && latestTechnicianLocations.length === 0 && (
+                <div className="mt-4 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  {locationsLoading ? "Carregando localizações..." : "Nenhum técnico compartilhou a localização ainda."}
+                </div>
+              )}
+              {latestTechnicianLocations.length > 0 && (
+                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+                  <div className="grid content-start gap-2">
+                    {latestTechnicianLocations.map((location) => {
+                      const teamProfile = data?.team.find((item) => item.profile.id === location.user_id)?.profile;
+                      const technician = data?.technicians.find((item) => item.id === location.user_id);
+                      const profile = teamProfile ?? (data?.me?.id === location.user_id ? data.me : null);
+                      const technicianName = technician?.nome || profile?.nome || profile?.email || "Técnico";
+                      const selected = selectedTechnicianLocation?.user_id === location.user_id;
+                      return (
+                        <div key={location.user_id} className={`rounded-lg border p-3 ${selected ? "border-primary bg-primary/5" : "bg-background"}`}>
+                          <button type="button" onClick={() => setSelectedLocationUserId(location.user_id)} className="w-full text-left">
+                            <span className="block font-semibold">{technicianName}</span>
+                            <span className="mt-1 block text-xs text-muted-foreground">{new Date(location.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+                            {location.accuracy_m != null && <span className="mt-1 block text-xs text-muted-foreground">Precisão aproximada: {Math.round(location.accuracy_m)} m</span>}
+                          </button>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => window.open(`https://www.google.com/maps?q=${location.latitude},${location.longitude}`, "_blank", "noopener,noreferrer")}><ExternalLink className="mr-1 size-3.5" />Google Maps</Button>
+                            <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => shareTechnicianLocation(location, technicianName)}><ExternalLink className="mr-1 size-3.5" />WhatsApp</Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedTechnicianLocation && (
+                    <div className="min-w-0 overflow-hidden rounded-lg border">
+                      <div className="flex items-center justify-between gap-3 border-b bg-muted/30 px-3 py-2">
+                        <span className="text-sm font-semibold">Mapa da posição selecionada</span>
+                        <span className="text-xs text-muted-foreground">{selectedTechnicianLocation.latitude.toFixed(5)}, {selectedTechnicianLocation.longitude.toFixed(5)}</span>
+                      </div>
+                      <iframe
+                        title="Mapa da localização compartilhada pelo técnico"
+                        className="h-[300px] w-full sm:h-[360px]"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${selectedTechnicianLocation.longitude - 0.01}%2C${selectedTechnicianLocation.latitude - 0.01}%2C${selectedTechnicianLocation.longitude + 0.01}%2C${selectedTechnicianLocation.latitude + 0.01}&layer=mapnik&marker=${selectedTechnicianLocation.latitude}%2C${selectedTechnicianLocation.longitude}`}
+                      />
+                      <div className="border-t px-3 py-2 text-xs text-muted-foreground">A posição exibida é a última enviada manualmente; não é rastreamento em tempo real.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
           <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
             <div>
               <div className="flex items-center gap-3">
