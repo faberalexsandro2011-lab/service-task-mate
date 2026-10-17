@@ -224,13 +224,11 @@ function TechnicianPage() {
   }, []);
 
   function toggleLocationSharing() {
-    setLocationSharingEnabled((current) => {
-      const next = !current;
-      window.localStorage.setItem("central-os-location-sharing", next ? "on" : "off");
-      if (!next) setLastSharedLocation(null);
-      toast.info(next ? "Compartilhamento de localização ativado. A posição só será enviada quando você solicitar." : "Compartilhamento de localização desligado.");
-      return next;
-    });
+    const next = !locationSharingEnabled;
+    setLocationSharingEnabled(next);
+    window.localStorage.setItem("central-os-location-sharing", next ? "on" : "off");
+    if (!next) setLastSharedLocation(null);
+    toast.info(next ? "Compartilhamento de localização ativado. A posição só será enviada quando você solicitar." : "Compartilhamento de localização desligado.");
   }
 
   function sendCurrentLocation() {
@@ -895,7 +893,7 @@ function TechnicianPage() {
             <div>
               <h3 className="font-bold">Compartilhar localização</h3>
               <p className="mt-1 text-sm text-muted-foreground">{locationSharingEnabled ? "Ativado. Sua posição só é capturada quando você tocar em enviar." : "Desligado. Nenhuma posição nova será compartilhada."}</p>
-              {lastSharedLocation && <p className="mt-1 text-xs text-muted-foreground">Último envio: {formatDateTime(lastSharedLocation.created_at, "—")} · precisão aproximada de {Math.round(lastSharedLocation.accuracy_m ?? 0)} m</p>}
+              {lastSharedLocation && <p className="mt-1 text-xs text-muted-foreground">Último envio: {formatDateTime(lastSharedLocation.created_at, "—")}{lastSharedLocation.accuracy_m != null ? ` · precisão aproximada de ${Math.round(lastSharedLocation.accuracy_m)} m` : ""}</p>}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
