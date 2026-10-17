@@ -264,8 +264,14 @@ function TechnicianPage() {
         .single();
       setLocationSending(false);
       if (error) {
-        console.error("[Central OS] Falha ao enviar localização:", error);
-        toast.error("Não foi possível registrar a localização. Verifique a permissão e tente novamente.");
+        console.error("[Central OS] Falha ao enviar localização:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+        const detail = error.message || "erro desconhecido no banco de dados";
+        toast.error(`Falha ao enviar localização: ${detail}`, { duration: 9000 });
         return;
       }
       setLastSharedLocation(data as SharedLocation);
