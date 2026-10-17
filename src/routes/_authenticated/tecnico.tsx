@@ -282,14 +282,40 @@ function TechnicianPage() {
   }
 
   function shareLocationOnWhatsApp() {
-    if (!locationSharingEnabled || !lastSharedLocation) {
-      toast.info("Ative a localização e envie sua posição primeiro.");
+    if (!locationSharingEnabled) {
+      toast.info("Ative o compartilhamento de localização primeiro.");
       return;
     }
-    const mapsUrl = `https://www.google.com/maps?q=${lastSharedLocation.latitude},${lastSharedLocation.longitude}`;
-    const sentAt = formatDateTime(lastSharedLocation.created_at, "agora");
-    const message = `Localização compartilhada pelo Central OS — ${actor?.name || "Técnico"}\nEnviada em: ${sentAt}\n${mapsUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    if (!navigator.geolocation) {
+      toast.error("Este navegador não oferece suporte à localização GPS.");
+      return;
+    }
+
+    // Abre a janela durante o toque do usuário para evitar bloqueio do navegador
+    // quando o GPS responder de forma assíncrona.
+    const whatsappWindow = window.open("about:blank", "_blank");
+    if (!whatsappWindow) {
+      toast.error("Permita abrir uma nova janela para compartilhar pelo WhatsApp.");
+      return;
+    }
+    whatsappWindow.document.title = "Obtendo localização…";
+    setLocationSending(true);
+    navigator.geolocation.getCurrentPosition((position) => {
+      const mapsUrl = `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`;
+      const sentAt = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+      const message = `Localização compartilhada pelo Central OS — ${actor?.name || "Técnico"}\nObtida em: ${sentAt}\n${mapsUrl}`;
+      setLocationSending(false);
+      whatsappWindow.location.href = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    }, (error) => {
+      setLocationSending(false);
+      whatsappWindow.close();
+      const message = error.code === error.PERMISSION_DENIED
+        ? "Permita o acesso à localização nas configurações do navegador."
+        : error.code === error.TIMEOUT
+          ? "O GPS demorou para responder. Tente novamente em local aberto."
+          : "Não foi possível obter sua posição. Verifique se o GPS está ativo.";
+      toast.error(message);
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   }
 
   async function load() {
@@ -899,10 +925,10 @@ function TechnicianPage() {
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant={locationSharingEnabled ? "destructive" : "outline"} className="min-h-11 rounded-xl" onClick={toggleLocationSharing}><Power className="mr-1 size-4" />{locationSharingEnabled ? "Desligar" : "Ligar"}</Button>
             <Button type="button" className="min-h-11 rounded-xl" disabled={!locationSharingEnabled || locationSending || !online} onClick={sendCurrentLocation}>{locationSending ? <Clock3 className="mr-1 size-4 animate-spin" /> : <MapPin className="mr-1 size-4" />}{locationSending ? "Obtendo GPS..." : "Enviar ao ADM"}</Button>
-            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={!locationSharingEnabled || !lastSharedLocation} onClick={shareLocationOnWhatsApp}><ExternalLink className="mr-1 size-4" />WhatsApp</Button>
+            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={!locationSharingEnabled || locationSending || !online} onClick={shareLocationOnWhatsApp}><ExternalLink className="mr-1 size-4" />WhatsApp</Button>
           </div>
         </div>
-        {locationSharingEnabled && <p className="mt-3 text-xs text-muted-foreground">O GPS só será consultado ao tocar em “Enviar ao ADM”. O WhatsApp abre com um link do Google Maps para você escolher o destinatário.</p>}
+        {locationSharingEnabled && <p className="mt-3 text-xs text-muted-foreground">O GPS só será consultado quando você tocar em “Enviar ao ADM” ou “WhatsApp”. No WhatsApp, você escolhe o destinatário.</p>}
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
