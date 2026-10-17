@@ -1395,7 +1395,7 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="solucao">Serviço realizado / solução técnica *</Label>
-            <Textarea id="solucao" name="solucao" required rows={4} />
+            <Textarea id="solucao" name="solucao" required rows={4} defaultValue={order.notas_fecho ?? ""} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Voltar</Button>
