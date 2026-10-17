@@ -29,7 +29,6 @@ import {
   PackagePlus,
   X,
   Inbox,
-  MapPin,
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
@@ -292,6 +291,37 @@ function Dashboard() {
   const [selectedLocationUserId, setSelectedLocationUserId] = useState<string | null>(null);
   const dashboardQuery = useQuery({ queryKey: ["dashboard"], queryFn: getDashboardData });
 
+
+  // Estado da ligação do navegador
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+
+  // Atualização em tempo real: qualquer alteração em ordens_servico recarrega a lista
+  useEffect(() => {
+    const channel = supabase
+      .channel("ordens_servico_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      })
+      .subscribe((status) => setLive(status === "SUBSCRIBED"));
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
+  const data = dashboardQuery.data;
+  const isManager = data?.role === "gestor";
+  const userId = data?.user.id;
+  const userEmail = data?.user.email?.trim().toLowerCase();
+
   const loadTechnicianLocations = useCallback(async () => {
     if (!isManager) return;
     setLocationsLoading(true);
@@ -331,35 +361,6 @@ function Dashboard() {
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   }
 
-  // Estado da ligação do navegador
-  useEffect(() => {
-    const update = () => setOnline(navigator.onLine);
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
-  }, []);
-
-  // Atualização em tempo real: qualquer alteração em ordens_servico recarrega a lista
-  useEffect(() => {
-    const channel = supabase
-      .channel("ordens_servico_live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-      })
-      .subscribe((status) => setLive(status === "SUBSCRIBED"));
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
-
-  const data = dashboardQuery.data;
-  const isManager = data?.role === "gestor";
-  const userId = data?.user.id;
-  const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
   const pendingSolicitations = isManager ? allOrders.filter((o) => o.solicitacao_os === true && o.solicitacao_status === "aguardando_os").length : 0;
   // Técnico: aceita atribuição pelo ID ou pelo e-mail para não perder OS
