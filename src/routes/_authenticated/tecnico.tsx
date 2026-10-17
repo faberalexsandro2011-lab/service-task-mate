@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole, Power } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -24,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/tecnico")({
 type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
+type SharedLocation = { id: string; user_id: string; latitude: number; longitude: number; accuracy_m: number | null; created_at: string };
 const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT", "STARLINK/CONCENT"] as const;
 type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
 
@@ -212,8 +213,86 @@ function TechnicianPage() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [locationSharingEnabled, setLocationSharingEnabled] = useState(false);
+  const [locationSending, setLocationSending] = useState(false);
+  const [lastSharedLocation, setLastSharedLocation] = useState<SharedLocation | null>(null);
   const loadRequestRef = useRef(0);
   const syncRunningRef = useRef(false);
+
+  useEffect(() => {
+    setLocationSharingEnabled(window.localStorage.getItem("central-os-location-sharing") === "on");
+  }, []);
+
+  function toggleLocationSharing() {
+    setLocationSharingEnabled((current) => {
+      const next = !current;
+      window.localStorage.setItem("central-os-location-sharing", next ? "on" : "off");
+      if (!next) setLastSharedLocation(null);
+      toast.info(next ? "Compartilhamento de localização ativado. A posição só será enviada quando você solicitar." : "Compartilhamento de localização desligado.");
+      return next;
+    });
+  }
+
+  function sendCurrentLocation() {
+    if (!locationSharingEnabled) {
+      toast.info("Ative o compartilhamento antes de enviar sua localização.");
+      return;
+    }
+    if (!actor?.id) {
+      toast.error("Não foi possível identificar o técnico conectado.");
+      return;
+    }
+    if (!navigator.geolocation) {
+      toast.error("Este navegador não oferece suporte à localização GPS.");
+      return;
+    }
+    if (!navigator.onLine) {
+      toast.error("Conecte-se à internet para enviar a localização ao ADM.");
+      return;
+    }
+
+    setLocationSending(true);
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const payload = {
+        user_id: actor.id,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy_m: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+      };
+      const { data, error } = await (supabase as any)
+        .from("tecnico_localizacoes")
+        .insert(payload)
+        .select("id,user_id,latitude,longitude,accuracy_m,created_at")
+        .single();
+      setLocationSending(false);
+      if (error) {
+        console.error("[Central OS] Falha ao enviar localização:", error);
+        toast.error("Não foi possível registrar a localização. Verifique a permissão e tente novamente.");
+        return;
+      }
+      setLastSharedLocation(data as SharedLocation);
+      toast.success("Localização enviada ao mapa do ADM.");
+    }, (error) => {
+      setLocationSending(false);
+      const message = error.code === error.PERMISSION_DENIED
+        ? "Permita o acesso à localização nas configurações do navegador."
+        : error.code === error.TIMEOUT
+          ? "O GPS demorou para responder. Tente novamente em local aberto."
+          : "Não foi possível obter sua posição. Verifique se o GPS está ativo.";
+      toast.error(message);
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }
+
+  function shareLocationOnWhatsApp() {
+    if (!locationSharingEnabled || !lastSharedLocation) {
+      toast.info("Ative a localização e envie sua posição primeiro.");
+      return;
+    }
+    const mapsUrl = `https://www.google.com/maps?q=${lastSharedLocation.latitude},${lastSharedLocation.longitude}`;
+    const sentAt = formatDateTime(lastSharedLocation.created_at, "agora");
+    const message = `Localização compartilhada pelo Central OS — ${actor?.name || "Técnico"}\nEnviada em: ${sentAt}\n${mapsUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  }
 
   async function load() {
     const requestId = ++loadRequestRef.current;
@@ -807,6 +886,25 @@ function TechnicianPage() {
             <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-5 rounded-3xl border bg-card p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className={`grid size-11 shrink-0 place-items-center rounded-2xl ${locationSharingEnabled ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}><MapPin className="size-5" /></div>
+            <div>
+              <h3 className="font-bold">Compartilhar localização</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{locationSharingEnabled ? "Ativado. Sua posição só é capturada quando você tocar em enviar." : "Desligado. Nenhuma posição nova será compartilhada."}</p>
+              {lastSharedLocation && <p className="mt-1 text-xs text-muted-foreground">Último envio: {formatDateTime(lastSharedLocation.created_at, "—")} · precisão aproximada de {Math.round(lastSharedLocation.accuracy_m ?? 0)} m</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant={locationSharingEnabled ? "destructive" : "outline"} className="min-h-11 rounded-xl" onClick={toggleLocationSharing}><Power className="mr-1 size-4" />{locationSharingEnabled ? "Desligar" : "Ligar"}</Button>
+            <Button type="button" className="min-h-11 rounded-xl" disabled={!locationSharingEnabled || locationSending || !online} onClick={sendCurrentLocation}>{locationSending ? <Clock3 className="mr-1 size-4 animate-spin" /> : <MapPin className="mr-1 size-4" />}{locationSending ? "Obtendo GPS..." : "Enviar ao ADM"}</Button>
+            <Button type="button" variant="outline" className="min-h-11 rounded-xl" disabled={!locationSharingEnabled || !lastSharedLocation} onClick={shareLocationOnWhatsApp}><ExternalLink className="mr-1 size-4" />WhatsApp</Button>
+          </div>
+        </div>
+        {locationSharingEnabled && <p className="mt-3 text-xs text-muted-foreground">O GPS só será consultado ao tocar em “Enviar ao ADM”. O WhatsApp abre com um link do Google Maps para você escolher o destinatário.</p>}
       </div>
 
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
