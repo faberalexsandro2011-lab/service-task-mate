@@ -944,7 +944,6 @@ function TechnicianPage() {
             </div>
           </div>
 
-          {finish?.numero_os?.trim() && (
           <section className="grid gap-3 rounded-2xl border p-4">
             <div>
               <p className="text-sm font-bold">Houve troca de peças?</p>
@@ -1137,7 +1136,6 @@ function TechnicianPage() {
             </section>
           ) : null}
 
-          )}
 
           <section className="grid gap-2 rounded-2xl border p-4">
             <div>
