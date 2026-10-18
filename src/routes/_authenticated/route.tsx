@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated")({
     const { data } = await supabase.auth.getSession();
     if (!data.session?.user) throw redirect({ to: "/" });
 
-    let role: "gestor" | "tecnico" = "tecnico";
+    let role: "gestor" | "tecnico" | "visualizador" = "tecnico";
     if (navigator.onLine) {
       // Use the SECURITY DEFINER helper so the role check is not blocked by
       // RLS on user_roles. This is important for fresh Supabase projects.
@@ -20,6 +20,9 @@ export const Route = createFileRoute("/_authenticated")({
       if (!managerRoleError && isManager === true) {
         role = "gestor";
       } else {
+        const { data: isViewer } = await supabase.rpc("has_role", { _user_id: data.session.user.id, _role: "visualizador" });
+        if (isViewer === true) role = "visualizador";
+        else {
         const { data: roleRow, error: roleError } = await supabase
           .from("user_roles")
           .select("role")
@@ -31,14 +34,19 @@ export const Route = createFileRoute("/_authenticated")({
         } else {
           role = "tecnico";
         }
+        }
       }
 
       await saveOfflineRole(role);
     } else {
-      role = (await getOfflineRole<"gestor" | "tecnico">()) ?? "tecnico";
+      role = (await getOfflineRole<"gestor" | "tecnico" | "visualizador">()) ?? "tecnico";
     }
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
+    const isViewerArea = location.pathname.endsWith("/visualizacao");
+
+    if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
+    if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : "/tecnico", replace: true });
 
     if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {
       throw redirect({ to: "/tecnico", replace: true });

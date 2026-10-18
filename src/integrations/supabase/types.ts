@@ -208,7 +208,7 @@ export type Database = {
       lookup_email_by_username: { Args: { p_nome: string }; Returns: string }
     }
     Enums: {
-      app_role: "gestor" | "tecnico"
+      app_role: "gestor" | "tecnico" | "visualizador"
     }
     CompositeTypes: {
       [_ in never]: never

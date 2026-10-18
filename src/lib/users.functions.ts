@@ -12,6 +12,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
         email: z.string().trim().toLowerCase().email("Informe um e-mail válido."),
         password: z.string().min(8, "A senha precisa ter pelo menos 8 caracteres.").max(128),
         adminAccess: z.boolean().default(false),
+        role: z.enum(["gestor", "tecnico", "visualizador"]).optional(),
       })
       .parse(data),
   )
@@ -25,11 +26,10 @@ export const createTeamUser = createServerFn({ method: "POST" })
 
     const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
     const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
-    if (data.adminAccess && actorEmail !== ADMIN_EMAIL) {
-      return { ok: false as const, error: "Somente o administrador principal pode cadastrar gestores." };
+    const role = data.role ?? (data.adminAccess ? "gestor" : "tecnico");
+    if (role !== "tecnico" && actorEmail !== ADMIN_EMAIL) {
+      return { ok: false as const, error: "Somente o administrador principal pode cadastrar administradores ou usuários somente visualização." };
     }
-
-    const role = data.adminAccess ? "gestor" : "tecnico";
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -81,7 +81,7 @@ export const updateTeamUser = createServerFn({ method: "POST" })
       userId: z.string().uuid("Usuário inválido."),
       nome: z.string().trim().min(1, "Informe o nome do usuário.").max(120),
       password: z.string().max(128).optional().default(""),
-      role: z.enum(["gestor", "tecnico"]).optional(),
+      role: z.enum(["gestor", "tecnico", "visualizador"]).optional(),
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -93,6 +93,13 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     if (!isGestor) return { ok: false as const, error: "Somente gestores podem editar usuários." };
     if (data.userId === context.userId) {
       return { ok: false as const, error: "Você não pode editar a própria conta por esta função." };
+    }
+    if (data.role) {
+      const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
+      const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
+      if (actorEmail !== ADMIN_EMAIL) {
+        return { ok: false as const, error: "Somente o administrador principal pode alterar funções." };
+      }
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

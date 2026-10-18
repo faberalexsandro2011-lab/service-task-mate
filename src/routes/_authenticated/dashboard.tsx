@@ -139,7 +139,7 @@ const STATUS_LABEL: Record<Status, string> = {
   cancelada: "Cancelada",
 };
 type Actor = { id: string; email: string; name: string; isManager: boolean };
-type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" };
+type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" | "visualizador" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
 function formatEntrada(value: string | null | undefined) {
@@ -1525,6 +1525,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
   const [busyId, setBusyId] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState("");
   const [adminAccess, setAdminAccess] = useState(false);
+  const [viewerAccess, setViewerAccess] = useState(false);
   const [editMember, setEditMember] = useState<TeamMember | null>(null);
   const canManage = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
 
@@ -1545,7 +1546,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
 
     let result: Awaited<ReturnType<typeof createTeamUser>>;
     try {
-      result = await createTeamUser({ data: { nome, email, password, adminAccess } });
+      result = await createTeamUser({ data: { nome, email, password, adminAccess, role: viewerAccess ? "visualizador" : adminAccess ? "gestor" : "tecnico" } });
     } catch (requestError) {
       console.error("[createTeamUser]", requestError);
       setSaving(false);
@@ -1563,7 +1564,8 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
     formEl.reset();
     setEmailValue("");
     setAdminAccess(false);
-    toast.success(adminAccess ? "Administrador cadastrado." : "Técnico cadastrado e pronto para acesso.");
+    setViewerAccess(false);
+    toast.success(viewerAccess ? "Usuário somente visualização cadastrado." : adminAccess ? "Administrador cadastrado." : "Técnico cadastrado e pronto para acesso.");
     await onChanged();
   }
 
@@ -1576,14 +1578,14 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
       toast.error("A conta principal não pode ter o próprio privilégio alterado.");
       return;
     }
-    const nextRole = member.role === "gestor" ? "tecnico" : "gestor";
-    if (!confirm(nextRole === "gestor" ? "Tornar administrador " + (member.profile.nome || member.profile.email) + "?" : "Retirar administrador de " + (member.profile.nome || member.profile.email) + "?")) return;
+    const nextRole = member.role === "gestor" ? "tecnico" : member.role === "tecnico" ? "visualizador" : "gestor";
+    if (!confirm("Alterar o perfil de " + (member.profile.nome || member.profile.email) + " para " + (nextRole === "gestor" ? "Administrador" : nextRole === "tecnico" ? "Técnico" : "Somente Visualização") + "?")) return;
 
     setBusyId(member.profile.id);
     try {
       const result = await updateTeamUser({ data: { userId: member.profile.id, nome: member.profile.nome || member.profile.email || "Usuário", password: "", role: nextRole } });
       if (!result.ok) { toast.error(result.error); return; }
-      toast.success(nextRole === "gestor" ? "Técnico promovido a administrador." : "Administrador voltou a ser técnico.");
+      toast.success("Perfil atualizado: " + (nextRole === "gestor" ? "Administrador" : nextRole === "tecnico" ? "Técnico" : "Somente Visualização") + ".");
       await onChanged();
     } catch (error) {
       console.error("[changeRole]", error);
@@ -1679,10 +1681,12 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
               <Field label="E-mail"><Input name="email" type="email" required placeholder="tecnico@empresa.com" autoComplete="email" value={emailValue} onChange={(event) => setEmailValue(event.target.value.toLowerCase())} /></Field>
               <Field label="Palavra-passe inicial"><Input name="password" type="password" required minLength={8} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" /></Field>
             </div>
-            {canManage && <label className="flex cursor-pointer items-center gap-3 rounded-lg border bg-background p-3 text-sm">
-              <input type="checkbox" checked={adminAccess} onChange={(event) => setAdminAccess(event.target.checked)} className="size-4 accent-primary" />
-              <span><strong>Cadastrar como administrador</strong><span className="ml-1 text-xs text-muted-foreground">— terá acesso ao Painel Central</span></span>
-            </label>}
+            {canManage && <div className="space-y-2 rounded-lg border bg-background p-3 text-sm">
+              <p className="font-semibold">Perfil de acesso</p>
+              <label className="flex cursor-pointer items-center gap-3"><input type="radio" name="new-user-role" checked={!adminAccess && !viewerAccess} onChange={() => { setAdminAccess(false); setViewerAccess(false); }} className="size-4 accent-primary" /><span>Técnico</span></label>
+              <label className="flex cursor-pointer items-center gap-3"><input type="radio" name="new-user-role" checked={adminAccess} onChange={() => { setAdminAccess(true); setViewerAccess(false); }} className="size-4 accent-primary" /><span>Administrador — acesso ao Painel Central</span></label>
+              <label className="flex cursor-pointer items-center gap-3"><input type="radio" name="new-user-role" checked={viewerAccess} onChange={() => { setAdminAccess(false); setViewerAccess(true); }} className="size-4 accent-primary" /><span>Somente Visualização — consulta todas as OS e histórico, sem exportar</span></label>
+            </div>}
             <div className="flex justify-end">
               <Button type="submit" disabled={saving}>{saving ? "A cadastrar..." : "Cadastrar"}</Button>
             </div>
@@ -1708,7 +1712,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
                     <UserRound className="size-4 text-primary" />
                     <span className="truncate">{member.profile.nome || member.profile.email}</span>
                     <span className={member.role === "gestor" ? "rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary" : "rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground"}>
-                      {member.role === "gestor" ? "ADMIN" : "TÉCNICO"}
+                      {member.role === "gestor" ? "ADMIN" : member.role === "visualizador" ? "SOMENTE VISUALIZAÇÃO" : "TÉCNICO"}
                     </span>
                   </div>
                   <div className="mt-1 truncate text-sm text-muted-foreground">{member.profile.email}</div>
@@ -1718,7 +1722,7 @@ function TechnicianManagerDialog({ team, actor, onChanged }: { team: TeamMember[
                     <Pencil /> Editar
                   </Button>}
                   {canManage && !isOwner && <Button size="sm" variant="outline" disabled={busy} onClick={() => void changeRole(member)}>
-                    <ShieldCheck /> {member.role === "gestor" ? "Tornar técnico" : "Tornar ADM"}
+                    <ShieldCheck /> {member.role === "gestor" ? "Tornar técnico" : member.role === "tecnico" ? "Somente visualizar" : "Tornar ADM"}
                   </Button>}
                   {isOwner && <span className="self-center text-xs font-medium text-muted-foreground">Administrador principal</span>}
                   {!isOwner && <Button size="sm" variant="destructive" disabled={busy || !canManage} onClick={() => void removeAccess(member)}>
