@@ -94,6 +94,24 @@ async function getDashboardData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
+  const { data: viewerRole, error: viewerRoleError } = await supabase.rpc("has_role", {
+    _user_id: authData.user.id, _role: "visualizador",
+  });
+  if (!viewerRoleError && viewerRole === true) {
+    const { data: viewerOrders, error: viewerOrdersError } = await supabase
+      .from("ordens_servico").select("*").order("created_at", { ascending: false });
+    if (viewerOrdersError) throw viewerOrdersError;
+    return {
+      user: authData.user, role: "visualizador" as const, me: null, technicians: [], team: [],
+      orders: [...(viewerOrders ?? [])].sort((a, b) => {
+        if (a.sequencia != null && b.sequencia != null) return a.sequencia - b.sequencia;
+        if (a.sequencia != null) return -1;
+        if (b.sequencia != null) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }),
+    };
+  }
+
   const [ordersResult, profileResult, roleResult] = await Promise.all([
     supabase.from("ordens_servico").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("*").order("nome", { ascending: true }),
@@ -138,7 +156,7 @@ const STATUS_LABEL: Record<Status, string> = {
   concluida: "Finalizada",
   cancelada: "Cancelada",
 };
-type Actor = { id: string; email: string; name: string; isManager: boolean };
+type Actor = { id: string; email: string; name: string; isManager: boolean; isViewer: boolean };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" | "visualizador" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
@@ -311,6 +329,8 @@ function Dashboard() {
 
   const data = dashboardQuery.data;
   const isManager = data?.role === "gestor";
+  const isViewer = data?.role === "visualizador";
+  const isCentralView = isManager || isViewer;
   const userId = data?.user.id;
   const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
@@ -318,14 +338,14 @@ function Dashboard() {
   // Técnico: aceita atribuição pelo ID ou pelo e-mail para não perder OS
   // antigas/importadas que foram gravadas sem tecnico_id.
   const orders = useMemo(() => {
-    if (isManager) return allOrders;
+    if (isCentralView) return allOrders;
     return scope === "minhas"
       ? allOrders.filter((o) =>
           o.tecnico_id === userId ||
           (userEmail && o.tecnico_email?.trim().toLowerCase() === userEmail)
         )
       : allOrders.filter((o) => !o.tecnico_id && !o.tecnico_email && o.status === "pendente");
-  }, [allOrders, isManager, scope, userId, userEmail]);
+  }, [allOrders, isCentralView, scope, userId, userEmail]);
   const filtered = useMemo(() => {
     const osTerm = filterOS.trim().toLocaleLowerCase("pt");
     const frotaTerm = filterFrota.trim().toLocaleLowerCase("pt");
@@ -377,7 +397,7 @@ function Dashboard() {
     }
 
     // Sem valores em seq, mantém a prioridade administrativa por atraso.
-    if (!isManager) return matches;
+    if (!isCentralView) return matches;
     return matches.sort((a, b) => {
       const aPriority = isPriorityOrder(a);
       const bPriority = isPriorityOrder(b);
@@ -385,7 +405,7 @@ function Dashboard() {
       if (aPriority && bPriority) return (getOrderAgeInDays(b) ?? 0) - (getOrderAgeInDays(a) ?? 0);
       return 0;
     });
-  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isManager, sortOrdersBy]);
+  }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isCentralView, isManager, sortOrdersBy]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
     if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
@@ -493,6 +513,7 @@ function Dashboard() {
     email: data.user.email ?? "",
     name: data.me?.nome?.trim().toLowerCase() === "alex" ? "Alexsandro Faber" : (data.me?.nome ?? data.user.email ?? ""),
     isManager,
+    isViewer,
   };
   const connected = online && live;
 
@@ -506,8 +527,8 @@ function Dashboard() {
     { value: "todas", label: "Todas", list: filtered },
     { value: "pendente", label: "Pendente", list: byStatus("pendente") },
     { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
-    ...(isManager ? [{ value: "aguardando_fechamento", label: "Aguardando ADM", list: waitingAdminClosure }] : []),
-    { value: "concluida", label: isManager ? "Fechadas" : "Concluídas", list: isManager ? closedOrders : byStatus("concluida") },
+    ...(isCentralView ? [{ value: "aguardando_fechamento", label: "Aguardando ADM", list: waitingAdminClosure }] : []),
+    { value: "concluida", label: isCentralView ? "Fechadas" : "Concluídas", list: isCentralView ? closedOrders : byStatus("concluida") },
     { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
   ];
   const statusChipStyles: Record<string, { active: string; inactive: string }> = {
@@ -542,7 +563,7 @@ function Dashboard() {
           <div className="flex items-center gap-1.5 rounded-lg bg-sidebar-accent px-2 py-2 text-[13px] font-semibold transition-colors text-sidebar-accent-foreground">
             <ClipboardList className="size-4" /> Ordens de serviço
           </div>
-          {isManager && (
+          {isCentralView && (
             <>
               <button type="button" onClick={() => void navigate({ to: "/analises" })} className="mt-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-[13px] font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <BarChart3 className="size-4" /> Análise técnica
@@ -560,7 +581,7 @@ function Dashboard() {
         <header className="flex h-14 items-center justify-between border-b px-3 sm:px-5 lg:hidden">
           <Brand compact />
           <div className="flex items-center gap-2">
-            {isManager && (
+            {isCentralView && (
               <>
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                   <BarChart3 />
@@ -581,11 +602,11 @@ function Dashboard() {
             <div>
               <div className="flex items-center gap-3">
                 <Tractor className="size-5 text-[var(--agri-leaf)]" />
-                <p className="text-sm font-semibold text-muted-foreground">{isManager ? "Painel central" : "Área do técnico"}</p>
+                <p className="text-sm font-semibold text-muted-foreground">{isCentralView ? "Painel central" : "Área do técnico"}</p>
                 {!isManager && <span className="hidden lg:inline-flex"><ConnectionPill connected={connected} online={online} /></span>}
               </div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">Ordens de serviço</h1>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{isViewer ? "Consulte as ordens de serviço e acompanhe o histórico sem alterar dados." : isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
@@ -671,7 +692,7 @@ function Dashboard() {
             )}
           </div>
 
-          {!isManager && (
+          {!isCentralView && (
             <div className="mt-6 inline-flex rounded-md border bg-card p-1">
               <Button size="sm" variant={scope === "minhas" ? "default" : "ghost"} onClick={() => setScope("minhas")}>As minhas OS</Button>
               <Button size="sm" variant={scope === "fila" ? "default" : "ghost"} onClick={() => setScope("fila")}>Fila geral</Button>
@@ -695,13 +716,13 @@ function Dashboard() {
                     <h3 className="text-sm font-bold">Monitoramento operacional</h3>
                     <p className="mt-1 text-xs text-muted-foreground">Indicadores atualizados conforme as ordens registadas.</p>
                   </div>
-                  {isManager && (
+                  {isCentralView && (
                     <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void navigate({ to: "/analises" })}>
                       <BarChart3 className="size-4" /> Análise técnica
                     </Button>
                   )}
                 </div>
-                {isManager ? (
+                {isCentralView ? (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <div className="flex min-w-0 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50/70 p-2 dark:border-rose-900/60 dark:bg-rose-950/20">
                       <div className="grid size-8 shrink-0 place-items-center rounded-md bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><AlertTriangle className="size-4" /></div>
@@ -790,7 +811,7 @@ function Dashboard() {
                       ]}
                     />
                   </div>
-                  {isManager && (
+                  {isCentralView && (
                     <>
                       <div className="grid gap-1">
                         <SectorMultiFilter
@@ -823,7 +844,7 @@ function Dashboard() {
                       <Button variant="outline" size="sm" className="h-9 w-full text-xs" onClick={() => { setFilterOS(""); setFilterFrota(""); setFilterTecnico(""); setFilterSetores([]); setFilterLocalizacoes([]); }}>Limpar filtros</Button>
                     </div>
                   )}
-                  {isManager && (
+                  {isCentralView && (
                     <div className="grid min-w-0 grid-cols-1 content-start gap-2 xl:col-start-6 xl:row-start-1">
                       <div className="grid min-w-0 gap-1">
                         <Input type="date" aria-label="Data inicial" title="Data inicial" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-9 min-w-0 bg-background px-2 text-xs" />
@@ -897,7 +918,7 @@ function Dashboard() {
                       )}
                     </div>
                   </div>
-                  {isManager && t.list.length > 0 && (
+                  {isCentralView && t.list.length > 0 && (
                     <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
                       {(["frota", "setor", "tecnico"] as const).map((field) => {
                         const labels = { frota: "Frota", setor: "Setor", tecnico: "Técnico" };
@@ -1069,12 +1090,12 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const canStart = !actor.isViewer && status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
+  const canFinish = !actor.isViewer && status === "em_andamento" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.isManager && status === "concluida" && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
-  const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
+  const canDelete = !actor.isViewer && (isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com");
   const priorityAgeDays = getOrderAgeInDays(order);
   const priority = actor.isManager && isPriorityOrder(order);
 
@@ -1214,8 +1235,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className={actor.isManager ? "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center" : "flex flex-wrap items-center gap-x-2.5 gap-y-1.5"}>
-        {actor.isManager ? (
+        <div className={(actor.isManager || actor.isViewer) ? "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center" : "flex flex-wrap items-center gap-x-2.5 gap-y-1.5"}>
+        {(actor.isManager || actor.isViewer) ? (
           canSelect && order.status === "pendente" ? (
             <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
               <input type="checkbox" checked={selected} onChange={() => onToggleSelect(order.id)} aria-label={"Selecionar OS " + order.numero_os} className="size-4 cursor-pointer rounded border-input accent-primary" />
@@ -1237,13 +1258,13 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <p className="text-sm font-semibold text-primary">{order.frota || "—"}</p>
           </div>
 
-          {actor.isManager && (
+          {(actor.isManager || actor.isViewer) && (
             <div className="min-w-[110px] max-w-[180px]">
               <p className="break-words text-sm font-semibold">{order.setor?.trim() || "Não informado"}</p>
             </div>
           )}
 
-          {actor.isManager && (
+          {(actor.isManager || actor.isViewer) && (
             <div className="min-w-[130px] max-w-[220px]">
               <p className="break-words text-sm font-medium">{order.localizacao?.trim() || "Não informada"}</p>
             </div>
@@ -1280,7 +1301,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          {!actor.isManager && (
+          {!actor.isManager && !actor.isViewer && (
             <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
               {actionButtons}
             </div>
@@ -1301,7 +1322,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frota</p><p className="mt-1 text-sm font-bold">{order.frota}</p></div>
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Técnico</p><p className="mt-1 truncate font-semibold">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p></div>
             </div>
-            {actor.isManager && <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Setor</p><p className="mt-1 text-sm font-semibold">{order.setor?.trim() || "Não informado"}</p></div>}
+            {(actor.isManager || actor.isViewer) && <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Setor</p><p className="mt-1 text-sm font-semibold">{order.setor?.trim() || "Não informado"}</p></div>}
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Localização</p><p className="mt-1 flex items-start gap-2 text-sm"><MapPin className="mt-0.5 size-4 shrink-0 text-primary" />{order.localizacao || "Não informada"}</p></div>
             <div className="rounded-lg border p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Descrição</p><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{order.descricao || "Sem descrição."}</p></div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
