@@ -12,6 +12,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
         email: z.string().trim().toLowerCase().email("Informe um e-mail válido."),
         password: z.string().min(8, "A senha precisa ter pelo menos 8 caracteres.").max(128),
         adminAccess: z.boolean().default(false),
+        role: z.enum(["gestor", "tecnico", "visualizador"]).optional(),
       })
       .parse(data),
   )
@@ -29,7 +30,7 @@ export const createTeamUser = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Somente o administrador principal pode cadastrar gestores." };
     }
 
-    const role = data.adminAccess ? "gestor" : "tecnico";
+    const role = data.role ?? (data.adminAccess ? "gestor" : "tecnico");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -81,7 +82,7 @@ export const updateTeamUser = createServerFn({ method: "POST" })
       userId: z.string().uuid("Usuário inválido."),
       nome: z.string().trim().min(1, "Informe o nome do usuário.").max(120),
       password: z.string().max(128).optional().default(""),
-      role: z.enum(["gestor", "tecnico"]).optional(),
+      role: z.enum(["gestor", "tecnico", "visualizador"]).optional(),
     }).parse(data),
   )
   .handler(async ({ data, context }) => {
