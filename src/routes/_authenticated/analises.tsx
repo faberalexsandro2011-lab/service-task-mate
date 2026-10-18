@@ -63,14 +63,11 @@ async function getAnalysisData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: roleRows, error: roleError } = await supabase
-    .from("user_roles")
-    .select("user_id, role")
-    .eq("user_id", authData.user.id);
-
-  if (roleError) throw roleError;
-  const role = roleRows?.[0]?.role ?? "tecnico";
-  if (role !== "gestor") throw new Error("A análise técnica está disponível apenas para gestores.");
+  const { data: isManager, error: managerError } = await supabase.rpc("has_role", { _user_id: authData.user.id, _role: "gestor" });
+  const { data: isViewer, error: viewerError } = await supabase.rpc("has_role", { _user_id: authData.user.id, _role: "visualizador" });
+  if (managerError || viewerError) throw new Error("Não foi possível confirmar as permissões.");
+  const viewer = isViewer === true;
+  if (isManager !== true && !viewer) throw new Error("A análise técnica está disponível apenas para gestores.");
 
   const { data: orders, error } = await supabase
     .from("ordens_servico")
@@ -80,7 +77,7 @@ async function getAnalysisData() {
 
   if (error) throw error;
 
-  return { user: authData.user, orders: orders ?? [] };
+  return { user: authData.user, orders: orders ?? [], viewer };
 }
 
 function TechnicalAnalysis() {
@@ -102,7 +99,7 @@ function TechnicalAnalysis() {
     queryFn: getAnalysisData,
     staleTime: 30_000,
   });
-  const canEditBase = query.data?.user.email?.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
+  const canEditBase = !query.data?.viewer && query.data?.user.email?.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
 
   function beginEdit(order: Ordem) {
     setEditingOrderId(order.id);
