@@ -408,7 +408,7 @@ function Dashboard() {
   }, [orders, filterOS, filterFrota, filterTecnico, filterSetores, filterLocalizacoes, dateFrom, dateTo, isCentralView, isManager, sortOrdersBy]);
   const byStatus = (s: Status) => filtered.filter((o) => o.status === s);
   const operationalAlerts = useMemo(() => {
-    if (!isManager) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
+    if (!isCentralView) return { priorityOpen: 0, stalePending: 0, staleInProgress: 0, unassigned: 0 };
     const now = Date.now();
     const sevenDays = 7 * 24 * 60 * 60 * 1000;
     const oneDay = 24 * 60 * 60 * 1000;
@@ -418,7 +418,7 @@ function Dashboard() {
       staleInProgress: orders.filter((o) => o.status === "em_andamento" && o.data_inicio && now - new Date(o.data_inicio).getTime() >= oneDay).length,
       unassigned: orders.filter((o) => o.status === "pendente" && !o.tecnico_id && !o.tecnico_email).length,
     };
-  }, [isManager, orders]);
+  }, [isCentralView, orders]);
 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -950,7 +950,7 @@ function Dashboard() {
                       })}
                     </div>
                   )}
-                  {isManager && t.list.length > 0 && (
+                  {isCentralView && t.list.length > 0 && (
                     <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
@@ -1099,7 +1099,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = !actor.isViewer && (isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com");
   const priorityAgeDays = getOrderAgeInDays(order);
-  const priority = actor.isManager && isPriorityOrder(order);
+  const priority = (actor.isManager || actor.isViewer) && isPriorityOrder(order);
 
   async function start() {
     setBusy(true);
@@ -1276,7 +1276,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <p className="break-words text-sm font-medium">{order.tecnico_nome || order.tecnico_email || "Fila geral"}</p>
           </div>
 
-          {!actor.isManager && (
+          {!actor.isManager && !actor.isViewer && (
             <div className="min-w-[150px] flex-[1.2]">
               <span className="text-[10px] font-semibold uppercase text-muted-foreground">Serviço</span>
               <p className="break-words text-sm">{order.descricao || "Sem descrição"}</p>
