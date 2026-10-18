@@ -44,8 +44,9 @@ export const Route = createFileRoute("/_authenticated")({
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
     const isViewerArea = location.pathname.endsWith("/visualizacao");
+    const isViewerAllowedArea = location.pathname.endsWith("/dashboard") || location.pathname.endsWith("/historico") || location.pathname.endsWith("/analises");
 
-    if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
+    if (role === "visualizador" && !isViewerAllowedArea) throw redirect({ to: "/dashboard", replace: true });
     if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : "/tecnico", replace: true });
 
     if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {

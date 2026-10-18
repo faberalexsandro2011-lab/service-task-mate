@@ -27,6 +27,7 @@ function HistoryPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Ordem | null>(null);
+  const [viewer, setViewer] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -40,13 +41,16 @@ function HistoryPage() {
         _role: "gestor",
       });
 
+      const { data: isViewer } = await supabase.rpc("has_role", { _user_id: auth.user.id, _role: "visualizador" });
       const manager = isManager === true;
+      const readOnlyViewer = isViewer === true;
+      setViewer(readOnlyViewer);
       const email = String(auth.user.email ?? "").trim().toLowerCase();
 
       let ordersQuery = supabase.from("ordens_servico").select("*").order("created_at", { ascending: false });
       let historyQuery = supabase.from("historico_edicoes").select("*").order("created_at", { ascending: false });
 
-      if (!manager) {
+      if (!manager && !readOnlyViewer) {
         ordersQuery = supabase.from("ordens_servico")
           .select("*")
           .or(`tecnico_id.eq.${auth.user.id},tecnico_email.ilike.${email}`)
@@ -116,7 +120,7 @@ function HistoryPage() {
   }
 
   return <main className="min-h-screen bg-[var(--agri-straw)]">
-    <header className="border-b bg-[var(--agri-field)] text-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5"><div><Link to="/tecnico" className="mb-2 inline-flex items-center gap-2 text-sm opacity-80 hover:opacity-100"><ArrowLeft className="size-4" /> Voltar</Link><h1 className="flex items-center gap-2 text-2xl font-black"><History /> Histórico de serviços</h1></div><Button onClick={exportExcel} className="bg-[var(--agri-wheat)] text-[var(--agri-earth)] hover:bg-[var(--agri-wheat)]"><Download /> Exportar XLSX</Button></div></header>
+    <header className="border-b bg-[var(--agri-field)] text-white"><div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5"><div><Link to={viewer ? "/dashboard" : "/tecnico"} className="mb-2 inline-flex items-center gap-2 text-sm opacity-80 hover:opacity-100"><ArrowLeft className="size-4" /> Voltar</Link><h1 className="flex items-center gap-2 text-2xl font-black"><History /> Histórico de serviços</h1></div>{!viewer && <Button onClick={exportExcel} className="bg-[var(--agri-wheat)] text-[var(--agri-earth)] hover:bg-[var(--agri-wheat)]"><Download /> Exportar XLSX</Button>}</div></header>
     <section className="mx-auto max-w-7xl space-y-4 px-4 py-6">
       <div className="grid gap-3 rounded-2xl border bg-card p-4 md:grid-cols-5">
         <div className="relative md:col-span-2"><Search className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" placeholder="Buscar OS, frota, técnico..." value={search} onChange={e => setSearch(e.target.value)} /></div>
