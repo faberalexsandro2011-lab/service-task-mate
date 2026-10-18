@@ -94,6 +94,13 @@ export const updateTeamUser = createServerFn({ method: "POST" })
     if (data.userId === context.userId) {
       return { ok: false as const, error: "Você não pode editar a própria conta por esta função." };
     }
+    if (data.role) {
+      const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
+      const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
+      if (actorEmail !== ADMIN_EMAIL) {
+        return { ok: false as const, error: "Somente o administrador principal pode alterar funções." };
+      }
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: target, error: targetError } = await supabaseAdmin.auth.admin.getUserById(data.userId);
