@@ -459,6 +459,7 @@ function Dashboard() {
       email: data!.user.email ?? "",
       name: data!.me?.nome ?? data!.user.email ?? "",
       isManager: true,
+      isViewer: false,
     };
     for (const row of updatedRows ?? []) {
       try {
