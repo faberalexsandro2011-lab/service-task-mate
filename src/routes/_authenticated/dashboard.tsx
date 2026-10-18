@@ -608,7 +608,7 @@ function Dashboard() {
               </div>
               <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">Ordens de serviço</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{isViewer ? "Consulte as ordens de serviço e acompanhe o histórico sem alterar dados." : isManager ? "Acompanhe e distribua o trabalho da equipa." : "Inicie e finalize os seus atendimentos."}</p>
-              {isViewer && <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary"><Eye className="size-3.5" /> Somente visualização · alterações e exportação desativadas</span>}
+              {isViewer && <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary"><ShieldCheck className="size-3.5" /> Somente visualização · alterações e exportação desativadas</span>}
             </div>
             {isManager && (
               <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-2 shadow-sm">
