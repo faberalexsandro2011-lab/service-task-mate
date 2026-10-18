@@ -26,11 +26,10 @@ export const createTeamUser = createServerFn({ method: "POST" })
 
     const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
     const actorEmail = String(context.claims?.email ?? "").trim().toLowerCase();
-    if (data.adminAccess && actorEmail !== ADMIN_EMAIL) {
-      return { ok: false as const, error: "Somente o administrador principal pode cadastrar gestores." };
-    }
-
     const role = data.role ?? (data.adminAccess ? "gestor" : "tecnico");
+    if (role !== "tecnico" && actorEmail !== ADMIN_EMAIL) {
+      return { ok: false as const, error: "Somente o administrador principal pode cadastrar administradores ou usuários somente visualização." };
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
