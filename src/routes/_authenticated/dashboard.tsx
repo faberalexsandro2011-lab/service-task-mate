@@ -1062,6 +1062,113 @@ function FleetBadge({ value, compact = false }: { value: string; compact?: boole
   );
 }
 
+
+async function shareOrderAsImage(order: Ordem) {
+  const canvas = document.createElement("canvas");
+  const width = 1000;
+  const padding = 56;
+  const contentWidth = width - padding * 2;
+  const lineHeight = 32;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Não foi possível preparar a imagem da OS.");
+
+  const extendedOrder = order as Ordem & { classe_manutencao?: string | null; fechada_em?: string | null };
+  const parts = getReplacedParts(order.pecas_utilizadas);
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "STATUS", value: STATUS_LABEL[order.status as Status] ?? String(order.status ?? "—") },
+    { label: "FROTA", value: order.frota || "Não informada" },
+    { label: "NÚMERO DA OS", value: String(order.numero_os || "Aguardando número") },
+    { label: "TÉCNICO RESPONSÁVEL", value: order.tecnico_nome || order.tecnico_email || "Fila geral" },
+    { label: "SETOR", value: order.setor || "Não informado" },
+    { label: "LOCALIZAÇÃO", value: order.localizacao || "Não informada" },
+    { label: "ABERTURA", value: formatEntrada(order.entrada) || formatDataAberturaFallback(order.created_at) },
+    { label: "INÍCIO DO ATENDIMENTO", value: fmtDate(order.data_inicio) },
+    { label: "CONCLUSÃO", value: fmtDate(order.concluida_em) },
+    { label: "CLASSE DE MANUTENÇÃO", value: extendedOrder.classe_manutencao || "Não informada" },
+    { label: "DESCRIÇÃO DO SERVIÇO", value: order.descricao || "Sem descrição." },
+    { label: "SERVIÇO REALIZADO / SOLUÇÃO", value: order.notas_fecho || "Não registrado." },
+    { label: "PEÇAS TROCADAS", value: parts.length ? parts.map((part) => part.nome + " (qtd. " + part.quantidade + ")").join("; ") : "Nenhuma peça informada." },
+  ];
+
+  ctx.font = "28px Arial";
+  const wrap = (value: string, maxWidth: number) => {
+    const words = String(value || "—").split(/\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? line + " " + word : word;
+      if (ctx.measureText(candidate).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : ["—"];
+  };
+
+  const prepared = rows.map((row) => ({ ...row, lines: wrap(row.value, contentWidth) }));
+  let height = 250;
+  for (const row of prepared) height += 44 + row.lines.length * lineHeight + 22;
+  height += 100;
+  canvas.width = width;
+  canvas.height = height;
+  const draw = canvas.getContext("2d");
+  if (!draw) throw new Error("Não foi possível preparar a imagem da OS.");
+  draw.fillStyle = "#f5f7f4";
+  draw.fillRect(0, 0, width, height);
+  draw.fillStyle = "#245b35";
+  draw.fillRect(0, 0, width, 170);
+  draw.fillStyle = "#ffffff";
+  draw.font = "bold 42px Arial";
+  draw.fillText("CENTRAL OS", padding, 62);
+  draw.font = "bold 34px Arial";
+  draw.fillText("ORDEM DE SERVIÇO " + String(order.numero_os || "SEM NÚMERO"), padding, 118);
+  draw.font = "24px Arial";
+  draw.fillText("Gerada em " + new Date().toLocaleString("pt-BR"), padding, 151);
+
+  let y = 210;
+  for (const row of prepared) {
+    draw.fillStyle = "#ffffff";
+    draw.fillRect(padding - 10, y - 12, contentWidth + 20, 44 + row.lines.length * lineHeight + 18);
+    draw.fillStyle = "#4c6352";
+    draw.font = "bold 19px Arial";
+    draw.fillText(row.label, padding, y + 12);
+    draw.fillStyle = "#17251b";
+    draw.font = "28px Arial";
+    let lineY = y + 48;
+    for (const line of row.lines) {
+      draw.fillText(line, padding, lineY);
+      lineY += lineHeight;
+    }
+    y = lineY + 20;
+  }
+  draw.fillStyle = "#607064";
+  draw.font = "20px Arial";
+  draw.fillText("Compartilhado pelo Central OS", padding, height - 35);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Falha ao gerar a imagem.")), "image/png");
+  });
+  const file = new File([blob], "OS-" + String(order.numero_os || "sem-numero").replace(/[^a-zA-Z0-9_-]/g, "_") + ".png", { type: "image/png" });
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: "OS " + (order.numero_os || ""), text: "Ordem de Serviço " + (order.numero_os || "") + " — Central OS" });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = file.name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  const message = "Ordem de Serviço " + (order.numero_os || "") + " — a imagem completa da OS foi baixada. Anexe o arquivo PNG nesta conversa do WhatsApp.";
+  window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
+}
+
 function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelect }: { order: Ordem; actor: Actor; onChanged: () => Promise<void>; selected: boolean; onToggleSelect: (id: string) => void; canSelect: boolean }) {
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -1296,6 +1403,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <StatusBadge status={status} />
             </div>
           </DialogHeader>
+          <div className="mb-1 flex flex-wrap gap-2">
+            <Button className="w-full sm:w-auto" onClick={() => { void shareOrderAsImage(order).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível compartilhar a imagem da OS."); }); }}>
+              <Share2 /> Enviar print pelo WhatsApp
+            </Button>
+          </div>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frota</p><p className="mt-1 text-sm font-bold">{order.frota}</p></div>
