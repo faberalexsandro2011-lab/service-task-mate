@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -110,6 +110,110 @@ function getReplacedParts(value: string | null | undefined) {
       const match = part.match(/^(.*)\\s+x(\\d+)$/);
       return { nome: match?.[1]?.trim() || part, quantidade: Number(match?.[2] || 1) };
     });
+}
+
+
+async function shareOrderAsImage(order: Ordem) {
+  const canvas = document.createElement("canvas");
+  const width = 1000;
+  const padding = 56;
+  const contentWidth = width - padding * 2;
+  const lineHeight = 34;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Não foi possível preparar a imagem da OS.");
+
+  const statusLabel = order.status === "concluida" ? "Finalizada" : order.status === "em_andamento" ? "Em andamento" : "Pendente";
+  const rows: Array<{ label: string; value: string }> = [
+    { label: "STATUS", value: statusLabel },
+    { label: "NÚMERO DA OS", value: String(order.numero_os || "Aguardando número") },
+    { label: "FROTA", value: order.frota || "Não informada" },
+    { label: "TÉCNICO RESPONSÁVEL", value: order.tecnico_nome || order.tecnico_email || "Não informado" },
+    { label: "LOCALIZAÇÃO", value: order.localizacao || "Não informada" },
+    { label: "ABERTURA", value: formatAberturaDateTime(order.entrada, order.created_at) },
+    { label: "INÍCIO DO ATENDIMENTO", value: formatDateTime(order.data_inicio, "Não iniciado") },
+    { label: "CONCLUSÃO", value: formatDateTime(order.concluida_em, "—") },
+    { label: "DESCRIÇÃO DO SERVIÇO", value: order.descricao || "Sem descrição." },
+    { label: "SERVIÇO REALIZADO", value: order.notas_fecho || "Não registrado." },
+    { label: "PEÇAS TROCADAS", value: getReplacedParts(order.pecas_utilizadas).map((part) => part.nome + " (qtd. " + part.quantidade + ")").join("; ") || "Nenhuma peça informada." },
+  ];
+
+  ctx.font = "28px Arial";
+  const wrap = (value: string, maxWidth: number) => {
+    const words = String(value || "—").split(/\\s+/);
+    const lines: string[] = [];
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? line + " " + word : word;
+      if (ctx.measureText(candidate).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : ["—"];
+  };
+
+  const prepared = rows.map((row) => ({ ...row, lines: wrap(row.value, contentWidth) }));
+  let height = 250;
+  for (const row of prepared) height += 44 + row.lines.length * lineHeight + 22;
+  height += 100;
+  canvas.width = width;
+  canvas.height = height;
+  const draw = canvas.getContext("2d");
+  if (!draw) throw new Error("Não foi possível preparar a imagem da OS.");
+  draw.fillStyle = "#f5f7f4";
+  draw.fillRect(0, 0, width, height);
+  draw.fillStyle = "#245b35";
+  draw.fillRect(0, 0, width, 170);
+  draw.fillStyle = "#ffffff";
+  draw.font = "bold 42px Arial";
+  draw.fillText("CENTRAL OS", padding, 62);
+  draw.font = "bold 34px Arial";
+  draw.fillText("ORDEM DE SERVIÇO " + String(order.numero_os || "SEM NÚMERO"), padding, 118);
+  draw.font = "24px Arial";
+  draw.fillText("Gerada em " + new Date().toLocaleString("pt-BR"), padding, 151);
+
+  let y = 210;
+  for (const row of prepared) {
+    draw.fillStyle = "#ffffff";
+    draw.fillRect(padding - 10, y - 12, contentWidth + 20, 44 + row.lines.length * lineHeight + 18);
+    draw.fillStyle = "#4c6352";
+    draw.font = "bold 19px Arial";
+    draw.fillText(row.label, padding, y + 12);
+    draw.fillStyle = "#17251b";
+    draw.font = "28px Arial";
+    let lineY = y + 48;
+    for (const line of row.lines) {
+      draw.fillText(line, padding, lineY);
+      lineY += lineHeight;
+    }
+    y = lineY + 20;
+  }
+  draw.fillStyle = "#607064";
+  draw.font = "20px Arial";
+  draw.fillText("Compartilhado pelo Central OS", padding, height - 35);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Falha ao gerar a imagem.")), "image/png");
+  });
+  const file = new File([blob], "OS-" + String(order.numero_os || "sem-numero").replace(/[^a-zA-Z0-9_-]/g, "_") + ".png", { type: "image/png" });
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: "OS " + (order.numero_os || ""), text: "Ordem de Serviço " + (order.numero_os || "") + " — Central OS" });
+    return;
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = file.name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  const message = "Ordem de Serviço " + (order.numero_os || "") + " — a imagem completa da OS foi baixada. Anexe o arquivo PNG nesta conversa do WhatsApp.";
+  window.open("https://wa.me/?text=" + encodeURIComponent(message), "_blank", "noopener,noreferrer");
 }
 
 function playFieldAlert() {
@@ -894,6 +998,7 @@ function TechnicianPage() {
             )}
           </div>
           <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap gap-2 border-t bg-background/95 px-1 py-3 pt-3 backdrop-blur">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => { if (!details) return; void shareOrderAsImage(details).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível preparar o print da OS."); }); }}><Share2 /> Enviar print pelo WhatsApp</Button>
             {details.status === "concluida" && !(details as Ordem & { fechada_em?: string | null }).fechada_em && !editCompleted && <Button variant="outline" className="rounded-xl" onClick={() => { setEditNotes(details.notas_fecho || ""); setEditCompleted(true); }}>Editar serviço</Button>}
             {editCompleted && <>
               <Button className="rounded-xl" disabled={editBusy} onClick={() => void saveCompletedEdit()}>{editBusy ? "Salvando..." : "Salvar alterações"}</Button>
