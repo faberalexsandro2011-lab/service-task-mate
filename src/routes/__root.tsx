@@ -38,7 +38,12 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
-  console.error(error);
+  console.error("[Central OS] Erro ao carregar a página:", error);
+  const diagnostic = error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : error instanceof Response
+      ? `Response HTTP ${error.status}`
+      : "Erro inesperado sem detalhes disponíveis";
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
@@ -53,6 +58,10 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
+        <div className="mt-3 rounded-md border border-border bg-muted/40 p-3 text-left">
+          <p className="text-xs font-semibold text-muted-foreground">Detalhe técnico para diagnóstico</p>
+          <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-foreground">{diagnostic.slice(0, 400)}</pre>
+        </div>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
