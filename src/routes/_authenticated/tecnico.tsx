@@ -139,7 +139,7 @@ async function shareOrderAsImage(order: Ordem) {
 
   ctx.font = "28px Arial";
   const wrap = (value: string, maxWidth: number) => {
-    const words = String(value || "—").split(/\\s+/);
+    const words = String(value || "—").split(/\s+/);
     const lines: string[] = [];
     let line = "";
     for (const word of words) {
