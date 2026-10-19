@@ -1368,12 +1368,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           )}
 
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            <div className="mb-1 flex flex-wrap gap-2">
-            <Button className="w-full sm:w-auto" onClick={() => { void shareOrderAsImage(order).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível compartilhar a imagem da OS."); }); }}>
-              <Share2 /> Enviar print pelo WhatsApp
-            </Button>
-          </div>
-          <StatusBadge status={status} />
+            <StatusBadge status={status} />
             {isClosed && <span className="rounded-sm bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">Fechada</span>}
             {priority && priorityAgeDays !== null && (
               <span
@@ -1408,6 +1403,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <StatusBadge status={status} />
             </div>
           </DialogHeader>
+          <div className="mb-1 flex flex-wrap gap-2">
+            <Button className="w-full sm:w-auto" onClick={() => { void shareOrderAsImage(order).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível compartilhar a imagem da OS."); }); }}>
+              <Share2 /> Enviar print pelo WhatsApp
+            </Button>
+          </div>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border bg-muted/30 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Frota</p><p className="mt-1 text-sm font-bold">{order.frota}</p></div>
