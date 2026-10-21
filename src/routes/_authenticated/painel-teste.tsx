@@ -124,10 +124,12 @@ function PainelTeste() {
     // A política RLS valida no banco se o usuário pode criar OS na unidade escolhida.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
+    const { data: authData } = await supabase.auth.getUser();
     const { error } = await db.from("ordens_servico").insert({
       unidade_id: unidadeId,
-      numero_os: formNovaOS.numero_os.trim() || null,
-      frota: formNovaOS.frota.trim() || null,
+      numero_os: formNovaOS.numero_os.trim(),
+      frota: formNovaOS.frota.trim(),
+      criado_por_email: authData.user?.email ?? null,
       descricao: formNovaOS.descricao.trim(),
       setor: formNovaOS.setor.trim() || null,
       localizacao: formNovaOS.localizacao.trim() || null,
@@ -307,13 +309,13 @@ function PainelTeste() {
           <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de OS</h2><p className="text-sm text-emerald-100/70">Abra novas ordens de serviço e acompanhe as existentes.</p></div><button type="button" onClick={() => { setMostrarNovaOS(!mostrarNovaOS); setMensagemOS(""); }} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200">{mostrarNovaOS ? "Cancelar" : "+ Adicionar OS"}</button></div>
           {mostrarNovaOS && <form onSubmit={criarOS} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={formUnidadeCentral} onChange={e=>setFormUnidadeCentral(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
-            <label className="grid gap-1 text-sm">Número da OS (opcional)<input value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm">Frota<input value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Número da OS<input required value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Frota<input required value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">Setor<input value={formNovaOS.setor} onChange={e=>setFormNovaOS({...formNovaOS,setor:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">Localização<input value={formNovaOS.localizacao} onChange={e=>setFormNovaOS({...formNovaOS,localizacao:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">Técnico responsável<input value={formNovaOS.tecnico_nome} onChange={e=>setFormNovaOS({...formNovaOS,tecnico_nome:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea required value={formNovaOS.descricao} onChange={e=>setFormNovaOS({...formNovaOS,descricao:e.target.value})} rows={3} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <div className="sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoNovaOS || !formNovaOS.descricao.trim()} className="rounded-lg bg-lime-300 px-5 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNovaOS ? "Criando OS..." : "Salvar nova OS"}</button></div>
+            <div className="sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoNovaOS || !formNovaOS.numero_os.trim() || !formNovaOS.frota.trim() || !formNovaOS.descricao.trim()} className="rounded-lg bg-lime-300 px-5 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNovaOS ? "Criando OS..." : "Salvar nova OS"}</button></div>
           </form>}
         </section>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
