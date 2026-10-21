@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet } from "lucide-react";
+import { read, utils } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
@@ -11,6 +12,7 @@ type Unidade = { id: string; codigo: string; nome: string };
 type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor_central" | "visualizador";
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
+type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; valid: boolean };
 type Ordem = {
   id: string;
   unidade_id: string;
@@ -69,9 +71,13 @@ function PainelTeste() {
   const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
-  const [mostrarNovaOS, setMostrarNovaOS] = useState(false);
+  const [modoGestao, setModoGestao] = useState<"menu" | "criar" | "colar" | "importar">("menu");
   const [salvandoNovaOS, setSalvandoNovaOS] = useState(false);
-  const [formNovaOS, setFormNovaOS] = useState({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "" });
+  const [textoPlanilha, setTextoPlanilha] = useState("");
+  const [linhasImportacao, setLinhasImportacao] = useState<LinhaImportacao[]>([]);
+  const [nomeArquivo, setNomeArquivo] = useState("");
+  const [salvandoLote, setSalvandoLote] = useState(false);
+  const [formNovaOS, setFormNovaOS] = useState({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "", tecnico_email: "", entrada: "" });
   const [formUnidadeCentral, setFormUnidadeCentral] = useState("");
   const [edicaoOS, setEdicaoOS] = useState<{ id: string; numero_os: string; frota: string; descricao: string; setor: string; tecnico_nome: string; status: Ordem["status"]; pecas_utilizadas: string } | null>(null);
   const [salvandoOS, setSalvandoOS] = useState(false);
@@ -125,23 +131,84 @@ function PainelTeste() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     const { data: authData } = await supabase.auth.getUser();
+    const tecnico = usuariosAdmin.find(u => u.ativo && u.unidade_id === unidadeId && u.perfil === "tecnico" && (u.email.toLowerCase() === formNovaOS.tecnico_email.trim().toLowerCase() || u.nome.toLowerCase() === formNovaOS.tecnico_nome.trim().toLowerCase()));
     const { error } = await db.from("ordens_servico").insert({
       unidade_id: unidadeId,
       numero_os: formNovaOS.numero_os.trim(),
       frota: formNovaOS.frota.trim(),
+      entrada: formNovaOS.entrada.trim() || null,
       criado_por_email: authData.user?.email ?? null,
       descricao: formNovaOS.descricao.trim(),
       setor: formNovaOS.setor.trim() || null,
       localizacao: formNovaOS.localizacao.trim() || null,
-      tecnico_nome: formNovaOS.tecnico_nome.trim() || null,
+      tecnico_id: tecnico?.user_id ?? null,
+      tecnico_email: tecnico?.email ?? (formNovaOS.tecnico_email.trim() || null),
+      tecnico_nome: tecnico?.nome ?? (formNovaOS.tecnico_nome.trim() || null),
       status: "pendente",
     });
     setSalvandoNovaOS(false);
     if (error) { setMensagemOS("Não foi possível criar a OS: " + error.message); return; }
     setMensagemOS("OS criada com sucesso.");
-    setFormNovaOS({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "" });
-    setMostrarNovaOS(false);
+    setFormNovaOS({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "", tecnico_email: "", entrada: "" });
+    setModoGestao("menu");
     await carregar();
+  };
+
+  const parsearLinhas = (valor: string): LinhaImportacao[] => {
+    const linhas = valor.split(/\r?\n/).filter(l => l.trim());
+    if (!linhas.length) return [];
+    const pipe = linhas.some(l => l.includes("|"));
+    const matriz = pipe ? linhas.map(l=>l.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim())) : linhas.map(l=>l.split("\t"));
+    return normalizarMatriz(matriz);
+  };
+
+  const normalizarMatriz = (matriz: unknown[][]): LinhaImportacao[] => {
+    const clean = (v: unknown) => String(v ?? "").trim();
+    const norm = (v: unknown) => clean(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+    const rows = matriz.filter(r=>r.some(c=>clean(c)));
+    if (!rows.length) return [];
+    const headerIndex = rows.findIndex(r=>r.some(c=>["numero_os","numero","os","o_s","frota","numero_da_os"].includes(norm(c)) || norm(c).includes("frota")));
+    const idx = headerIndex >= 0 ? headerIndex : -1;
+    const header = idx >= 0 ? rows[idx].map(norm) : ["numero_os","frota","localizacao","descricao","tecnico_email","entrada","setor","seq"];
+    const data = idx >= 0 ? rows.slice(idx+1) : rows;
+    const get = (row: unknown[], aliases: string[]) => { for (const alias of aliases) { const i=header.findIndex(h=>h===alias || h.includes(alias)); if(i>=0 && clean(row[i])) return clean(row[i]); } return ""; };
+    return data.filter(r=>r.some(c=>clean(c))).map(row=>{
+      const numero = get(row,["numero_os","numero_da_os","n_os","no_os","num_os","ordem","o_s","os"]).replace(/\./g,"").trim();
+      const frota = get(row,["frota","viatura","veiculo","matricula","prefixo","equipamento"]).replace(/^frota\s*[:#-]?\s*/i,"").trim();
+      const seqRaw = get(row,["sequencia","seq"]); const seq = Number(seqRaw);
+      const tecnico = get(row,["tecnico_email","email_tecnico","tecnico","nome_tecnico","tecnico_nome","responsavel","mecanico"]);
+      const unidadeId = perfilAtual==="admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+      const matched = usuariosAdmin.find(u=>u.ativo && u.perfil==="tecnico" && u.unidade_id===unidadeId && (u.email.toLowerCase()===tecnico.toLowerCase() || u.nome.toLowerCase()===tecnico.toLowerCase()));
+      return {numero_os:numero,frota,entrada:get(row,["entrada","data_entrada"]),descricao:get(row,["descricao","problema","servico","observacao"]),localizacao:get(row,["localizacao","local","endereco","fazenda"]),setor:get(row,["setor","departamento","area"]),sequencia:Number.isFinite(seq)&&seqRaw?seq:null,tecnico_email:matched?.email ?? (tecnico.includes("@")?tecnico:""),tecnico_nome:matched?.nome ?? (tecnico.includes("@")?"":tecnico),valid:Boolean(numero&&frota)};
+    });
+  };
+
+  const salvarImportacao = async () => {
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    if (!unidadeId) { setMensagemOS("Selecione a unidade para importar."); return; }
+    const validas = linhasImportacao.filter(l=>l.valid);
+    if (!validas.length) return;
+    setSalvandoLote(true); setMensagemOS("");
+    const db = supabase as any;
+    const {data: authData} = await supabase.auth.getUser();
+    let criadas=0, atualizadas=0;
+    try {
+      const unicas = new Map<string,LinhaImportacao>();
+      validas.forEach(l=>unicas.set(l.numero_os,l));
+      for (const l of unicas.values()) {
+        const tecnico = usuariosAdmin.find(u=>u.ativo && u.perfil==="tecnico" && u.unidade_id===unidadeId && (u.email.toLowerCase()===l.tecnico_email.toLowerCase() || u.nome.toLowerCase()===l.tecnico_nome.toLowerCase()));
+        const payload = {numero_os:l.numero_os,frota:l.frota,entrada:l.entrada||null,descricao:l.descricao||null,localizacao:l.localizacao||null,setor:l.setor||null,sequencia:l.sequencia,tecnico_id:tecnico?.user_id??null,tecnico_email:tecnico?.email??(l.tecnico_email||null),tecnico_nome:tecnico?.nome??(l.tecnico_nome||null),criado_por_email:authData.user?.email??null,status:"pendente"};
+        const {data:existing,error:lookupError}=await db.from("ordens_servico").select("id").eq("unidade_id",unidadeId).eq("numero_os",l.numero_os).order("created_at",{ascending:true}).limit(1).maybeSingle();
+        if(lookupError) throw lookupError;
+        if(existing){const {error}=await db.from("ordens_servico").update(payload).eq("id",existing.id).eq("unidade_id",unidadeId);if(error)throw error;atualizadas++;}
+        else {const {error}=await db.from("ordens_servico").insert({...payload,unidade_id:unidadeId});if(error)throw error;criadas++;}
+      }
+      setMensagemOS("Importação concluída: " + criadas + " nova(s) e " + atualizadas + " atualizada(s) nesta unidade.");
+      setLinhasImportacao([]);setTextoPlanilha("");setNomeArquivo("");setModoGestao("menu");
+      await carregar();
+    } catch(error) { setMensagemOS("A importação falhou: "+(error instanceof Error?error.message:"erro desconhecido")); }
+    finally {setSalvandoLote(false);}
   };
 
   const salvarEdicaoOS = async () => {
@@ -261,6 +328,7 @@ function PainelTeste() {
     [filtro, unidades, perfilAtual, unidadeAtualId],
   );
   useEffect(() => { if (perfilAtual === "gestor_central" && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
+  useEffect(() => { if (perfilAtual === "admin_unidade" && unidadeAtualId) { const propria = unidades.find(u => u.id === unidadeAtualId); if (propria && filtro !== propria.nome) setFiltro(propria.nome); } }, [perfilAtual, unidadeAtualId, unidades, filtro]);
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
   const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id));
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
@@ -283,8 +351,8 @@ function PainelTeste() {
           <div><div className="text-xl font-extrabold">Central OS</div><div className="text-xs text-emerald-200">PAINEL CONSOLIDADO · AMBIENTE DE TESTE</div></div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-3 text-sm text-emerald-100">Unidade
-              <select value={filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
-                <option>Todas</option>{unidades.map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
+              <select value={perfilAtual === "admin_unidade" ? (unidades.find(u => u.id === unidadeAtualId)?.nome ?? "") : filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
+                {perfilAtual !== "admin_unidade" && <option>Todas</option>}{(perfilAtual === "admin_unidade" ? unidades.filter(u => u.id === unidadeAtualId) : unidades).map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
               </select>
             </label>
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
@@ -306,17 +374,27 @@ function PainelTeste() {
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
         {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de OS</h2><p className="text-sm text-emerald-100/70">Abra novas ordens de serviço e acompanhe as existentes.</p></div><button type="button" onClick={() => { setMostrarNovaOS(!mostrarNovaOS); setMensagemOS(""); }} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200">{mostrarNovaOS ? "Cancelar" : "+ Adicionar OS"}</button></div>
-          {mostrarNovaOS && <form onSubmit={criarOS} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de OS</h2><p className="text-sm text-emerald-100/70">Use as mesmas opções de abertura em lote do aplicativo principal.</p></div><button type="button" onClick={() => { setModoGestao(modoGestao === "menu" ? "criar" : "menu"); setMensagemOS(""); }} className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200"><Plus size={17}/> Adicionar OS</button></div>
+          {modoGestao === "menu" && <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <button type="button" onClick={() => setModoGestao("criar")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><Plus size={26}/><b>Criar OS</b><span className="text-xs text-emerald-100/70">Cadastrar uma ordem</span></button>
+            <button type="button" onClick={() => {setModoGestao("colar");setTextoPlanilha("");setLinhasImportacao([]);}} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><ClipboardPaste size={26}/><b>Colar planilha</b><span className="text-xs text-emerald-100/70">Copiar do Excel e colar</span></button>
+            <button type="button" onClick={() => {setModoGestao("importar");setLinhasImportacao([]);setNomeArquivo("");}} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><Upload size={26}/><b>Importar planilha</b><span className="text-xs text-emerald-100/70">Excel, XLS ou CSV</span></button>
+          </div>}
+          {modoGestao === "criar" && <form onSubmit={criarOS} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={formUnidadeCentral} onChange={e=>setFormUnidadeCentral(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
-            <label className="grid gap-1 text-sm">Número da OS<input required value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm">Frota<input required value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm">Setor<input value={formNovaOS.setor} onChange={e=>setFormNovaOS({...formNovaOS,setor:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm">Localização<input value={formNovaOS.localizacao} onChange={e=>setFormNovaOS({...formNovaOS,localizacao:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm">Técnico responsável<input value={formNovaOS.tecnico_nome} onChange={e=>setFormNovaOS({...formNovaOS,tecnico_nome:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <label className="grid gap-1 text-sm sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea required value={formNovaOS.descricao} onChange={e=>setFormNovaOS({...formNovaOS,descricao:e.target.value})} rows={3} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            <div className="sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoNovaOS || !formNovaOS.numero_os.trim() || !formNovaOS.frota.trim() || !formNovaOS.descricao.trim()} className="rounded-lg bg-lime-300 px-5 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNovaOS ? "Criando OS..." : "Salvar nova OS"}</button></div>
+            <label className="grid gap-1 text-sm">Número da OS<input required value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">Frota<input required value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">Entrada / data<input type="date" value={formNovaOS.entrada} onChange={e=>setFormNovaOS({...formNovaOS,entrada:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">Setor<input value={formNovaOS.setor} onChange={e=>setFormNovaOS({...formNovaOS,setor:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">Localização<input value={formNovaOS.localizacao} onChange={e=>setFormNovaOS({...formNovaOS,localizacao:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">Técnico (nome)<input value={formNovaOS.tecnico_nome} onChange={e=>setFormNovaOS({...formNovaOS,tecnico_nome:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm">E-mail do técnico<input type="email" value={formNovaOS.tecnico_email} onChange={e=>setFormNovaOS({...formNovaOS,tecnico_email:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <label className="grid gap-1 text-sm sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea required value={formNovaOS.descricao} onChange={e=>setFormNovaOS({...formNovaOS,descricao:e.target.value})} rows={3} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
+            <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoNovaOS || !formNovaOS.numero_os.trim() || !formNovaOS.frota.trim() || !formNovaOS.descricao.trim()} className="rounded-lg bg-lime-300 px-5 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNovaOS ? "Criando OS..." : "Salvar nova OS"}</button><button type="button" onClick={()=>setModoGestao("menu")} className="rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div>
           </form>}
+          {modoGestao === "colar" && <div className="mt-4 grid gap-3"><p className="text-sm text-emerald-100/80">No Excel, selecione as linhas e pressione Ctrl+C. Cole abaixo; o sistema reconhecerá os cabeçalhos quando existirem.</p><textarea value={textoPlanilha} onChange={e=>setTextoPlanilha(e.target.value)} onPaste={e=>{const v=e.clipboardData.getData("text");if(v){e.preventDefault();setTextoPlanilha(v);}}} rows={7} placeholder={"Cole aqui as linhas do Excel...\nnumero_os\tfrota\tlocalizacao\tdescricao\ttecnico_email\tentrada"} className="w-full rounded-lg border border-emerald-700 bg-emerald-950 p-3 font-mono text-sm text-white"/><div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setLinhasImportacao(parsearLinhas(textoPlanilha))} disabled={!textoPlanilha.trim()} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950">Conferir linhas</button><button type="button" onClick={()=>setModoGestao("menu")} className="rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div></div>}
+          {modoGestao === "importar" && <div className="mt-4 grid gap-3"><p className="text-sm text-emerald-100/80">Escolha uma planilha Excel (.xlsx/.xls) ou arquivo CSV. O sistema mostrará uma prévia antes de salvar.</p><label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-600 p-8 text-center hover:bg-emerald-950/50"><FileSpreadsheet size={30}/><b>{nomeArquivo || "Escolher ficheiro Excel ou CSV"}</b><span className="text-xs text-emerald-100/70">Máximo 20 MB</span><input type="file" accept=".xlsx,.xls,.csv" className="mt-2 max-w-full text-sm" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>20*1024*1024){setMensagemOS("O ficheiro excede o limite de 20 MB.");return;}try{const wb=read(await file.arrayBuffer(),{cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];if(!sheet)throw new Error("Planilha vazia");const matrix=utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",raw:true});setLinhasImportacao(normalizarMatriz(matrix));setNomeArquivo(file.name);setMensagemOS("");}catch(err){setMensagemOS("Não foi possível ler o ficheiro: "+(err instanceof Error?err.message:"erro"));}}}/></label><button type="button" onClick={()=>setModoGestao("menu")} className="justify-self-start rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div>}
+          {linhasImportacao.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{linhasImportacao.filter(l=>l.valid).length} linha(s) válidas · {linhasImportacao.filter(l=>!l.valid).length} com erro</div><div className="max-h-64 overflow-auto rounded-lg border border-emerald-800"><table className="w-full min-w-[620px] text-left text-xs"><thead className="sticky top-0 bg-emerald-950"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Setor</th><th className="p-2">Técnico</th><th className="p-2">Descrição</th></tr></thead><tbody>{linhasImportacao.slice(0,150).map((l,i)=><tr key={l.numero_os+"-"+i} className="border-t border-emerald-900"><td className="p-2">{l.valid?"Válida":"Verificar"}</td><td className="p-2">{l.numero_os||"—"}</td><td className="p-2">{l.frota||"—"}</td><td className="p-2">{l.setor||"—"}</td><td className="p-2">{l.tecnico_email||l.tecnico_nome||"—"}</td><td className="p-2">{l.descricao||"—"}</td></tr>)}</tbody></table></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void salvarImportacao()} disabled={salvandoLote||!linhasImportacao.some(l=>l.valid)} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 disabled:opacity-50">{salvandoLote ? "Salvando..." : "Importar " + linhasImportacao.filter(l=>l.valid).length + " OS"}</button><button type="button" onClick={()=>{setLinhasImportacao([]);setTextoPlanilha("");setNomeArquivo("");}} className="rounded-lg border border-emerald-700 px-4 py-2">Limpar prévia</button></div></div>}
         </section>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
