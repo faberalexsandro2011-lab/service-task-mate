@@ -1,28 +1,38 @@
 # Auditoria preliminar de RLS — isolamento por unidade
 
-Data: 21/10/2026. Escopo: leitura de esquema/políticas no projeto Supabase de teste existente; nenhuma alteração de banco executada.
+Data: 21/10/2026. Escopo: projeto isolado `central-os-multiunidade-teste` (ref `idqegjtqvrxytscwsqgc`). Nenhuma alteração na produção.
 
-## Achados
+## Estrutura aplicada no banco de teste
 
-1. A tabela `ordens_servico` ainda não tem `unidade_id`.
-2. `profiles` não tem atribuição de unidade e `user_roles` armazena papel global do usuário.
-3. Existem múltiplas políticas RLS para `ordens_servico`, incluindo políticas de gestores com escopo amplo (`ALL`, leitura, inserção e atualização) e políticas de técnicos para fila/OS atribuídas.
-4. PostgreSQL combina políticas permissivas aplicáveis com OR. Portanto, criar uma política adicional que filtre por unidade, sem revisar/substituir as políticas amplas existentes, não garante isolamento.
-5. O painel `/_authenticated/painel-teste` continua sendo uma demonstração com números fictícios; o dashboard atual consulta `ordens_servico`, `profiles` e `user_roles` diretamente e ainda não aplica contexto de unidade.
+- `public.unidades`: três unidades de teste — Vale do Paraná, Nova Londrina e Jussara.
+- `public.usuarios_unidades`: vínculo de usuário, unidade, perfil e status ativo.
+- `public.ordens_servico`: tabela de OS com `unidade_id`, campos básicos do painel e índices por unidade/status.
+- RLS habilitado nas três tabelas.
+- Migrações versionadas na branch `test/painel-consolidado-unidades`:
+  - `supabase/migrations/20261021190000_multiunit_foundation.sql`
+  - `supabase/migrations/20261021190100_multiunit_service_orders.sql`
+- Dados demonstrativos (6 OS fictícias e 4 identidades sintéticas sem senha) carregados exclusivamente no projeto de teste. O seed versionado é `supabase/seed.multiunidade-teste.sql`; nunca aplicar na produção.
 
-## Requisitos para a implementação segura
+## Testes de leitura executados
 
-- Criar cadastro de unidades e vínculo explícito de usuários à unidade.
-- Adicionar `unidade_id` às OS e atribuir os registros históricos existentes exclusivamente a Vale do Paraná somente após uma validação de contagem/amostragem na base de teste.
-- Considerar também `solicitacoes_os`, `historico_edicoes`, catálogo de peças, monitoramento e localização de técnicos; não basta isolar apenas `ordens_servico`.
-- Revisar todas as políticas de SELECT/INSERT/UPDATE/DELETE e remover/substituir políticas amplas conflitantes dentro de uma migração testada.
-- Definir autorização central read-only no banco, sem confiar apenas em botões ocultos na interface.
-- Testar com pelo menos três sessões: administrador local de Vale do Paraná, administrador local de outra unidade e gestor central. Incluir tentativas diretas de leitura e escrita via API, não apenas navegação visual.
-- Confirmar que usuário sem unidade não enxerga dados; que administrador local não lê nem altera outra unidade; e que gestor central lê todas as unidades mas não modifica OS.
+Com a role PostgreSQL `authenticated` e claims de sessão de teste:
+- Admin Vale do Paraná: 2 OS visíveis, 0 OS de outras unidades.
+- Admin Nova Londrina: 2 OS visíveis, 0 OS de outras unidades.
+- Admin Jussara: 2 OS visíveis, 0 OS de outras unidades.
+- Gestor central: 6 OS visíveis (as três unidades).
 
-## Limites desta etapa
+Tentativas de atualização por admin Vale em uma OS da Nova Londrina e pelo gestor central em uma OS de Vale foram executadas em transações de teste. A inspeção posterior confirmou que as descrições originais permaneceram intactas. Como a ferramenta de consulta não retornou o conjunto de linhas afetadas para essas instruções multi-statement, registrar esse resultado como verificação preliminar, não como prova completa de todos os caminhos de escrita.
 
-- Nenhuma migration nova foi aplicada.
-- Nenhuma política ou dado foi alterado.
-- O projeto `central-os-solinftec-teste` não deve ser tratado como base multiunidade dedicada.
-- Antes de criar nova infraestrutura Supabase, verificar custo e obter a autorização exigida.
+## Limitações e próximos testes
+
+- Não foram testados todos os caminhos de INSERT/UPDATE/DELETE via API autenticada nem sessões de login reais.
+- As identidades sintéticas do seed não têm senha e não podem fazer login; servem para testar RLS simulando claims no banco.
+- O gestor central não possui políticas de escrita na tabela de OS, mas isso ainda deve ser verificado por teste explícito de escrita com resultado mensurável.
+- Ainda é necessário revisar tabelas relacionadas (solicitações, histórico, peças, monitoramento e localização), criar o fluxo administrativo seguro de associação de usuários e conectar a rota visual ao banco de teste.
+- O painel atual ainda contém números fictícios e não foi implantado/conectado ao novo banco.
+
+## Proteções de escopo
+
+- Não aplicar essas migrações nem o seed no banco oficial.
+- Não importar OS reais da produção para este ambiente.
+- Não implantar mudanças na produção sem aprovação explícita.
