@@ -79,7 +79,9 @@ function PainelTeste() {
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
       const { data: perfilData } = await db.from("usuarios_unidades").select("perfil").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
-      setPerfilAtual((perfilData?.perfil as PerfilUsuario | undefined) ?? null);
+      const perfil = (perfilData?.perfil as PerfilUsuario | undefined) ?? null;
+      setPerfilAtual(perfil);
+      if (perfil === "admin_unidade") setFiltro("Nova Londrina");
     }
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
