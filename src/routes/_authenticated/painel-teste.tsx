@@ -8,7 +8,9 @@ export const Route = createFileRoute("/_authenticated/painel-teste")({
 });
 
 type Unidade = { id: string; codigo: string; nome: string };
-type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: "admin_unidade" | "tecnico" | "gestor_central" | "visualizador"; ativo: boolean };
+type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor_central" | "visualizador";
+type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
+type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
 type Ordem = {
   id: string;
   unidade_id: string;
@@ -50,6 +52,15 @@ function PainelTeste() {
   const [ordens, setOrdens] = useState<Ordem[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioUnidade[]>([]);
   const [erroUsuarios, setErroUsuarios] = useState("");
+  const [usuariosAdmin, setUsuariosAdmin] = useState<UsuarioAdministrado[]>([]);
+  const [carregandoUsuarios, setCarregandoUsuarios] = useState(false);
+  const [mensagemUsuarios, setMensagemUsuarios] = useState("");
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [emailNovo, setEmailNovo] = useState("");
+  const [senhaNova, setSenhaNova] = useState("");
+  const [perfilNovo, setPerfilNovo] = useState<PerfilUsuario>("tecnico");
+  const [unidadeNova, setUnidadeNova] = useState("vale_parana");
+  const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const [filtro, setFiltro] = useState("Todas");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -87,7 +98,89 @@ function PainelTeste() {
     setCarregando(false);
   };
 
+  const executarAcaoUsuario = async (payload: Record<string, unknown>) => {
+    const { data, error } = await supabase.functions.invoke("gerenciar-usuarios-teste", { body: payload });
+    if (error) throw new Error(error.message || "Falha ao comunicar com o serviço administrativo.");
+    if (!data?.ok) throw new Error(data?.error || "Não foi possível concluir a operação.");
+    return data;
+  };
+
+  const carregarUsuariosAdmin = async () => {
+    setCarregandoUsuarios(true);
+    setErroUsuarios("");
+    try {
+      const data = await executarAcaoUsuario({ action: "list" });
+      setUsuariosAdmin(data.users ?? []);
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível listar usuários.");
+    } finally {
+      setCarregandoUsuarios(false);
+    }
+  };
+
+  const criarUsuario = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSalvandoUsuario(true);
+    setErroUsuarios("");
+    setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({
+        action: "create", nome: nomeNovo, email: emailNovo, password: senhaNova,
+        perfil: perfilNovo, unidade_codigo: perfilNovo === "gestor_central" ? "" : unidadeNova,
+      });
+      setMensagemUsuarios("Usuário criado e vinculado ao ambiente de teste.");
+      setNomeNovo(""); setEmailNovo(""); setSenhaNova("");
+      await carregarUsuariosAdmin();
+      await carregar();
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível criar o usuário.");
+    } finally {
+      setSalvandoUsuario(false);
+    }
+  };
+
+  const atualizarUsuario = async (usuario: UsuarioAdministrado, perfil: PerfilUsuario, unidadeCodigo: string) => {
+    setErroUsuarios(""); setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({
+        action: "update", user_id: usuario.user_id, perfil,
+        ...(perfil === "gestor_central" ? {} : { unidade_codigo: unidadeCodigo }),
+      });
+      setMensagemUsuarios("Perfil e unidade atualizados.");
+      await carregarUsuariosAdmin();
+      await carregar();
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível atualizar o usuário.");
+    }
+  };
+
+  const alternarAtivo = async (usuario: UsuarioAdministrado) => {
+    setErroUsuarios(""); setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({ action: "update", user_id: usuario.user_id, ativo: !usuario.ativo });
+      setMensagemUsuarios(usuario.ativo ? "Acesso desativado." : "Acesso ativado.");
+      await carregarUsuariosAdmin();
+      await carregar();
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível alterar o acesso.");
+    }
+  };
+
+  const excluirUsuario = async (usuario: UsuarioAdministrado) => {
+    if (!window.confirm(`Excluir definitivamente a conta ${usuario.email}? Essa ação não pode ser desfeita.`)) return;
+    setErroUsuarios(""); setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({ action: "delete", user_id: usuario.user_id });
+      setMensagemUsuarios("Conta excluída do ambiente de teste.");
+      await carregarUsuariosAdmin();
+      await carregar();
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível excluir o usuário.");
+    }
+  };
+
   useEffect(() => { void carregar(); }, []);
+  useEffect(() => { if (aba === "usuarios") void carregarUsuariosAdmin(); }, [aba]);
 
   const unidadesVisiveis = useMemo(
     () => filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
@@ -211,17 +304,35 @@ function PainelTeste() {
           </div>
         </section>}
         {aba === "usuarios" && <section className="mt-8">
-          <div className="mb-4"><h2 className="text-2xl font-extrabold">Gestão de Usuários</h2><p className="mt-1 text-sm text-emerald-100/70">Conferência dos perfis e vínculos cadastrados no banco isolado de teste.</p></div>
-          <div role="status" className="mb-5 rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-100"><strong>Cadastro e edição ainda não liberados.</strong><p className="mt-1">A listagem abaixo é somente leitura. A criação de contas exige um serviço de servidor seguro; não é permitido usar uma chave administrativa no navegador.</p></div>
-          {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">Falha ao consultar perfis: {erroUsuarios}</div>}
+          <div className="mb-4"><h2 className="text-2xl font-extrabold">Gestão de Usuários</h2><p className="mt-1 text-sm text-emerald-100/70">Cadastro e gerenciamento de contas somente no banco de teste multiunidade.</p></div>
+          <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação. Senhas nunca são exibidas.</p></div>
+          {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
+          {mensagemUsuarios && <div role="status" className="mb-4 rounded-xl border border-lime-700 bg-lime-950/30 p-3 text-sm text-lime-100">{mensagemUsuarios}</div>}
+          <form onSubmit={criarUsuario} className="mb-6 grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="sm:col-span-2 lg:col-span-3"><h3 className="font-bold">Cadastrar usuário</h3><p className="mt-1 text-xs text-emerald-100/70">A senha inicial deve ter pelo menos 8 caracteres. Informe uma senha temporária e compartilhe-a com segurança.</p></div>
+            <label className="grid gap-1 text-sm">Nome completo<input required maxLength={120} value={nomeNovo} onChange={e=>setNomeNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">E-mail<input required type="email" value={emailNovo} onChange={e=>setEmailNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Senha inicial<input required type="password" minLength={8} maxLength={128} value={senhaNova} onChange={e=>setSenhaNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Perfil<select value={perfilNovo} onChange={e=>setPerfilNovo(e.target.value as PerfilUsuario)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM da unidade</option><option value="visualizador">Somente visualização</option><option value="gestor_central">Gestor Geral</option></select></label>
+            {perfilNovo !== "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select value={unidadeNova} onChange={e=>setUnidadeNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="vale_parana">Vale do Paraná</option><option value="nova_londrina">Nova Londrina</option><option value="jussara">Jussara</option></select></label>}
+            <div className="flex items-end"><button disabled={salvandoUsuario} type="submit" className="w-full rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 hover:bg-lime-200 disabled:opacity-50">{salvandoUsuario ? "Salvando…" : "Criar usuário"}</button></div>
+          </form>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h3 className="font-bold">Contas e permissões</h3><button type="button" onClick={()=>void carregarUsuariosAdmin()} disabled={carregandoUsuarios} className="rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50">{carregandoUsuarios ? "Atualizando…" : "Atualizar lista"}</button></div>
           <div className="overflow-x-auto rounded-xl border border-emerald-800">
-            <table className="w-full min-w-[680px] text-left text-sm">
-              <thead className="bg-[#003b32] text-emerald-100"><tr><th className="p-3">Identificador do usuário</th><th className="p-3">Unidade</th><th className="p-3">Perfil</th><th className="p-3">Situação</th></tr></thead>
-              <tbody>{usuarios.map((usuario) => <tr key={usuario.user_id} className="border-t border-emerald-900"><td className="p-3 font-mono text-xs">{usuario.user_id}</td><td className="p-3">{usuario.unidade_id ? unidades.find((u) => u.id === usuario.unidade_id)?.nome || "Unidade não encontrada" : "Todas as unidades"}</td><td className="p-3">{({ admin_unidade: "ADM da unidade", tecnico: "Técnico", gestor_central: "Gestor Geral", visualizador: "Somente visualização" } as Record<string, string>)[usuario.perfil] || usuario.perfil}</td><td className="p-3"><span className={usuario.ativo ? "rounded-md bg-emerald-900 px-2 py-1 text-emerald-200" : "rounded-md bg-red-950 px-2 py-1 text-red-200"}>{usuario.ativo ? "Ativo" : "Inativo"}</span></td></tr>)}
-              {usuarios.length === 0 && <tr><td colSpan={4} className="p-5 text-center text-emerald-100/60">{carregando ? "Carregando usuários…" : "Nenhum vínculo visível para este usuário."}</td></tr>}</tbody>
+            <table className="w-full min-w-[950px] text-left text-sm">
+              <thead className="bg-[#003b32] text-emerald-100"><tr><th className="p-3">Usuário</th><th className="p-3">Perfil / unidade</th><th className="p-3">Situação</th><th className="p-3">Ações</th></tr></thead>
+              <tbody>{usuariosAdmin.map(usuario => <tr key={usuario.user_id} className="border-t border-emerald-900 align-top">
+                <td className="p-3"><div className="font-semibold">{usuario.nome || "Nome não informado"}</div><div className="text-xs text-emerald-100/70">{usuario.email}</div><div className="mt-1 font-mono text-[10px] text-emerald-100/40">{usuario.user_id}</div></td>
+                <td className="p-3"><div>{({admin_unidade:"ADM da unidade",tecnico:"Técnico",gestor_central:"Gestor Geral",visualizador:"Somente visualização"} as Record<string,string>)[usuario.perfil] || usuario.perfil}</div><div className="text-xs text-emerald-100/70">{usuario.unidade_id ? unidades.find(u=>u.id===usuario.unidade_id)?.nome || "Unidade não encontrada" : "Todas as unidades"}</div>
+                  {usuario.perfil !== "gestor_central" && <div className="mt-2 flex flex-wrap gap-2"><select aria-label={`Perfil de ${usuario.email}`} defaultValue={usuario.perfil} id={`perfil-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM</option><option value="visualizador">Visualizador</option></select><select aria-label={`Unidade de ${usuario.email}`} defaultValue={unidades.find(u=>u.id===usuario.unidade_id)?.codigo || "vale_parana"} id={`unidade-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white"><option value="vale_parana">Vale do Paraná</option><option value="nova_londrina">Nova Londrina</option><option value="jussara">Jussara</option></select><button type="button" onClick={()=>{const p=document.getElementById(`perfil-${usuario.user_id}`) as HTMLSelectElement|null;const u=document.getElementById(`unidade-${usuario.user_id}`) as HTMLSelectElement|null;if(p&&u)void atualizarUsuario(usuario,p.value as PerfilUsuario,u.value)}} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">Salvar</button></div>}
+                </td>
+                <td className="p-3"><span className={usuario.ativo ? "rounded-md bg-emerald-900 px-2 py-1 text-emerald-200" : "rounded-md bg-red-950 px-2 py-1 text-red-200"}>{usuario.ativo ? "Ativo" : "Inativo"}</span></td>
+                <td className="p-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={()=>void alternarAtivo(usuario)} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">{usuario.ativo ? "Desativar" : "Ativar"}</button><button type="button" onClick={()=>void excluirUsuario(usuario)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-200 hover:bg-red-950">Excluir</button></div></td>
+              </tr>)}
+              {usuariosAdmin.length===0 && <tr><td colSpan={4} className="p-5 text-center text-emerald-100/60">{carregandoUsuarios ? "Carregando usuários…" : "Nenhum usuário retornado pelo serviço administrativo."}</td></tr>}</tbody>
             </table>
           </div>
-          <p className="mt-3 text-xs text-emerald-100/60">Por segurança, esta tela não exibe senhas nem tenta recuperar e-mails diretamente da tabela de autenticação. A próxima etapa é conectar o serviço administrativo autenticado.</p>
+          <p className="mt-3 text-xs text-emerald-100/60">Gestores Gerais só podem ser criados pela conta principal. A exclusão remove a conta de autenticação do ambiente de teste; confirme antes de excluir.</p>
         </section>}
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
