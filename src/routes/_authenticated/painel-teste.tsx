@@ -20,6 +20,7 @@ type Ordem = {
   frota: string | null;
   descricao: string;
   setor: string | null;
+  sequencia: number | null;
   tecnico_nome: string | null;
   status: "pendente" | "em_andamento" | "concluida" | "cancelada";
   created_at: string;
@@ -100,7 +101,7 @@ function PainelTeste() {
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
       db.from("ordens_servico")
-        .select("id,unidade_id,numero_os,frota,descricao,setor,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
+        .select("id,unidade_id,numero_os,frota,descricao,setor,sequencia,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
         .order("created_at", { ascending: false }),
       db.from("usuarios_unidades").select("user_id,unidade_id,perfil,ativo").order("perfil"),
     ]);
@@ -155,34 +156,46 @@ function PainelTeste() {
   };
 
   const parsearLinhas = (valor: string): LinhaImportacao[] => {
-    const linhas = valor.split(/\r?\n/).filter(l => l.trim());
+    const linhas = valor.split(/\r?\n/).filter(l => l.trim() && !/^\s*\|?\s*:?-{2,}/.test(l));
     if (!linhas.length) return [];
     const pipe = linhas.some(l => l.includes("|"));
-    const matriz = pipe ? linhas.map(l=>l.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim())) : linhas.map(l=>l.split("\t"));
+    const matriz = pipe ? linhas.map(l => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim())) : linhas.map(l => l.split("\t"));
     return normalizarMatriz(matriz);
   };
 
   const normalizarMatriz = (matriz: unknown[][]): LinhaImportacao[] => {
-    const clean = (v: unknown) => String(v ?? "").trim();
-    const norm = (v: unknown) => clean(v).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
-    const rows = matriz.filter(r=>r.some(c=>clean(c)));
+    const clean = (v: unknown) => String(v ?? "").replace(/<br\s*\/?>/gi, " ").replace(/&#x20;/gi, " ").replace(/&nbsp;/gi, " ").trim();
+    const norm = (v: unknown) => clean(v).replace(/<[^>]*>/g, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const rows = matriz.filter(r => r.some(c => clean(c)) && !r.every(c => /^:?-{2,}:?$/.test(clean(c))));
     if (!rows.length) return [];
-    const headerIndex = rows.findIndex(r=>r.some(c=>["numero_os","numero","os","o_s","frota","numero_da_os"].includes(norm(c)) || norm(c).includes("frota")));
-    const idx = headerIndex >= 0 ? headerIndex : -1;
-    const header = idx >= 0 ? rows[idx].map(norm) : ["numero_os","frota","localizacao","descricao","tecnico_email","entrada","setor","seq"];
-    const data = idx >= 0 ? rows.slice(idx+1) : rows;
-    const get = (row: unknown[], aliases: string[]) => { for (const alias of aliases) { const i=header.findIndex(h=>h===alias || h.includes(alias)); if(i>=0 && clean(row[i])) return clean(row[i]); } return ""; };
-    return data.filter(r=>r.some(c=>clean(c))).map(row=>{
-      const numero = get(row,["numero_os","numero_da_os","n_os","no_os","num_os","ordem","o_s","os"]).replace(/\./g,"").trim();
-      const frota = get(row,["frota","viatura","veiculo","matricula","prefixo","equipamento"]).replace(/^frota\s*[:#-]?\s*/i,"").trim();
-      const seqRaw = get(row,["sequencia","seq"]); const seq = Number(seqRaw);
-      const tecnico = get(row,["tecnico_email","email_tecnico","tecnico","nome_tecnico","tecnico_nome","responsavel","mecanico"]);
-      const unidadeId = perfilAtual==="admin_unidade" ? unidadeAtualId : formUnidadeCentral;
-      const matched = usuariosAdmin.find(u=>u.ativo && u.perfil==="tecnico" && u.unidade_id===unidadeId && (u.email.toLowerCase()===tecnico.toLowerCase() || u.nome.toLowerCase()===tecnico.toLowerCase()));
-      return {numero_os:numero,frota,entrada:get(row,["entrada","data_entrada"]),descricao:get(row,["descricao","problema","servico","observacao"]),localizacao:get(row,["localizacao","local","endereco","fazenda"]),setor:get(row,["setor","departamento","area"]),sequencia:Number.isFinite(seq)&&seqRaw?seq:null,tecnico_email:matched?.email ?? (tecnico.includes("@")?tecnico:""),tecnico_nome:matched?.nome ?? (tecnico.includes("@")?"":tecnico),valid:Boolean(numero&&frota)};
+    const aliases: Record<string, string[]> = {
+      sequencia: ["seq", "sequencia", "ordem", "ordem_de_exibicao", "prioridade"],
+      setor: ["setor", "frente", "departamento", "area"],
+      numero_os: ["o_s", "os", "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "ordem_de_servico"],
+      frota: ["frota", "viatura", "veiculo", "matricula", "prefixo", "equipamento"],
+      entrada: ["entrada", "data_entrada", "data_hora_entrada", "data"],
+      descricao: ["descricao_o_s", "descricao_os", "descricao", "problema", "servico", "observacao"],
+      localizacao: ["localizacao", "local", "endereco", "fazenda"],
+      tecnico: ["tecnico", "nome_tecnico", "tecnico_nome", "responsavel", "mecanico", "tecnico_email", "email_tecnico"],
+    };
+    const canonical = (v: unknown) => { const h = norm(v); for (const [key, names] of Object.entries(aliases)) if (names.includes(h)) return key; return h; };
+    const headerIndex = rows.findIndex(r => { const hs = r.map(canonical); return hs.includes("numero_os") && hs.includes("frota") && (hs.includes("sequencia") || hs.includes("setor")); });
+    const header = headerIndex >= 0 ? rows[headerIndex].map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "descricao", "localizacao", "tecnico"];
+    const data = headerIndex >= 0 ? rows.slice(headerIndex + 1) : rows;
+    const get = (row: unknown[], key: string) => { const i = header.indexOf(key); return i >= 0 ? clean(row[i]) : ""; };
+    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    return data.filter(r => r.some(c => clean(c))).map((row, rowIndex) => {
+      const seqRaw = get(row, "sequencia"); const seqParsed = Number(seqRaw);
+      const numero = get(row, "numero_os").replace(/\s+/g, "").trim();
+      const frota = get(row, "frota").trim();
+      const tecnicoRaw = get(row, "tecnico").replace(/\s+/g, " ").trim();
+      const matched = usuariosAdmin.find(u => u.ativo && u.perfil === "tecnico" && u.unidade_id === unidadeId && (u.email.toLowerCase() === tecnicoRaw.toLowerCase() || u.nome.toLowerCase() === tecnicoRaw.toLowerCase()));
+      let entrada = get(row, "entrada");
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}(\s+\d{1,2}:\d{2})?$/.test(entrada)) { const parts = entrada.split(/\s+/); const date = parts[0]; const time = parts[1] || "00:00"; const d = date.split("/"); entrada = d[2] + "-" + d[1].padStart(2,"0") + "-" + d[0].padStart(2,"0") + " " + time; }
+      const seq = Number.isFinite(seqParsed) && seqRaw !== "" ? seqParsed : rowIndex + 1;
+      return { numero_os: numero, frota, entrada, descricao: get(row, "descricao"), localizacao: get(row, "localizacao"), setor: get(row, "setor"), sequencia: seq, tecnico_email: matched?.email ?? (tecnicoRaw.includes("@") ? tecnicoRaw : ""), tecnico_nome: matched?.nome ?? (tecnicoRaw.includes("@") ? "" : tecnicoRaw), valid: Boolean(numero && frota) };
     });
   };
-
   const salvarImportacao = async () => {
     if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
@@ -344,7 +357,7 @@ function PainelTeste() {
   useEffect(() => { if (perfilAtual === "gestor_central" && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
   useEffect(() => { if (perfilAtual === "admin_unidade" && unidadeAtualId) { const propria = unidades.find(u => u.id === unidadeAtualId); if (propria && filtro !== propria.nome) setFiltro(propria.nome); } }, [perfilAtual, unidadeAtualId, unidades, filtro]);
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
-  const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id));
+  const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id)).sort((a, b) => (a.sequencia ?? Number.MAX_SAFE_INTEGER) - (b.sequencia ?? Number.MAX_SAFE_INTEGER) || a.created_at.localeCompare(b.created_at));
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
   const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
   const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
@@ -440,7 +453,7 @@ function PainelTeste() {
             <div className="mt-4 space-y-2 border-t border-emerald-800 pt-3">{faixas.map((faixa, indice) => <div key={faixa.nome} className="flex justify-between text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}</span><strong>{faixaUnidade[indice]}</strong></div>)}</div>
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-800 pt-3"><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.filter((ordem) => ordem.status === "concluida").length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Concluídas</div></div><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Total de OS</div></div></div>
             <button type="button" onClick={() => setOrdemSelecionada(ordemSelecionada === unidade.id ? null : unidade.id)} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-900">{ordemSelecionada === unidade.id ? "Ocultar OS" : "Ver OS da unidade"}</button>
-            {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p>{(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="rounded-lg border border-lime-500 px-3 py-2 text-xs font-bold text-lime-200 hover:bg-emerald-900">Editar OS</button><button type="button" onClick={() => void excluirOS(ordem)} className="rounded-lg border border-red-800 px-3 py-2 text-xs font-bold text-red-200 hover:bg-red-950">Excluir OS</button></div>}{edicaoOS?.id === ordem.id && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mt-3 grid gap-3 rounded-lg border border-emerald-700 p-3"><label className="grid gap-1 text-xs">Número da OS<input value={edicaoOS.numero_os} onChange={e => setEdicaoOS({ ...edicaoOS, numero_os: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Frota<input value={edicaoOS.frota} onChange={e => setEdicaoOS({ ...edicaoOS, frota: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Descrição<textarea value={edicaoOS.descricao} onChange={e => setEdicaoOS({ ...edicaoOS, descricao: e.target.value })} required className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={3} /></label><label className="grid gap-1 text-xs">Setor<input value={edicaoOS.setor} onChange={e => setEdicaoOS({ ...edicaoOS, setor: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Técnico responsável<input value={edicaoOS.tecnico_nome} onChange={e => setEdicaoOS({ ...edicaoOS, tecnico_nome: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Status<select value={edicaoOS.status} onChange={e => setEdicaoOS({ ...edicaoOS, status: e.target.value as Ordem["status"] })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label><label className="grid gap-1 text-xs">Peças utilizadas<textarea value={edicaoOS.pecas_utilizadas} onChange={e => setEdicaoOS({ ...edicaoOS, pecas_utilizadas: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={2} /></label><div className="flex flex-wrap gap-2"><button type="button" disabled={salvandoOS} onClick={() => void salvarEdicaoOS()} className="rounded-lg bg-lime-300 px-4 py-2 text-xs font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Salvar alterações"}</button><button type="button" onClick={() => setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-xs">Cancelar</button></div></div>}</div>)}</div>}
+            {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.sequencia != null ? "Seq. " + ordem.sequencia + " · " : ""}{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p>{(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="rounded-lg border border-lime-500 px-3 py-2 text-xs font-bold text-lime-200 hover:bg-emerald-900">Editar OS</button><button type="button" onClick={() => void excluirOS(ordem)} className="rounded-lg border border-red-800 px-3 py-2 text-xs font-bold text-red-200 hover:bg-red-950">Excluir OS</button></div>}{edicaoOS?.id === ordem.id && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mt-3 grid gap-3 rounded-lg border border-emerald-700 p-3"><label className="grid gap-1 text-xs">Número da OS<input value={edicaoOS.numero_os} onChange={e => setEdicaoOS({ ...edicaoOS, numero_os: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Frota<input value={edicaoOS.frota} onChange={e => setEdicaoOS({ ...edicaoOS, frota: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Descrição<textarea value={edicaoOS.descricao} onChange={e => setEdicaoOS({ ...edicaoOS, descricao: e.target.value })} required className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={3} /></label><label className="grid gap-1 text-xs">Setor<input value={edicaoOS.setor} onChange={e => setEdicaoOS({ ...edicaoOS, setor: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Técnico responsável<input value={edicaoOS.tecnico_nome} onChange={e => setEdicaoOS({ ...edicaoOS, tecnico_nome: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Status<select value={edicaoOS.status} onChange={e => setEdicaoOS({ ...edicaoOS, status: e.target.value as Ordem["status"] })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label><label className="grid gap-1 text-xs">Peças utilizadas<textarea value={edicaoOS.pecas_utilizadas} onChange={e => setEdicaoOS({ ...edicaoOS, pecas_utilizadas: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={2} /></label><div className="flex flex-wrap gap-2"><button type="button" disabled={salvandoOS} onClick={() => void salvarEdicaoOS()} className="rounded-lg bg-lime-300 px-4 py-2 text-xs font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Salvar alterações"}</button><button type="button" onClick={() => setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-xs">Cancelar</button></div></div>}</div>)}</div>}
           </article>;
         })}</div>
         </>}
