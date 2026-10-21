@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated")({
     const { data } = await supabase.auth.getSession();
     if (!data.session?.user) throw redirect({ to: "/" });
 
-    let role: "gestor" | "tecnico" | "visualizador" = "tecnico";
+    let role: "gestor" | "admin_unidade" | "tecnico" | "visualizador" = "tecnico";
     if (navigator.onLine) {
       const userId = data.session.user.id;
       const { data: isManager, error: managerRoleError } = await supabase.rpc("has_role", {
@@ -37,28 +37,46 @@ export const Route = createFileRoute("/_authenticated")({
           if (centralProfile?.perfil === "gestor_central") {
             role = "gestor";
           } else {
-            const { data: roleRow, error: roleError } = await supabase
-              .from("user_roles")
-              .select("role")
+            const { data: unitProfile } = await supabase
+              .from("usuarios_unidades")
+              .select("perfil")
               .eq("user_id", userId)
+              .eq("ativo", true)
+              .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
               .maybeSingle();
 
-            role = !roleError && roleRow?.role === "gestor" ? "gestor" : "tecnico";
+            if (unitProfile?.perfil === "admin_unidade") {
+              role = "admin_unidade";
+            } else if (unitProfile?.perfil === "visualizador") {
+              role = "visualizador";
+            } else if (unitProfile?.perfil === "tecnico") {
+              role = "tecnico";
+            } else {
+              const { data: roleRow, error: roleError } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", userId)
+                .maybeSingle();
+
+              role = !roleError && roleRow?.role === "gestor" ? "gestor" : "tecnico";
+            }
           }
         }
       }
 
       await saveOfflineRole(role);
     } else {
-      role = (await getOfflineRole<"gestor" | "tecnico" | "visualizador">()) ?? "tecnico";
+      role = (await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">()) ?? "tecnico";
     }
 
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
     const isViewerArea = location.pathname.endsWith("/visualizacao");
 
+    const isTestPanel = location.pathname.endsWith("/painel-teste");
+    if (role === "admin_unidade" && !isTestPanel) throw redirect({ to: "/painel-teste", replace: true });
     if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
-    if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : "/tecnico", replace: true });
+    if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : role === "admin_unidade" ? "/painel-teste" : "/tecnico", replace: true });
 
     if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {
       throw redirect({ to: "/tecnico", replace: true });
