@@ -10,30 +10,41 @@ export const Route = createFileRoute("/_authenticated")({
 
     let role: "gestor" | "tecnico" | "visualizador" = "tecnico";
     if (navigator.onLine) {
-      // Use the SECURITY DEFINER helper so the role check is not blocked by
-      // RLS on user_roles. This is important for fresh Supabase projects.
+      const userId = data.session.user.id;
       const { data: isManager, error: managerRoleError } = await supabase.rpc("has_role", {
-        _user_id: data.session.user.id,
+        _user_id: userId,
         _role: "gestor",
       });
 
       if (!managerRoleError && isManager === true) {
         role = "gestor";
       } else {
-        const { data: isViewer } = await supabase.rpc("has_role", { _user_id: data.session.user.id, _role: "visualizador" });
-        if (isViewer === true) role = "visualizador";
-        else {
-        const { data: roleRow, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id)
-          .maybeSingle();
-
-        if (!roleError && roleRow?.role === "gestor") {
-          role = "gestor";
+        const { data: isViewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "visualizador" });
+        if (isViewer === true) {
+          role = "visualizador";
         } else {
-          role = "tecnico";
-        }
+          // The isolated multi-unit test project uses usuarios_unidades instead
+          // of the production user_roles table. This check is intentionally
+          // scoped to the test project's authenticated session.
+          const { data: centralProfile } = await supabase
+            .from("usuarios_unidades")
+            .select("perfil")
+            .eq("user_id", userId)
+            .eq("ativo", true)
+            .eq("perfil", "gestor_central")
+            .maybeSingle();
+
+          if (centralProfile?.perfil === "gestor_central") {
+            role = "gestor";
+          } else {
+            const { data: roleRow, error: roleError } = await supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", userId)
+              .maybeSingle();
+
+            role = !roleError && roleRow?.role === "gestor" ? "gestor" : "tecnico";
+          }
         }
       }
 
@@ -41,6 +52,7 @@ export const Route = createFileRoute("/_authenticated")({
     } else {
       role = (await getOfflineRole<"gestor" | "tecnico" | "visualizador">()) ?? "tecnico";
     }
+
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
     const isViewerArea = location.pathname.endsWith("/visualizacao");
