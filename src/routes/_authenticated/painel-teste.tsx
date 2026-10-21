@@ -1,80 +1,159 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
   component: PainelTeste,
 });
 
-type Unidade = {
-  nome: string;
-  abertas: number;
-  acima48h: number;
-  acima7d: number;
-  maisAntiga: string;
-  faixas: [number, number, number, number, number];
+type Unidade = { id: string; codigo: string; nome: string };
+type Ordem = {
+  id: string;
+  unidade_id: string;
+  numero_os: string | null;
+  frota: string | null;
+  descricao: string;
+  setor: string | null;
+  tecnico_nome: string | null;
+  status: "pendente" | "em_andamento" | "concluida" | "cancelada";
+  created_at: string;
+  data_inicio: string | null;
+  concluida_em: string | null;
 };
 
-const unidades: Unidade[] = [
-  { nome: "Jussara", abertas: 57, acima48h: 40, acima7d: 29, maisAntiga: "49d 2h 10min", faixas: [6, 6, 14, 2, 29] },
-  { nome: "Nova Londrina", abertas: 20, acima48h: 12, acima7d: 6, maisAntiga: "12d 20h 15min", faixas: [0, 12, 1, 1, 6] },
-  { nome: "Vale do Paraná", abertas: 45, acima48h: 37, acima7d: 17, maisAntiga: "31d 16h 4min", faixas: [5, 4, 3, 16, 17] },
-];
 const faixas = [
-  { nome: "Bom", cor: "bg-lime-400" },
-  { nome: "Médio", cor: "bg-yellow-300" },
-  { nome: "Atenção", cor: "bg-orange-400" },
-  { nome: "Crítico", cor: "bg-red-400" },
-  { nome: "Alerta", cor: "bg-pink-400" },
+  { nome: "Até 24h", cor: "bg-lime-400" },
+  { nome: "24–48h", cor: "bg-yellow-300" },
+  { nome: "2–7 dias", cor: "bg-orange-400" },
+  { nome: "7–15 dias", cor: "bg-red-400" },
+  { nome: "Mais de 15 dias", cor: "bg-pink-400" },
 ];
 
+function idadeEmHoras(data: string) {
+  return Math.max(0, (Date.now() - new Date(data).getTime()) / 3_600_000);
+}
+
+function formatarIdade(data: string | null) {
+  if (!data) return "—";
+  const horas = Math.floor(idadeEmHoras(data));
+  const dias = Math.floor(horas / 24);
+  const resto = horas % 24;
+  return dias > 0 ? `${dias}d ${resto}h` : `${horas}h`;
+}
+
 function PainelTeste() {
+  const [unidades, setUnidades] = useState<Unidade[]>([]);
+  const [ordens, setOrdens] = useState<Ordem[]>([]);
   const [filtro, setFiltro] = useState("Todas");
-  const visiveis = useMemo(() => filtro === "Todas" ? unidades : unidades.filter((u) => u.nome === filtro), [filtro]);
-  const total = (campo: "abertas" | "acima48h" | "acima7d") => visiveis.reduce((s, u) => s + u[campo], 0);
-  const contagens = faixas.map((_, i) => visiveis.reduce((s, u) => s + u.faixas[i], 0));
-  const comJustificativa = 0;
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState("");
+  const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
+
+  const carregar = async () => {
+    setCarregando(true);
+    setErro("");
+    // O schema multiunidade é exclusivo do projeto Supabase de teste.
+    // O cast temporário será substituído pelos tipos gerados após a estabilização do schema.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const [resultadoUnidades, resultadoOrdens] = await Promise.all([
+      db.from("unidades").select("id,codigo,nome").order("nome"),
+      db.from("ordens_servico")
+        .select("id,unidade_id,numero_os,frota,descricao,setor,tecnico_nome,status,created_at,data_inicio,concluida_em")
+        .order("created_at", { ascending: false }),
+    ]);
+    if (resultadoUnidades.error || resultadoOrdens.error) {
+      setErro(resultadoUnidades.error?.message || resultadoOrdens.error?.message || "Não foi possível consultar o banco de teste.");
+      setUnidades([]);
+      setOrdens([]);
+    } else {
+      setUnidades(resultadoUnidades.data ?? []);
+      setOrdens(resultadoOrdens.data ?? []);
+      setAtualizadoEm(new Date());
+    }
+    setCarregando(false);
+  };
+
+  useEffect(() => { void carregar(); }, []);
+
+  const unidadesVisiveis = useMemo(
+    () => filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
+    [filtro, unidades],
+  );
+  const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
+  const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id));
+  const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
+  const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
+  const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
+  const maisAntiga = abertas.reduce<Ordem | null>((maisVelha, ordem) =>
+    !maisVelha || new Date(ordem.created_at).getTime() < new Date(maisVelha.created_at).getTime() ? ordem : maisVelha, null);
+  const contagens = [
+    abertas.filter((ordem) => idadeEmHoras(ordem.created_at) < 24).length,
+    abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 24 && idadeEmHoras(ordem.created_at) < 48).length,
+    abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48 && idadeEmHoras(ordem.created_at) < 168).length,
+    abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168 && idadeEmHoras(ordem.created_at) < 360).length,
+    abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 360).length,
+  ];
 
   return (
     <div className="min-h-screen bg-[#002b25] text-slate-50">
       <header className="border-b border-emerald-800 bg-[#00251f] px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div><div className="text-xl font-extrabold">Central OS</div><div className="text-xs text-emerald-200">PAINEL CONSOLIDADO · AMBIENTE DE TESTE</div></div>
-          <label className="flex items-center gap-3 text-sm text-emerald-100">Unidade
-            <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
-              <option>Todas</option>{unidades.map((u) => <option key={u.nome}>{u.nome}</option>)}
-            </select>
-          </label>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-3 text-sm text-emerald-100">Unidade
+              <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
+                <option>Todas</option>{unidades.map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
+              </select>
+            </label>
+            <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-8">
-        <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Visão geral</p><h1 className="text-2xl font-extrabold sm:text-3xl">Painel Consolidado</h1><p className="mt-1 text-sm text-emerald-100/70">Acompanhamento de ordens de serviço por unidade.</p></div></div>
+        <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Visão geral</p><h1 className="text-2xl font-extrabold sm:text-3xl">Painel Consolidado</h1><p className="mt-1 text-sm text-emerald-100/70">Indicadores calculados a partir das OS no banco isolado de testes.</p></div></div>
+
+        {erro && <div role="alert" className="mb-5 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-100"><strong>Não foi possível carregar os dados.</strong><p className="mt-1 break-words">{erro}</p><p className="mt-2 text-xs">Confira a sessão de teste e os vínculos de unidade do usuário. Nenhum dado fictício é exibido como se fosse real.</p></div>}
+        {carregando && <p role="status" className="mb-4 text-sm text-emerald-100/80">Consultando o banco de teste…</p>}
+        {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric icon={<ClipboardList />} label="OS abertas" value={total("abertas")} accent="text-lime-300" />
-          <Metric icon={<Clock3 />} label="Abertas há mais de 48h" value={total("acima48h")} accent="text-red-300" />
-          <Metric icon={<ShieldAlert />} label="Alerta · mais de 7 dias" value={total("acima7d")} accent="text-pink-300" />
-          <Metric icon={<AlertTriangle />} label="OS mais antiga" value={visiveis.map((u) => u.maisAntiga).sort((a,b) => parseInt(b)-parseInt(a))[0] ?? "—"} accent="text-sky-200" compact />
+          <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
+          <Metric icon={<Clock3 />} label="Abertas há mais de 48h" value={acima48h.length} accent="text-red-300" />
+          <Metric icon={<ShieldAlert />} label="Alerta · mais de 7 dias" value={acima7d.length} accent="text-pink-300" />
+          <Metric icon={<AlertTriangle />} label="OS mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact />
         </div>
         <section className="mt-4 rounded-2xl border border-emerald-800 bg-[#003b32] p-4 sm:p-5">
-          <h2 className="font-bold">Classificação de criticidade</h2>
-          <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-emerald-950">{contagens.map((n,i) => <div key={faixas[i].nome} title={faixas[i].nome + ": " + n} className={faixas[i].cor} style={{ width: (n / Math.max(total("abertas"),1) * 100) + "%" }} />)}</div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-emerald-100/80">{faixas.map((f,i) => <span key={f.nome} className="flex items-center gap-2"><i className={`h-2.5 w-2.5 rounded-full ${f.cor}`} />{f.nome}: {contagens[i]}</span>)}</div>
+          <h2 className="font-bold">Tempo em aberto</h2>
+          <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-emerald-950">{contagens.map((quantidade, indice) => <div key={faixas[indice].nome} title={faixas[indice].nome + ": " + quantidade} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertas.length, 1) * 100) + "%" }} />)}</div>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-emerald-100/80">{faixas.map((faixa, indice) => <span key={faixa.nome} className="flex items-center gap-2"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}: {contagens[indice]}</span>)}</div>
         </section>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-emerald-800 bg-[#003b32] p-5"><div className="text-3xl font-extrabold text-lime-300">{comJustificativa}</div><div className="text-xs font-bold uppercase tracking-wide text-emerald-100/70">Com justificativa</div></div>
-          <div className="rounded-2xl border border-emerald-800 bg-[#003b32] p-5"><div className="text-3xl font-extrabold text-lime-300">{total("abertas")-comJustificativa}</div><div className="text-xs font-bold uppercase tracking-wide text-emerald-100/70">Sem justificativa</div></div>
-        </div>
-        <div className="mb-3 mt-8"><h2 className="text-xl font-bold">Visão por unidade</h2><p className="text-sm text-emerald-100/70">Os valores abaixo são apenas demonstrativos.</p></div>
-        <div className="grid gap-4 lg:grid-cols-3">{visiveis.map((u) => <article key={u.nome} className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-5">
-          <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{u.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-3 py-2 text-xs text-emerald-100">Somente visualização</span></div>
-          <div className="mt-4 flex items-baseline gap-2"><span className="text-4xl font-extrabold text-lime-300">{u.abertas}</span><span className="text-sm text-emerald-100/70">OS abertas</span></div>
-          <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{u.faixas.map((n,i) => <div key={faixas[i].nome} className={faixas[i].cor} style={{width:(n/Math.max(u.abertas,1)*100)+"%"}} />)}</div>
-          <div className="mt-4 space-y-2 border-t border-emerald-800 pt-3">{faixas.map((f,i)=><div key={f.nome} className="flex justify-between text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={`h-2.5 w-2.5 rounded-full ${f.cor}`} />{f.nome}</span><strong>{u.faixas[i]}</strong></div>)}</div>
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-800 pt-3"><div><div className="text-xl font-bold text-lime-300">0</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Com justificativa</div></div><div><div className="text-xl font-bold text-lime-300">{u.abertas}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Sem justificativa</div></div></div>
-          <p className="mt-4 text-sm text-emerald-100/80">OS mais antiga: <strong className="text-white">{u.maisAntiga}</strong></p>
-          <button type="button" onClick={() => window.alert("A consulta real será conectada somente depois de existir um banco de teste isolado. Nenhuma OS oficial foi consultada.")} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-900">Ver OS (demonstração)</button>
-        </article>)}</div>
-        <p className="mt-6 rounded-xl border border-amber-700/60 bg-amber-950/30 p-3 text-xs text-amber-100">Aviso: esta rota não consulta nem modifica o banco oficial. Os dados são fictícios. A integração real depende de um projeto Supabase de teste separado para proteger as OS de produção.</p>
+
+        <div className="mb-3 mt-8"><h2 className="text-xl font-bold">Visão por unidade</h2><p className="text-sm text-emerald-100/70">Os números são obtidos da tabela ordens_servico; a RLS do banco controla quais unidades o usuário pode consultar.</p></div>
+        <div className="grid gap-4 lg:grid-cols-3">{unidadesVisiveis.map((unidade) => {
+          const ordensUnidade = ordensVisiveis.filter((ordem) => ordem.unidade_id === unidade.id);
+          const abertasUnidade = ordensUnidade.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
+          const faixaUnidade = [
+            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) < 24).length,
+            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 24 && idadeEmHoras(ordem.created_at) < 48).length,
+            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48 && idadeEmHoras(ordem.created_at) < 168).length,
+            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168 && idadeEmHoras(ordem.created_at) < 360).length,
+            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 360).length,
+          ];
+          return <article key={unidade.id} className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-5">
+            <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{unidade.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-3 py-2 text-xs text-emerald-100">Leitura</span></div>
+            <div className="mt-4 flex items-baseline gap-2"><span className="text-4xl font-extrabold text-lime-300">{abertasUnidade.length}</span><span className="text-sm text-emerald-100/70">OS abertas</span></div>
+            <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{faixaUnidade.map((quantidade, indice) => <div key={faixas[indice].nome} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertasUnidade.length, 1) * 100) + "%" }} />)}</div>
+            <div className="mt-4 space-y-2 border-t border-emerald-800 pt-3">{faixas.map((faixa, indice) => <div key={faixa.nome} className="flex justify-between text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}</span><strong>{faixaUnidade[indice]}</strong></div>)}</div>
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-800 pt-3"><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.filter((ordem) => ordem.status === "concluida").length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Concluídas</div></div><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Total de OS</div></div></div>
+            <button type="button" onClick={() => setOrdemSelecionada(ordemSelecionada === unidade.id ? null : unidade.id)} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-900">{ordemSelecionada === unidade.id ? "Ocultar OS" : "Ver OS da unidade"}</button>
+            {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p></div>)}</div>}
+          </article>;
+        })}</div>
+        <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
+        {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
       </main>
     </div>
   );
