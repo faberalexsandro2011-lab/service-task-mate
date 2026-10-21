@@ -20,6 +20,8 @@ type Ordem = {
   created_at: string;
   data_inicio: string | null;
   concluida_em: string | null;
+  classe_manutencao: string | string[] | null;
+  pecas_utilizadas: string | null;
 };
 
 const faixas = [
@@ -61,7 +63,7 @@ function PainelTeste() {
     const [resultadoUnidades, resultadoOrdens] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
       db.from("ordens_servico")
-        .select("id,unidade_id,numero_os,frota,descricao,setor,tecnico_nome,status,created_at,data_inicio,concluida_em")
+        .select("id,unidade_id,numero_os,frota,descricao,setor,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
         .order("created_at", { ascending: false }),
     ]);
     if (resultadoUnidades.error || resultadoOrdens.error) {
@@ -152,6 +154,46 @@ function PainelTeste() {
             {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p></div>)}</div>}
           </article>;
         })}</div>
+        <section className="mt-8">
+          <div className="mb-3"><h2 className="text-xl font-bold">Análise Técnica</h2><p className="text-sm text-emerald-100/70">Resumo consolidado das OS visíveis no ambiente de teste, respeitando o filtro de unidade e as regras de acesso do banco.</p></div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <h3 className="font-bold">Serviços / classes</h3>
+              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, ordem) => {
+                const valor = Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao;
+                const classe = valor?.trim() || "Não informado";
+                acc[classe] = (acc[classe] || 0) + 1;
+                return acc;
+              }, {})).sort((a, b) => b[1] - a[1]).map(([classe, quantidade]) => <div key={classe} className="flex items-center justify-between gap-3 text-sm"><span className="text-emerald-100/80">{classe}</span><strong>{quantidade}</strong></div>)}
+              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
+            </article>
+            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <h3 className="font-bold">Produtividade por técnico</h3>
+              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, { total: number; concluidas: number }>>((acc, ordem) => {
+                const tecnico = ordem.tecnico_nome?.trim() || "Sem técnico";
+                acc[tecnico] ??= { total: 0, concluidas: 0 };
+                acc[tecnico].total += 1;
+                if (ordem.status === "concluida") acc[tecnico].concluidas += 1;
+                return acc;
+              }, {})).sort((a, b) => b[1].concluidas - a[1].concluidas || b[1].total - a[1].total).map(([tecnico, resumo]) => <div key={tecnico} className="rounded-lg bg-[#002b25] p-2 text-sm"><div className="flex justify-between gap-2"><strong>{tecnico}</strong><span>{resumo.concluidas}/{resumo.total}</span></div><div className="mt-1 text-xs text-emerald-100/60">concluídas / total de OS</div></div>)}
+              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
+            </article>
+            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <h3 className="font-bold">OS por setor</h3>
+              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, ordem) => {
+                const setor = ordem.setor?.trim() || "Sem setor";
+                acc[setor] = (acc[setor] || 0) + 1;
+                return acc;
+              }, {})).sort((a, b) => b[1] - a[1]).map(([setor, quantidade]) => <div key={setor} className="flex items-center justify-between gap-3 text-sm"><span className="text-emerald-100/80">{setor}</span><strong>{quantidade}</strong></div>)}
+              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
+            </article>
+          </div>
+          <div className="mt-4 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+            <h3 className="font-bold">Peças utilizadas e detalhes dos serviços</h3>
+            <div className="mt-3 space-y-2">{ordensVisiveis.filter((ordem) => ordem.pecas_utilizadas?.trim() || ordem.descricao?.trim()).map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="text-xs text-emerald-100/60">{ordem.tecnico_nome || "Sem técnico"} · {ordem.setor || "Sem setor"}</span></div><p className="mt-1 text-emerald-100/80">{ordem.descricao || "Sem descrição"}</p><p className="mt-1 text-xs text-emerald-100/70">Classe: {Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "Não informada"}</p><p className="mt-1 text-xs text-emerald-100/70">Peças: {ordem.pecas_utilizadas || "Não informadas"}</p></div>)}
+            {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
+          </div>
+        </section>
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
       </main>
