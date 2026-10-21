@@ -52,6 +52,7 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
+  const [aba, setAba] = useState<"painel" | "analise">("painel");
 
   const carregar = async () => {
     setCarregando(true);
@@ -110,11 +111,16 @@ function PainelTeste() {
                 <option>Todas</option>{unidades.map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
               </select>
             </label>
+            <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
+              <button type="button" onClick={() => setAba("painel")} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Painel Geral</button>
+              <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
+            </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
           </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-8">
+        {aba === "painel" && <>
         <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Visão geral</p><h1 className="text-2xl font-extrabold sm:text-3xl">Painel Consolidado</h1><p className="mt-1 text-sm text-emerald-100/70">Indicadores calculados a partir das OS no banco isolado de testes.</p></div></div>
 
         {erro && <div role="alert" className="mb-5 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-100"><strong>Não foi possível carregar os dados.</strong><p className="mt-1 break-words">{erro}</p><p className="mt-2 text-xs">Confira a sessão de teste e os vínculos de unidade do usuário. Nenhum dado fictício é exibido como se fosse real.</p></div>}
@@ -154,7 +160,8 @@ function PainelTeste() {
             {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p></div>)}</div>}
           </article>;
         })}</div>
-        <section className="mt-8">
+        </>}
+        {aba === "analise" && <section className="mt-8">
           <div className="mb-3"><h2 className="text-xl font-bold">Análise Técnica</h2><p className="text-sm text-emerald-100/70">Resumo consolidado das OS visíveis no ambiente de teste, respeitando o filtro de unidade e as regras de acesso do banco.</p></div>
           <div className="grid gap-4 lg:grid-cols-3">
             <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
@@ -193,7 +200,7 @@ function PainelTeste() {
             <div className="mt-3 space-y-2">{ordensVisiveis.filter((ordem) => ordem.pecas_utilizadas?.trim() || ordem.descricao?.trim()).map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="text-xs text-emerald-100/60">{ordem.tecnico_nome || "Sem técnico"} · {ordem.setor || "Sem setor"}</span></div><p className="mt-1 text-emerald-100/80">{ordem.descricao || "Sem descrição"}</p><p className="mt-1 text-xs text-emerald-100/70">Classe: {Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "Não informada"}</p><p className="mt-1 text-xs text-emerald-100/70">Peças: {ordem.pecas_utilizadas || "Não informadas"}</p></div>)}
             {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
           </div>
-        </section>
+        </section>}
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
       </main>
