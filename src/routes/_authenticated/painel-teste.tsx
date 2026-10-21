@@ -181,9 +181,16 @@ function PainelTeste() {
     };
     const canonical = (v: unknown) => { const h = norm(v); for (const [key, names] of Object.entries(aliases)) if (names.includes(h)) return key; if (/(^|_)(tecnico|mecanico|responsavel)(_|$)/.test(h) || h.startsWith("nome_do_tecnico") || h.startsWith("tecnico_")) return "tecnico"; if (h.startsWith("descricao_") || h.endsWith("_descricao")) return "descricao"; if (h.startsWith("localizacao_") || h.endsWith("_localizacao")) return "localizacao"; return h; };
     const headerIndex = rows.findIndex(r => { const hs = r.map(canonical); return hs.includes("numero_os") && hs.includes("frota") && hs.includes("sequencia") && hs.includes("setor"); });
-    const header = headerIndex >= 0 ? rows[headerIndex].map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "descricao", "localizacao", "tecnico"];
+    const headerOriginal = headerIndex >= 0 ? rows[headerIndex] : [];
+    const header = headerIndex >= 0 ? headerOriginal.map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "descricao", "localizacao", "tecnico"];
     const data = headerIndex >= 0 ? rows.slice(headerIndex + 1) : rows;
-    const get = (row: unknown[], key: string) => { const i = header.indexOf(key); return i >= 0 ? clean(row[i]) : ""; };
+    const get = (row: unknown[], key: string) => {
+      // Para Técnico, prioriza a coluna cujo cabeçalho é literalmente "Técnico".
+      // Evita capturar uma coluna auxiliar (ex.: Técnico Email) que também vira "tecnico" após normalização.
+      const exactTechnicianIndex = key === "tecnico" ? headerOriginal.findIndex(c => norm(c) === "tecnico") : -1;
+      const i = exactTechnicianIndex >= 0 ? exactTechnicianIndex : header.indexOf(key);
+      return i >= 0 ? clean(row[i]) : "";
+    };
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
     const parsed = data.filter(r => r.some(c => clean(c))).map((row, rowIndex) => {
       const seqRaw = get(row, "sequencia"); const seqParsed = Number(seqRaw);
