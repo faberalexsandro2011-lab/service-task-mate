@@ -68,6 +68,9 @@ function PainelTeste() {
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
   const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
+  const [edicaoOS, setEdicaoOS] = useState<{ id: string; numero_os: string; frota: string; descricao: string; setor: string; tecnico_nome: string; status: Ordem["status"]; pecas_utilizadas: string } | null>(null);
+  const [salvandoOS, setSalvandoOS] = useState(false);
+  const [mensagemOS, setMensagemOS] = useState("");
 
   const carregar = async () => {
     setCarregando(true);
@@ -104,6 +107,32 @@ function PainelTeste() {
       setAtualizadoEm(new Date());
     }
     setCarregando(false);
+  };
+
+  const salvarEdicaoOS = async () => {
+    if (!edicaoOS || perfilAtual !== "admin_unidade") return;
+    setSalvandoOS(true);
+    setMensagemOS("");
+    // A política RLS do banco de teste limita o UPDATE às OS da unidade do ADM.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { error } = await db.from("ordens_servico").update({
+      numero_os: edicaoOS.numero_os.trim() || null,
+      frota: edicaoOS.frota.trim() || null,
+      descricao: edicaoOS.descricao.trim(),
+      setor: edicaoOS.setor.trim() || null,
+      tecnico_nome: edicaoOS.tecnico_nome.trim() || null,
+      status: edicaoOS.status,
+      pecas_utilizadas: edicaoOS.pecas_utilizadas.trim() || null,
+    }).eq("id", edicaoOS.id);
+    setSalvandoOS(false);
+    if (error) {
+      setMensagemOS("Não foi possível salvar: " + error.message);
+      return;
+    }
+    setMensagemOS("OS atualizada com sucesso.");
+    setEdicaoOS(null);
+    await carregar();
   };
 
   const executarAcaoUsuario = async (payload: Record<string, unknown>) => {
@@ -239,6 +268,7 @@ function PainelTeste() {
         {carregando && <p role="status" className="mb-4 text-sm text-emerald-100/80">Consultando o banco de teste…</p>}
         {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
 
+        {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
           <Metric icon={<Clock3 />} label="Abertas há mais de 48h" value={acima48h.length} accent="text-red-300" />
@@ -263,13 +293,13 @@ function PainelTeste() {
             abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 360).length,
           ];
           return <article key={unidade.id} className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-5">
-            <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{unidade.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-3 py-2 text-xs text-emerald-100">Leitura</span></div>
+            <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{unidade.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-3 py-2 text-xs text-emerald-100">{perfilAtual === "admin_unidade" ? "Gerenciar OS" : "Leitura"}</span></div>
             <div className="mt-4 flex items-baseline gap-2"><span className="text-4xl font-extrabold text-lime-300">{abertasUnidade.length}</span><span className="text-sm text-emerald-100/70">OS abertas</span></div>
             <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{faixaUnidade.map((quantidade, indice) => <div key={faixas[indice].nome} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertasUnidade.length, 1) * 100) + "%" }} />)}</div>
             <div className="mt-4 space-y-2 border-t border-emerald-800 pt-3">{faixas.map((faixa, indice) => <div key={faixa.nome} className="flex justify-between text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}</span><strong>{faixaUnidade[indice]}</strong></div>)}</div>
             <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-800 pt-3"><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.filter((ordem) => ordem.status === "concluida").length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Concluídas</div></div><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Total de OS</div></div></div>
             <button type="button" onClick={() => setOrdemSelecionada(ordemSelecionada === unidade.id ? null : unidade.id)} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-900">{ordemSelecionada === unidade.id ? "Ocultar OS" : "Ver OS da unidade"}</button>
-            {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p></div>)}</div>}
+            {ordemSelecionada === unidade.id && <div className="mt-3 space-y-2">{ordensUnidade.length === 0 ? <p className="text-sm text-emerald-100/70">Nenhuma OS visível para esta unidade.</p> : ordensUnidade.map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="rounded-md bg-emerald-950 px-2 py-1 text-xs">{ordem.status.replace("_", " ")}</span></div><p className="mt-1 text-emerald-100/90">{ordem.descricao}</p><p className="mt-1 text-xs text-emerald-100/60">{ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"} · Criada há {formatarIdade(ordem.created_at)}</p>{perfilAtual === "admin_unidade" && <button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="mt-3 rounded-lg border border-lime-500 px-3 py-2 text-xs font-bold text-lime-200 hover:bg-emerald-900">Editar OS</button>}{edicaoOS?.id === ordem.id && perfilAtual === "admin_unidade" && <div className="mt-3 grid gap-3 rounded-lg border border-emerald-700 p-3"><label className="grid gap-1 text-xs">Número da OS<input value={edicaoOS.numero_os} onChange={e => setEdicaoOS({ ...edicaoOS, numero_os: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Frota<input value={edicaoOS.frota} onChange={e => setEdicaoOS({ ...edicaoOS, frota: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Descrição<textarea value={edicaoOS.descricao} onChange={e => setEdicaoOS({ ...edicaoOS, descricao: e.target.value })} required className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={3} /></label><label className="grid gap-1 text-xs">Setor<input value={edicaoOS.setor} onChange={e => setEdicaoOS({ ...edicaoOS, setor: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Técnico responsável<input value={edicaoOS.tecnico_nome} onChange={e => setEdicaoOS({ ...edicaoOS, tecnico_nome: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label><label className="grid gap-1 text-xs">Status<select value={edicaoOS.status} onChange={e => setEdicaoOS({ ...edicaoOS, status: e.target.value as Ordem["status"] })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label><label className="grid gap-1 text-xs">Peças utilizadas<textarea value={edicaoOS.pecas_utilizadas} onChange={e => setEdicaoOS({ ...edicaoOS, pecas_utilizadas: e.target.value })} className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" rows={2} /></label><div className="flex flex-wrap gap-2"><button type="button" disabled={salvandoOS} onClick={() => void salvarEdicaoOS()} className="rounded-lg bg-lime-300 px-4 py-2 text-xs font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Salvar alterações"}</button><button type="button" onClick={() => setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-xs">Cancelar</button></div></div>}</div>)}</div>}
           </article>;
         })}</div>
         </>}
