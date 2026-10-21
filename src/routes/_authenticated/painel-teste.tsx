@@ -68,6 +68,11 @@ function PainelTeste() {
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
   const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
+  const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
+  const [mostrarNovaOS, setMostrarNovaOS] = useState(false);
+  const [salvandoNovaOS, setSalvandoNovaOS] = useState(false);
+  const [formNovaOS, setFormNovaOS] = useState({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "" });
+  const [formUnidadeCentral, setFormUnidadeCentral] = useState("");
   const [edicaoOS, setEdicaoOS] = useState<{ id: string; numero_os: string; frota: string; descricao: string; setor: string; tecnico_nome: string; status: Ordem["status"]; pecas_utilizadas: string } | null>(null);
   const [salvandoOS, setSalvandoOS] = useState(false);
   const [mensagemOS, setMensagemOS] = useState("");
@@ -81,10 +86,10 @@ function PainelTeste() {
     const db = supabase as any;
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
-      const { data: perfilData } = await db.from("usuarios_unidades").select("perfil").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
+      const { data: perfilData } = await db.from("usuarios_unidades").select("perfil,unidade_id").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
       const perfil = (perfilData?.perfil as PerfilUsuario | undefined) ?? null;
       setPerfilAtual(perfil);
-      if (perfil === "admin_unidade") setFiltro("Nova Londrina");
+      setUnidadeAtualId((perfilData?.unidade_id as string | null | undefined) ?? null);
     }
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
@@ -107,6 +112,34 @@ function PainelTeste() {
       setAtualizadoEm(new Date());
     }
     setCarregando(false);
+  };
+
+  const criarOS = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    if (!unidadeId) { setMensagemOS("Selecione a unidade para abrir a OS."); return; }
+    setSalvandoNovaOS(true);
+    setMensagemOS("");
+    // A política RLS valida no banco se o usuário pode criar OS na unidade escolhida.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { error } = await db.from("ordens_servico").insert({
+      unidade_id: unidadeId,
+      numero_os: formNovaOS.numero_os.trim() || null,
+      frota: formNovaOS.frota.trim() || null,
+      descricao: formNovaOS.descricao.trim(),
+      setor: formNovaOS.setor.trim() || null,
+      localizacao: formNovaOS.localizacao.trim() || null,
+      tecnico_nome: formNovaOS.tecnico_nome.trim() || null,
+      status: "pendente",
+    });
+    setSalvandoNovaOS(false);
+    if (error) { setMensagemOS("Não foi possível criar a OS: " + error.message); return; }
+    setMensagemOS("OS criada com sucesso.");
+    setFormNovaOS({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "" });
+    setMostrarNovaOS(false);
+    await carregar();
   };
 
   const salvarEdicaoOS = async () => {
@@ -221,10 +254,11 @@ function PainelTeste() {
 
   const unidadesVisiveis = useMemo(
     () => perfilAtual === "admin_unidade"
-      ? unidades.filter((unidade) => unidade.codigo === "nova_londrina")
+      ? unidades.filter((unidade) => unidade.id === unidadeAtualId)
       : filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
-    [filtro, unidades, perfilAtual],
+    [filtro, unidades, perfilAtual, unidadeAtualId],
   );
+  useEffect(() => { if (perfilAtual === "gestor_central" && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
   const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id));
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
@@ -269,6 +303,19 @@ function PainelTeste() {
         {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
+        {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de OS</h2><p className="text-sm text-emerald-100/70">Abra novas ordens de serviço e acompanhe as existentes.</p></div><button type="button" onClick={() => { setMostrarNovaOS(!mostrarNovaOS); setMensagemOS(""); }} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200">{mostrarNovaOS ? "Cancelar" : "+ Adicionar OS"}</button></div>
+          {mostrarNovaOS && <form onSubmit={criarOS} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={formUnidadeCentral} onChange={e=>setFormUnidadeCentral(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
+            <label className="grid gap-1 text-sm">Número da OS (opcional)<input value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Frota<input value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Setor<input value={formNovaOS.setor} onChange={e=>setFormNovaOS({...formNovaOS,setor:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Localização<input value={formNovaOS.localizacao} onChange={e=>setFormNovaOS({...formNovaOS,localizacao:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm">Técnico responsável<input value={formNovaOS.tecnico_nome} onChange={e=>setFormNovaOS({...formNovaOS,tecnico_nome:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <label className="grid gap-1 text-sm sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea required value={formNovaOS.descricao} onChange={e=>setFormNovaOS({...formNovaOS,descricao:e.target.value})} rows={3} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+            <div className="sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoNovaOS || !formNovaOS.descricao.trim()} className="rounded-lg bg-lime-300 px-5 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNovaOS ? "Criando OS..." : "Salvar nova OS"}</button></div>
+          </form>}
+        </section>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
           <Metric icon={<Clock3 />} label="Abertas há mais de 48h" value={acima48h.length} accent="text-red-300" />
@@ -374,7 +421,7 @@ function PainelTeste() {
           </div>
           <p className="mt-3 text-xs text-emerald-100/60">Gestores Gerais só podem ser criados pela conta principal. A exclusão remove a conta de autenticação do ambiente de teste; confirme antes de excluir.</p>
         </section>}
-        <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
+        <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. As permissões de criar e editar OS são validadas também pelas políticas RLS do banco de teste; o banco oficial e suas OS não são consultados por esta rota.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
       </main>
     </div>
