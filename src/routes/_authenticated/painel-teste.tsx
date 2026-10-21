@@ -12,7 +12,7 @@ type Unidade = { id: string; codigo: string; nome: string };
 type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor_central" | "visualizador";
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
-type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; valid: boolean };
+type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; tecnico_original: string; tecnico_valido: boolean; valid: boolean };
 type Ordem = {
   id: string;
   unidade_id: string;
@@ -179,22 +179,25 @@ function PainelTeste() {
       tecnico: ["tecnico", "nome_tecnico", "tecnico_nome", "responsavel", "mecanico", "tecnico_email", "email_tecnico"],
     };
     const canonical = (v: unknown) => { const h = norm(v); for (const [key, names] of Object.entries(aliases)) if (names.includes(h)) return key; return h; };
-    const headerIndex = rows.findIndex(r => { const hs = r.map(canonical); return hs.includes("numero_os") && hs.includes("frota") && (hs.includes("sequencia") || hs.includes("setor")); });
+    const headerIndex = rows.findIndex(r => { const hs = r.map(canonical); return hs.includes("numero_os") && hs.includes("frota") && hs.includes("sequencia") && hs.includes("setor"); });
     const header = headerIndex >= 0 ? rows[headerIndex].map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "descricao", "localizacao", "tecnico"];
     const data = headerIndex >= 0 ? rows.slice(headerIndex + 1) : rows;
     const get = (row: unknown[], key: string) => { const i = header.indexOf(key); return i >= 0 ? clean(row[i]) : ""; };
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
-    return data.filter(r => r.some(c => clean(c))).map((row, rowIndex) => {
+    const parsed = data.filter(r => r.some(c => clean(c))).map((row, rowIndex) => {
       const seqRaw = get(row, "sequencia"); const seqParsed = Number(seqRaw);
       const numero = get(row, "numero_os").replace(/\s+/g, "").trim();
       const frota = get(row, "frota").trim();
-      const tecnicoRaw = get(row, "tecnico").replace(/\s+/g, " ").trim();
-      const matched = usuariosAdmin.find(u => u.ativo && u.perfil === "tecnico" && u.unidade_id === unidadeId && (u.email.toLowerCase() === tecnicoRaw.toLowerCase() || u.nome.toLowerCase() === tecnicoRaw.toLowerCase()));
+      const tecnicoRaw = get(row, "tecnico").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      const matched = tecnicoRaw ? usuariosAdmin.find(u => u.ativo && u.perfil === "tecnico" && u.unidade_id === unidadeId && (u.email.trim().toLowerCase() === tecnicoRaw.toLowerCase() || u.nome.trim().replace(/\s+/g," ").toLowerCase() === tecnicoRaw.toLowerCase())) : undefined;
       let entrada = get(row, "entrada");
-      if (/^\d{1,2}\/\d{1,2}\/\d{4}(\s+\d{1,2}:\d{2})?$/.test(entrada)) { const parts = entrada.split(/\s+/); const date = parts[0]; const time = parts[1] || "00:00"; const d = date.split("/"); entrada = d[2] + "-" + d[1].padStart(2,"0") + "-" + d[0].padStart(2,"0") + " " + time; }
-      const seq = Number.isFinite(seqParsed) && seqRaw !== "" ? seqParsed : rowIndex + 1;
-      return { numero_os: numero, frota, entrada, descricao: get(row, "descricao"), localizacao: get(row, "localizacao"), setor: get(row, "setor"), sequencia: seq, tecnico_email: matched?.email ?? (tecnicoRaw.includes("@") ? tecnicoRaw : ""), tecnico_nome: matched?.nome ?? (tecnicoRaw.includes("@") ? "" : tecnicoRaw), valid: Boolean(numero && frota) };
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}(\s+\d{1,2}:\d{2})?$/.test(entrada)) { const parts = entrada.split(/\s+/); const d = parts[0].split("/"); entrada = d[2] + "-" + d[1].padStart(2,"0") + "-" + d[0].padStart(2,"0") + " " + (parts[1] || "00:00"); }
+      return { numero_os: numero, frota, entrada, descricao: get(row, "descricao"), localizacao: get(row, "localizacao"), setor: get(row, "setor"), sequencia: Number.isFinite(seqParsed) && seqRaw !== "" ? seqParsed : rowIndex + 1, tecnico_email: matched?.email ?? "", tecnico_nome: matched?.nome ?? "", tecnico_original: tecnicoRaw, tecnico_valido: !tecnicoRaw || Boolean(matched), valid: Boolean(numero && frota && (!tecnicoRaw || matched)) };
     });
+    // A sequência é a posição de exibição. Ordena pela coluna Seq e corrige repetições para garantir 1, 2, 3… sem duplicar a posição.
+    parsed.sort((a, b) => (a.sequencia ?? Number.MAX_SAFE_INTEGER) - (b.sequencia ?? Number.MAX_SAFE_INTEGER));
+    const usados = new Set<number>(); let proxima = 1;
+    return parsed.map(l => { let seq = l.sequencia; if (seq == null || usados.has(seq)) { while (usados.has(proxima)) proxima++; seq = proxima; } usados.add(seq); proxima = Math.max(proxima, seq + 1); return { ...l, sequencia: seq }; });
   };
   const salvarImportacao = async () => {
     if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
@@ -211,7 +214,7 @@ function PainelTeste() {
       validas.forEach(l=>unicas.set(l.numero_os,l));
       for (const l of unicas.values()) {
         const tecnico = usuariosAdmin.find(u=>u.ativo && u.perfil==="tecnico" && u.unidade_id===unidadeId && (u.email.toLowerCase()===l.tecnico_email.toLowerCase() || u.nome.toLowerCase()===l.tecnico_nome.toLowerCase()));
-        const payload = {numero_os:l.numero_os,frota:l.frota,entrada:l.entrada||null,descricao:l.descricao||null,localizacao:l.localizacao||null,setor:l.setor||null,sequencia:l.sequencia,tecnico_id:tecnico?.user_id??null,tecnico_email:tecnico?.email??(l.tecnico_email||null),tecnico_nome:tecnico?.nome??(l.tecnico_nome||null),criado_por_email:authData.user?.email??null,status:"pendente"};
+        const payload = {numero_os:l.numero_os,frota:l.frota,entrada:l.entrada||null,descricao:l.descricao||null,localizacao:l.localizacao||null,setor:l.setor||null,sequencia:l.sequencia,tecnico_id:tecnico?.user_id??null,tecnico_email:tecnico?.email??null,tecnico_nome:tecnico?.nome??null,criado_por_email:authData.user?.email??null,status:"pendente"};
         const {data:existing,error:lookupError}=await db.from("ordens_servico").select("id").eq("unidade_id",unidadeId).eq("numero_os",l.numero_os).order("created_at",{ascending:true}).limit(1).maybeSingle();
         if(lookupError) throw lookupError;
         if(existing){const {error}=await db.from("ordens_servico").update(payload).eq("id",existing.id).eq("unidade_id",unidadeId);if(error)throw error;atualizadas++;}
@@ -346,7 +349,7 @@ function PainelTeste() {
   };
 
   useEffect(() => { void carregar(); }, []);
-  useEffect(() => { if (aba === "usuarios") void carregarUsuariosAdmin(); }, [aba]);
+  useEffect(() => { if (aba === "usuarios" || modoGestao === "colar" || modoGestao === "importar") void carregarUsuariosAdmin(); }, [aba, modoGestao]);
 
   const unidadesVisiveis = useMemo(
     () => perfilAtual === "admin_unidade"
@@ -421,7 +424,7 @@ function PainelTeste() {
           </form>}
           {modoGestao === "colar" && <div className="mt-4 grid gap-3"><p className="text-sm text-emerald-100/80">No Excel, selecione as linhas e pressione Ctrl+C. Cole abaixo; o sistema reconhecerá os cabeçalhos quando existirem.</p><textarea value={textoPlanilha} onChange={e=>setTextoPlanilha(e.target.value)} onPaste={e=>{const v=e.clipboardData.getData("text");if(v){e.preventDefault();setTextoPlanilha(v);}}} rows={7} placeholder={"Cole aqui as linhas do Excel...\nnumero_os\tfrota\tlocalizacao\tdescricao\ttecnico_email\tentrada"} className="w-full rounded-lg border border-emerald-700 bg-emerald-950 p-3 font-mono text-sm text-white"/><div className="flex flex-wrap gap-2"><button type="button" onClick={()=>setLinhasImportacao(parsearLinhas(textoPlanilha))} disabled={!textoPlanilha.trim()} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950">Conferir linhas</button><button type="button" onClick={()=>setModoGestao("menu")} className="rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div></div>}
           {modoGestao === "importar" && <div className="mt-4 grid gap-3"><p className="text-sm text-emerald-100/80">Escolha uma planilha Excel (.xlsx/.xls) ou arquivo CSV. O sistema mostrará uma prévia antes de salvar.</p><label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-600 p-8 text-center hover:bg-emerald-950/50"><FileSpreadsheet size={30}/><b>{nomeArquivo || "Escolher ficheiro Excel ou CSV"}</b><span className="text-xs text-emerald-100/70">Máximo 20 MB</span><input type="file" accept=".xlsx,.xls,.csv" className="mt-2 max-w-full text-sm" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>20*1024*1024){setMensagemOS("O ficheiro excede o limite de 20 MB.");return;}try{const wb=read(await file.arrayBuffer(),{cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];if(!sheet)throw new Error("Planilha vazia");const matrix=utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",raw:true});setLinhasImportacao(normalizarMatriz(matrix));setNomeArquivo(file.name);setMensagemOS("");}catch(err){setMensagemOS("Não foi possível ler o ficheiro: "+(err instanceof Error?err.message:"erro"));}}}/></label><button type="button" onClick={()=>setModoGestao("menu")} className="justify-self-start rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div>}
-          {linhasImportacao.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{linhasImportacao.filter(l=>l.valid).length} linha(s) válidas · {linhasImportacao.filter(l=>!l.valid).length} com erro</div><div className="max-h-64 overflow-auto rounded-lg border border-emerald-800"><table className="w-full min-w-[620px] text-left text-xs"><thead className="sticky top-0 bg-emerald-950"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Setor</th><th className="p-2">Técnico</th><th className="p-2">Descrição</th></tr></thead><tbody>{linhasImportacao.slice(0,150).map((l,i)=><tr key={l.numero_os+"-"+i} className="border-t border-emerald-900"><td className="p-2">{l.valid?"Válida":"Verificar"}</td><td className="p-2">{l.numero_os||"—"}</td><td className="p-2">{l.frota||"—"}</td><td className="p-2">{l.setor||"—"}</td><td className="p-2">{l.tecnico_email||l.tecnico_nome||"—"}</td><td className="p-2">{l.descricao||"—"}</td></tr>)}</tbody></table></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void salvarImportacao()} disabled={salvandoLote||!linhasImportacao.some(l=>l.valid)} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 disabled:opacity-50">{salvandoLote ? "Salvando..." : "Importar " + linhasImportacao.filter(l=>l.valid).length + " OS"}</button><button type="button" onClick={()=>{setLinhasImportacao([]);setTextoPlanilha("");setNomeArquivo("");}} className="rounded-lg border border-emerald-700 px-4 py-2">Limpar prévia</button></div></div>}
+          {linhasImportacao.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{linhasImportacao.filter(l=>l.valid).length} linha(s) válidas · {linhasImportacao.filter(l=>!l.valid).length} com erro</div><div className="max-h-64 overflow-auto rounded-lg border border-emerald-800"><table className="w-full min-w-[620px] text-left text-xs"><thead className="sticky top-0 bg-emerald-950"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Setor</th><th className="p-2">Técnico</th><th className="p-2">Descrição</th></tr></thead><tbody>{linhasImportacao.slice(0,150).map((l,i)=><tr key={l.numero_os+"-"+i} className="border-t border-emerald-900"><td className="p-2">{l.valid?"Válida":(!l.tecnico_valido ? "Técnico não cadastrado nesta unidade" : "Verificar dados")}</td><td className="p-2">{l.numero_os||"—"}</td><td className="p-2">{l.frota||"—"}</td><td className="p-2">{l.setor||"—"}</td><td className="p-2">{l.tecnico_nome || l.tecnico_original || "—"}</td><td className="p-2">{l.descricao||"—"}</td></tr>)}</tbody></table></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void salvarImportacao()} disabled={salvandoLote||!linhasImportacao.some(l=>l.valid)} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 disabled:opacity-50">{salvandoLote ? "Salvando..." : "Importar " + linhasImportacao.filter(l=>l.valid).length + " OS"}</button><button type="button" onClick={()=>{setLinhasImportacao([]);setTextoPlanilha("");setNomeArquivo("");}} className="rounded-lg border border-emerald-700 px-4 py-2">Limpar prévia</button></div></div>}
         </section>}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
