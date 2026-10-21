@@ -67,6 +67,7 @@ function PainelTeste() {
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
   const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
+  const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
 
   const carregar = async () => {
     setCarregando(true);
@@ -75,6 +76,11 @@ function PainelTeste() {
     // O cast temporário será substituído pelos tipos gerados após a estabilização do schema.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData.user) {
+      const { data: perfilData } = await db.from("usuarios_unidades").select("perfil").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
+      setPerfilAtual((perfilData?.perfil as PerfilUsuario | undefined) ?? null);
+    }
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
       db.from("ordens_servico")
@@ -183,8 +189,10 @@ function PainelTeste() {
   useEffect(() => { if (aba === "usuarios") void carregarUsuariosAdmin(); }, [aba]);
 
   const unidadesVisiveis = useMemo(
-    () => filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
-    [filtro, unidades],
+    () => perfilAtual === "admin_unidade"
+      ? unidades.filter((unidade) => unidade.codigo === "nova_londrina")
+      : filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
+    [filtro, unidades, perfilAtual],
   );
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
   const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id));
@@ -208,14 +216,14 @@ function PainelTeste() {
           <div><div className="text-xl font-extrabold">Central OS</div><div className="text-xs text-emerald-200">PAINEL CONSOLIDADO · AMBIENTE DE TESTE</div></div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-3 text-sm text-emerald-100">Unidade
-              <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
+              <select value={filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
                 <option>Todas</option>{unidades.map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
               </select>
             </label>
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
               <button type="button" onClick={() => setAba("painel")} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Painel Geral</button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
-              <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>
+              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
             </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
           </div>
@@ -303,7 +311,7 @@ function PainelTeste() {
             {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
           </div>
         </section>}
-        {aba === "usuarios" && <section className="mt-8">
+        {aba === "usuarios" && perfilAtual === "gestor_central" && <section className="mt-8">
           <div className="mb-4"><h2 className="text-2xl font-extrabold">Gestão de Usuários</h2><p className="mt-1 text-sm text-emerald-100/70">Cadastro e gerenciamento de contas somente no banco de teste multiunidade.</p></div>
           <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação. Senhas nunca são exibidas.</p></div>
           {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
