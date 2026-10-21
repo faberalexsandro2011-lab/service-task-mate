@@ -80,6 +80,23 @@ function Index() {
       }
       return;
     }
+    // No ambiente isolado multiunidade, direciona o Gestor Geral ao painel de teste,
+    // sem abrir o dashboard legado que depende da tabela public.profiles.
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData.user) {
+      const { data: centralProfile, error: centralProfileError } = await supabase
+        .from("usuarios_unidades")
+        .select("perfil")
+        .eq("user_id", authData.user.id)
+        .eq("ativo", true)
+        .eq("perfil", "gestor_central")
+        .maybeSingle();
+
+      if (!centralProfileError && centralProfile?.perfil === "gestor_central") {
+        await navigate({ to: "/painel-teste", replace: true });
+        return;
+      }
+    }
     await navigate({ to: "/dashboard", replace: true });
   }
 
