@@ -96,6 +96,17 @@ function Index() {
         await navigate({ to: "/painel-teste", replace: true });
         return;
       }
+      const { data: unitProfile } = await supabase
+        .from("usuarios_unidades")
+        .select("perfil")
+        .eq("user_id", authData.user.id)
+        .eq("ativo", true)
+        .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
+        .maybeSingle();
+      if (unitProfile?.perfil === "admin_unidade") {
+        await navigate({ to: "/painel-teste", replace: true });
+        return;
+      }
     }
     await navigate({ to: "/dashboard", replace: true });
   }
