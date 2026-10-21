@@ -8,6 +8,7 @@ export const Route = createFileRoute("/_authenticated/painel-teste")({
 });
 
 type Unidade = { id: string; codigo: string; nome: string };
+type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: "admin_unidade" | "tecnico" | "gestor_central" | "visualizador"; ativo: boolean };
 type Ordem = {
   id: string;
   unidade_id: string;
@@ -47,12 +48,14 @@ function formatarIdade(data: string | null) {
 function PainelTeste() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [ordens, setOrdens] = useState<Ordem[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioUnidade[]>([]);
+  const [erroUsuarios, setErroUsuarios] = useState("");
   const [filtro, setFiltro] = useState("Todas");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "analise">("painel");
+  const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
 
   const carregar = async () => {
     setCarregando(true);
@@ -61,19 +64,24 @@ function PainelTeste() {
     // O cast temporário será substituído pelos tipos gerados após a estabilização do schema.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
-    const [resultadoUnidades, resultadoOrdens] = await Promise.all([
+    const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
       db.from("ordens_servico")
         .select("id,unidade_id,numero_os,frota,descricao,setor,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
         .order("created_at", { ascending: false }),
+      db.from("usuarios_unidades").select("user_id,unidade_id,perfil,ativo").order("perfil"),
     ]);
     if (resultadoUnidades.error || resultadoOrdens.error) {
       setErro(resultadoUnidades.error?.message || resultadoOrdens.error?.message || "Não foi possível consultar o banco de teste.");
+      setErroUsuarios(resultadoUsuarios.error?.message || "Não foi possível consultar os vínculos de usuários.");
       setUnidades([]);
       setOrdens([]);
+      setUsuarios([]);
     } else {
       setUnidades(resultadoUnidades.data ?? []);
       setOrdens(resultadoOrdens.data ?? []);
+      setUsuarios(resultadoUsuarios.data ?? []);
+      setErroUsuarios(resultadoUsuarios.error?.message || "");
       setAtualizadoEm(new Date());
     }
     setCarregando(false);
@@ -114,6 +122,7 @@ function PainelTeste() {
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
               <button type="button" onClick={() => setAba("painel")} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Painel Geral</button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
+              <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>
             </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
           </div>
@@ -200,6 +209,19 @@ function PainelTeste() {
             <div className="mt-3 space-y-2">{ordensVisiveis.filter((ordem) => ordem.pecas_utilizadas?.trim() || ordem.descricao?.trim()).map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="text-xs text-emerald-100/60">{ordem.tecnico_nome || "Sem técnico"} · {ordem.setor || "Sem setor"}</span></div><p className="mt-1 text-emerald-100/80">{ordem.descricao || "Sem descrição"}</p><p className="mt-1 text-xs text-emerald-100/70">Classe: {Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "Não informada"}</p><p className="mt-1 text-xs text-emerald-100/70">Peças: {ordem.pecas_utilizadas || "Não informadas"}</p></div>)}
             {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
           </div>
+        </section>}
+        {aba === "usuarios" && <section className="mt-8">
+          <div className="mb-4"><h2 className="text-2xl font-extrabold">Gestão de Usuários</h2><p className="mt-1 text-sm text-emerald-100/70">Conferência dos perfis e vínculos cadastrados no banco isolado de teste.</p></div>
+          <div role="status" className="mb-5 rounded-xl border border-amber-700 bg-amber-950/30 p-4 text-sm text-amber-100"><strong>Cadastro e edição ainda não liberados.</strong><p className="mt-1">A listagem abaixo é somente leitura. A criação de contas exige um serviço de servidor seguro; não é permitido usar uma chave administrativa no navegador.</p></div>
+          {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">Falha ao consultar perfis: {erroUsuarios}</div>}
+          <div className="overflow-x-auto rounded-xl border border-emerald-800">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="bg-[#003b32] text-emerald-100"><tr><th className="p-3">Identificador do usuário</th><th className="p-3">Unidade</th><th className="p-3">Perfil</th><th className="p-3">Situação</th></tr></thead>
+              <tbody>{usuarios.map((usuario) => <tr key={usuario.user_id} className="border-t border-emerald-900"><td className="p-3 font-mono text-xs">{usuario.user_id}</td><td className="p-3">{usuario.unidade_id ? unidades.find((u) => u.id === usuario.unidade_id)?.nome || "Unidade não encontrada" : "Todas as unidades"}</td><td className="p-3">{({ admin_unidade: "ADM da unidade", tecnico: "Técnico", gestor_central: "Gestor Geral", visualizador: "Somente visualização" } as Record<string, string>)[usuario.perfil] || usuario.perfil}</td><td className="p-3"><span className={usuario.ativo ? "rounded-md bg-emerald-900 px-2 py-1 text-emerald-200" : "rounded-md bg-red-950 px-2 py-1 text-red-200"}>{usuario.ativo ? "Ativo" : "Inativo"}</span></td></tr>)}
+              {usuarios.length === 0 && <tr><td colSpan={4} className="p-5 text-center text-emerald-100/60">{carregando ? "Carregando usuários…" : "Nenhum vínculo visível para este usuário."}</td></tr>}</tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-emerald-100/60">Por segurança, esta tela não exibe senhas nem tenta recuperar e-mails diretamente da tabela de autenticação. A próxima etapa é conectar o serviço administrativo autenticado.</p>
         </section>}
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. Esta tela é somente leitura; o banco oficial e suas OS não são consultados por esta rota quando as variáveis de Preview estão corretamente configuradas.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
