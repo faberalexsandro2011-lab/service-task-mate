@@ -37,7 +37,7 @@ end $$;
 
 alter table public.unidades
   add constraint unidades_codigo_formato_check
-  check (codigo ~ '^[a-z0-9][a-z0-9_-]{1,49}$');
+  check (codigo ~ '^[a-z0-9][a-z0-9_-]{0,49}$');
 
 drop policy if exists "gestor_central_le_unidades" on public.unidades;
 create policy "gestor_central_le_unidades"
