@@ -539,6 +539,7 @@ function PainelTeste() {
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
   const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
   const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
+  const ordensPainelUnidade = ordemSelecionada ? ordensVisiveis.filter(ordem => ordem.unidade_id === ordemSelecionada) : [];
   const statusResumo = [
     { status: "Todas" as const, label: "Todas as OS", total: ordensPainelUnidade.length, icon: ClipboardList, color: "text-slate-100", active: "border-slate-300 bg-slate-800/70" },
     { status: "pendente" as const, label: "Pendentes", total: ordensPainelUnidade.filter(o => o.status === "pendente").length, icon: Circle, color: "text-amber-300", active: "border-amber-400 bg-amber-950/60" },
@@ -546,7 +547,6 @@ function PainelTeste() {
     { status: "concluida" as const, label: "Concluídas", total: ordensPainelUnidade.filter(o => o.status === "concluida").length, icon: CheckCircle2, color: "text-lime-300", active: "border-lime-400 bg-lime-950/50" },
     { status: "cancelada" as const, label: "Canceladas", total: ordensPainelUnidade.filter(o => o.status === "cancelada").length, icon: XCircle, color: "text-rose-300", active: "border-rose-400 bg-rose-950/50" },
   ];
-  const ordensPainelUnidade = ordemSelecionada ? ordensVisiveis.filter(ordem => ordem.unidade_id === ordemSelecionada) : [];
   const ordensFiltradasPainel = ordensPainelUnidade.filter(ordem => {
     const statusOk = statusFiltro === "Todas" || ordem.status === statusFiltro;
     const termo = buscaOS.trim().toLocaleLowerCase("pt-BR");
