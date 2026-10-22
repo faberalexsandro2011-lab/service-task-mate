@@ -74,7 +74,8 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "analise" | "usuarios" | "estoque">("painel");
+  const [aba, setAba] = useState<"painel" | "solicitacoes" | "analise" | "usuarios" | "estoque">("painel");
+  const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
   const [modoGestao, setModoGestao] = useState<"menu" | "criar" | "colar" | "importar">("menu");
@@ -540,6 +541,7 @@ function PainelTeste() {
             </label>
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
               <button type="button" onClick={() => setAba("painel")} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Painel Geral</button>
+              {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => { setAba("solicitacoes"); setSolicitacaoEmEdicao(null); }} aria-current={aba === "solicitacoes" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "solicitacoes" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Solicitações de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>}
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
               {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}
               {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
@@ -549,6 +551,42 @@ function PainelTeste() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-8">
+        {aba === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Recebimento do técnico</p><h1 className="text-2xl font-extrabold">Solicitações de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Solicitações sem número oficial. Confira os dados, informe o número e envie a mesma OS de volta ao técnico.</p></div>
+            <span className="rounded-full border border-amber-500/50 bg-amber-950/40 px-3 py-1.5 text-sm font-bold text-amber-200">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length} aguardando abertura</span>
+          </div>
+          {mensagemOS && <div role="status" className="rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
+          {ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center"><ClipboardList size={30} className="mx-auto text-emerald-100/40"/><p className="mt-2 font-semibold">Nenhuma solicitação aguardando número</p><p className="mt-1 text-sm text-emerald-100/60">As solicitações enviadas pelos técnicos aparecerão aqui.</p></div>}
+          {ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").map(ordem => {
+            const unidadeNome = unidades.find(u => u.id === ordem.unidade_id)?.nome ?? "Unidade";
+            const editando = solicitacaoEmEdicao?.id === ordem.id;
+            return <article key={ordem.id} className="rounded-xl border border-emerald-700 bg-[#002b25] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-amber-300">AGUARDANDO NÚMERO DA OS · {unidadeNome}</p><h2 className="mt-1 text-lg font-bold">{ordem.frota || "Frota não informada"}</h2><p className="mt-1 text-sm text-emerald-100/80">{ordem.descricao}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-emerald-100/60"><span>Técnico: {ordem.tecnico_nome || "Não informado"}</span><span>Setor: {ordem.setor || "—"}</span><span>Localização: {ordem.localizacao || "—"}</span><span>Solicitada: {new Date(ordem.created_at).toLocaleString("pt-BR")}</span></div></div>
+                {!editando && <button type="button" onClick={() => setSolicitacaoEmEdicao({ id: ordem.id, numero_os: "", frota: ordem.frota || "", localizacao: ordem.localizacao || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "" })} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950">Conferir e inserir OS</button>}
+              </div>
+              {editando && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="text-xs font-semibold text-emerald-100">Número oficial da OS *<input autoFocus value={solicitacaoEmEdicao.numero_os} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, numero_os:e.target.value} : v)} placeholder="Informe o número da OS" className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100">Frota<input value={solicitacaoEmEdicao.frota} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, frota:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100">Técnico<input value={solicitacaoEmEdicao.tecnico_nome} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, tecnico_nome:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100">Setor<input value={solicitacaoEmEdicao.setor} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, setor:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100">Localização<input value={solicitacaoEmEdicao.localizacao} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, localizacao:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100 sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea value={solicitacaoEmEdicao.descricao} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, descricao:e.target.value} : v)} rows={2} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><button type="button" disabled={salvandoOS || !solicitacaoEmEdicao.numero_os.trim()} onClick={() => void (async () => {
+                  if (!solicitacaoEmEdicao || !solicitacaoEmEdicao.numero_os.trim()) return;
+                  setSalvandoOS(true); setMensagemOS("");
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const db = supabase as any;
+                  const { error } = await db.from("ordens_servico").update({ numero_os: solicitacaoEmEdicao.numero_os.trim(), frota: solicitacaoEmEdicao.frota.trim() || null, localizacao: solicitacaoEmEdicao.localizacao.trim() || null, descricao: solicitacaoEmEdicao.descricao.trim(), setor: solicitacaoEmEdicao.setor.trim() || null, tecnico_nome: solicitacaoEmEdicao.tecnico_nome.trim() || null }).eq("id", ordem.id).eq("unidade_id", ordem.unidade_id);
+                  setSalvandoOS(false);
+                  if (error) { setMensagemOS("Não foi possível inserir a OS: " + error.message); return; }
+                  setMensagemOS("Número da OS registrado. A solicitação original foi atualizada e retornou ao fluxo normal, sem duplicar o registro.");
+                  setSolicitacaoEmEdicao(null); await carregar();
+                })()} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Inserir OS e enviar ao técnico"}</button><button type="button" onClick={() => setSolicitacaoEmEdicao(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm">Cancelar</button></div>
+              </div>}
+            </article>;
+          })}
+        </section>}
         {aba === "painel" && <>
         <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Visão geral</p><h1 className="text-2xl font-extrabold sm:text-3xl">Painel Consolidado</h1><p className="mt-1 text-sm text-emerald-100/70">Indicadores calculados a partir das OS no banco isolado de testes.</p></div></div>
 
