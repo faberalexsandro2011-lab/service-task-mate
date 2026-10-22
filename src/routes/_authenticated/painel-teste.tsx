@@ -808,45 +808,76 @@ function PainelTeste() {
           </article>;
         })}</div>
         </>}
-        {aba === "analise" && <section className="mt-8">
-          <div className="mb-3"><h2 className="text-xl font-bold">Análise Técnica</h2><p className="text-sm text-emerald-100/70">Resumo consolidado das OS visíveis no ambiente de teste, respeitando o filtro de unidade e as regras de acesso do banco.</p></div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
-              <h3 className="font-bold">Serviços / classes</h3>
-              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, ordem) => {
-                const valor = Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao;
-                const classe = valor?.trim() || "Não informado";
-                acc[classe] = (acc[classe] || 0) + 1;
-                return acc;
-              }, {})).sort((a, b) => b[1] - a[1]).map(([classe, quantidade]) => <div key={classe} className="flex items-center justify-between gap-3 text-sm"><span className="text-emerald-100/80">{classe}</span><strong>{quantidade}</strong></div>)}
-              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
-            </article>
-            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
-              <h3 className="font-bold">Produtividade por técnico</h3>
-              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, { total: number; concluidas: number }>>((acc, ordem) => {
-                const tecnico = ordem.tecnico_nome?.trim() || "Sem técnico";
-                acc[tecnico] ??= { total: 0, concluidas: 0 };
-                acc[tecnico].total += 1;
-                if (ordem.status === "concluida") acc[tecnico].concluidas += 1;
-                return acc;
-              }, {})).sort((a, b) => b[1].concluidas - a[1].concluidas || b[1].total - a[1].total).map(([tecnico, resumo]) => <div key={tecnico} className="rounded-lg bg-[#002b25] p-2 text-sm"><div className="flex justify-between gap-2"><strong>{tecnico}</strong><span>{resumo.concluidas}/{resumo.total}</span></div><div className="mt-1 text-xs text-emerald-100/60">concluídas / total de OS</div></div>)}
-              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
-            </article>
-            <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
-              <h3 className="font-bold">OS por setor</h3>
-              <div className="mt-3 space-y-2">{Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, ordem) => {
-                const setor = ordem.setor?.trim() || "Sem setor";
-                acc[setor] = (acc[setor] || 0) + 1;
-                return acc;
-              }, {})).sort((a, b) => b[1] - a[1]).map(([setor, quantidade]) => <div key={setor} className="flex items-center justify-between gap-3 text-sm"><span className="text-emerald-100/80">{setor}</span><strong>{quantidade}</strong></div>)}
-              {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem OS para analisar.</p>}</div>
-            </article>
-          </div>
-          <div className="mt-4 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
-            <h3 className="font-bold">Peças utilizadas e detalhes dos serviços</h3>
-            <div className="mt-3 space-y-2">{ordensVisiveis.filter((ordem) => ordem.pecas_utilizadas?.trim() || ordem.descricao?.trim()).map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="text-xs text-emerald-100/60">{ordem.tecnico_nome || "Sem técnico"} · {ordem.setor || "Sem setor"}</span></div><p className="mt-1 text-emerald-100/80">{ordem.descricao || "Sem descrição"}</p><p className="mt-1 text-xs text-emerald-100/70">Classe: {Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "Não informada"}</p><p className="mt-1 text-xs text-emerald-100/70">Peças: {ordem.pecas_utilizadas || "Não informadas"}</p></div>)}
-            {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
-          </div>
+        {aba === "analise" && <section className="mt-6 space-y-5">
+          {(() => {
+            const total = ordensVisiveis.length;
+            const concluidas = ordensVisiveis.filter(o => o.status === "concluida").length;
+            const canceladas = ordensVisiveis.filter(o => o.status === "cancelada").length;
+            const andamento = ordensVisiveis.filter(o => o.status === "em_andamento").length;
+            const pendentes = ordensVisiveis.filter(o => o.status === "pendente").length;
+            const validas = Math.max(total - canceladas, 0);
+            const taxaConclusao = validas ? Math.round(concluidas / validas * 100) : 0;
+            const setores = Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, o) => { const k = o.setor?.trim() || "Sem setor"; acc[k] = (acc[k] || 0) + 1; return acc; }, {})).sort((a,b)=>b[1]-a[1]).slice(0,8);
+            const classes = Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, o) => { const raw = Array.isArray(o.classe_manutencao) ? o.classe_manutencao : [o.classe_manutencao]; const values = raw.flatMap(v => typeof v === "string" ? v.split(",") : []).map(v=>v.trim()).filter(Boolean); for (const k of (values.length ? values : ["Não informada"])) acc[k]=(acc[k]||0)+1; return acc; }, {})).sort((a,b)=>b[1]-a[1]).slice(0,8);
+            const tecnicos = Object.entries(ordensVisiveis.reduce<Record<string,{total:number;concluidas:number;abertas:number;andamento:number}>>((acc,o)=>{const k=o.tecnico_nome?.trim()||"Sem técnico";acc[k]??={total:0,concluidas:0,abertas:0,andamento:0};acc[k].total++;if(o.status==="concluida")acc[k].concluidas++;if(o.status==="pendente")acc[k].abertas++;if(o.status==="em_andamento")acc[k].andamento++;return acc;},{})).sort((a,b)=>b[1].concluidas-a[1].concluidas||b[1].total-a[1].total).slice(0,10);
+            const pecas = ordensVisiveis.filter(o=>o.pecas_utilizadas?.trim());
+            const semTecnico = ordensVisiveis.filter(o=>!o.tecnico_nome?.trim()).length;
+            const semSetor = ordensVisiveis.filter(o=>!o.setor?.trim()).length;
+            const semClasse = ordensVisiveis.filter(o=>!o.classe_manutencao || (Array.isArray(o.classe_manutencao) ? o.classe_manutencao.length===0 : !String(o.classe_manutencao).trim())).length;
+            const fmt = (v:number) => total ? Math.round(v/total*100) : 0;
+            const bar = (v:number, max:number) => Math.max(0, Math.min(100, max ? v/max*100 : 0));
+            return <>
+              <div className="overflow-hidden rounded-3xl border border-emerald-700 bg-gradient-to-br from-[#064b3e] via-[#034033] to-[#022c26] p-5 sm:p-7">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div><p className="text-xs font-bold uppercase tracking-[.22em] text-lime-300">Inteligência operacional · ambiente de teste</p><h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Análise Técnica & Desempenho</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/75">Visão executiva da operação: volume de serviços, andamento da carteira, produtividade, concentração por setor e qualidade do preenchimento. Os indicadores respeitam a unidade selecionada e os dados disponíveis.</p></div>
+                  <div className="rounded-xl border border-lime-300/30 bg-black/10 px-4 py-3"><div className="text-[10px] font-bold uppercase tracking-widest text-emerald-100/65">Escopo analisado</div><div className="mt-1 text-sm font-bold">{perfilAtual === "admin_unidade" ? (unidades.find(u=>u.id===unidadeAtualId)?.nome || "Sua unidade") : filtro === "Todas" ? "Todas as unidades" : filtro}</div><div className="mt-1 text-xs text-emerald-100/60">{total} ordens de serviço no filtro atual</div></div>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <article className="rounded-2xl border border-emerald-800 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Ordens analisadas</span><ClipboardList size={18} className="text-emerald-300"/></div><div className="mt-3 text-3xl font-extrabold">{total}</div><div className="mt-1 text-xs text-emerald-100/55">Carteira dentro do filtro atual</div></article>
+                <article className="rounded-2xl border border-lime-700/50 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Taxa de conclusão</span><CheckCircle2 size={18} className="text-lime-300"/></div><div className="mt-3 text-3xl font-extrabold text-lime-300">{taxaConclusao}%</div><div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-950"><div className="h-full rounded-full bg-lime-300" style={{width:taxaConclusao+"%"}}/></div><div className="mt-2 text-xs text-emerald-100/55">{concluidas} concluídas de {validas} não canceladas</div></article>
+                <article className="rounded-2xl border border-amber-700/40 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Em aberto</span><Clock3 size={18} className="text-amber-300"/></div><div className="mt-3 text-3xl font-extrabold text-amber-200">{pendentes+andamento}</div><div className="mt-1 text-xs text-emerald-100/55">{pendentes} pendentes · {andamento} em andamento</div></article>
+                <article className="rounded-2xl border border-sky-800/70 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Registros com peças</span><Building2 size={18} className="text-sky-300"/></div><div className="mt-3 text-3xl font-extrabold text-sky-200">{pecas.length}</div><div className="mt-1 text-xs text-emerald-100/55">{fmt(pecas.length)}% das OS possuem peça descrita</div></article>
+              </div>
+              <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
+                <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-extrabold">Situação da carteira</h3><p className="mt-1 text-xs text-emerald-100/60">Distribuição por status de atendimento</p></div><span className="rounded-full border border-emerald-700 px-3 py-1 text-xs text-emerald-100/70">Total: {total}</span></div>
+                  <div className="mt-5 grid gap-5 sm:grid-cols-[160px_1fr] sm:items-center">
+                    <div className="relative mx-auto h-36 w-36 rounded-full" style={{background:total ? "conic-gradient(#bef264 0% "+fmt(concluidas)+"%, #38bdf8 "+fmt(concluidas)+"% "+(fmt(concluidas)+fmt(andamento))+"%, #fbbf24 "+(fmt(concluidas)+fmt(andamento))+"% "+(fmt(concluidas)+fmt(andamento)+fmt(pendentes))+"%, #64748b "+(fmt(concluidas)+fmt(andamento)+fmt(pendentes))+"% 100%)" : "#123b32"}}><div className="absolute inset-4 flex flex-col items-center justify-center rounded-full border border-emerald-800 bg-[#00352d]"><strong className="text-3xl">{total}</strong><span className="text-[10px] uppercase tracking-wide text-emerald-100/60">ordens</span></div></div>
+                    <div className="space-y-3">{[{label:"Concluídas",value:concluidas,color:"bg-lime-300"},{label:"Em andamento",value:andamento,color:"bg-sky-400"},{label:"Pendentes",value:pendentes,color:"bg-amber-300"},{label:"Canceladas",value:canceladas,color:"bg-slate-500"}].map(item=><div key={item.label} className="flex items-center gap-3"><span className={"h-2.5 w-2.5 shrink-0 rounded-sm "+item.color}/><span className="min-w-0 flex-1 text-sm text-emerald-100/80">{item.label}</span><strong className="text-sm tabular-nums">{item.value}</strong><span className="w-11 text-right text-xs text-emerald-100/55">{fmt(item.value)}%</span></div>)}</div>
+                  </div>
+                </article>
+                <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
+                  <div><h3 className="text-base font-extrabold">Distribuição por classe de serviço</h3><p className="mt-1 text-xs text-emerald-100/60">Classes de manutenção informadas nas OS</p></div>
+                  <div className="mt-5 space-y-4">{classes.length ? classes.map(([nome,valor])=><div key={nome}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="truncate text-emerald-100/85">{nome}</span><strong className="tabular-nums">{valor}</strong></div><div className="h-2 overflow-hidden rounded-full bg-emerald-950"><div className="h-full rounded-full bg-gradient-to-r from-lime-400 to-emerald-300" style={{width:bar(valor,classes[0]?.[1]||1)+"%"}}/></div></div>) : <p className="text-sm text-emerald-100/55">Ainda não há classes registradas.</p>}</div>
+                </article>
+              </div>
+              <div className="grid gap-5 xl:grid-cols-2">
+                <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
+                  <div className="flex items-start justify-between gap-3"><div><h3 className="text-base font-extrabold">Volume de OS por setor</h3><p className="mt-1 text-xs text-emerald-100/60">Onde a demanda está concentrada · até 8 setores</p></div><Users size={18} className="text-emerald-300"/></div>
+                  <div className="mt-5 space-y-4">{setores.length ? setores.map(([nome,valor])=><div key={nome}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="min-w-0 truncate text-emerald-100/85">{nome}</span><strong>{valor} <span className="text-xs font-normal text-emerald-100/50">({fmt(valor)}%)</span></strong></div><div className="h-2.5 overflow-hidden rounded-full bg-emerald-950"><div className="h-full rounded-full bg-sky-400" style={{width:bar(valor,setores[0]?.[1]||1)+"%"}}/></div></div>) : <p className="text-sm text-emerald-100/55">Ainda não há setores registrados.</p>}</div>
+                </article>
+                <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-extrabold">Produtividade por técnico</h3><p className="mt-1 text-xs text-emerald-100/60">Concluídas em relação ao volume atribuído · até 10 técnicos</p></div><Users size={18} className="text-lime-300"/></div>
+                  <div className="mt-5 space-y-4">{tecnicos.length ? tecnicos.map(([nome,resumo])=>{const taxa=resumo.total?Math.round(resumo.concluidas/resumo.total*100):0;return <div key={nome}><div className="mb-1.5 flex items-center justify-between gap-3"><span className="min-w-0 truncate text-sm font-semibold">{nome}</span><span className="shrink-0 text-xs text-emerald-100/70">{resumo.concluidas}/{resumo.total} concluídas</span></div><div className="h-2 overflow-hidden rounded-full bg-emerald-950"><div className="h-full rounded-full bg-lime-300" style={{width:taxa+"%"}}/></div><div className="mt-1 text-right text-[10px] text-emerald-100/50">{taxa}% de conclusão · {resumo.abertas} pendentes · {resumo.andamento} em andamento</div></div>}) : <p className="text-sm text-emerald-100/55">Ainda não há OS atribuídas a técnicos.</p>}</div>
+                </article>
+              </div>
+              <div className="grid gap-5 xl:grid-cols-[.85fr_1.15fr]">
+                <article className="rounded-2xl border border-amber-700/40 bg-[#00352d] p-5">
+                  <div><h3 className="text-base font-extrabold">Qualidade dos dados</h3><p className="mt-1 text-xs text-emerald-100/60">Campos que podem limitar a análise gerencial</p></div>
+                  <div className="mt-4 space-y-3">{[{label:"Sem técnico atribuído",value:semTecnico},{label:"Sem setor informado",value:semSetor},{label:"Sem classe de manutenção",value:semClasse}].map(item=><div key={item.label} className="flex items-center justify-between gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3"><span className="text-sm text-emerald-100/80">{item.label}</span><span className={"rounded-lg px-2.5 py-1 text-sm font-bold "+(item.value ? "bg-amber-400/15 text-amber-200" : "bg-lime-300/10 text-lime-200")}>{item.value}</span></div>)}</div>
+                  <p className="mt-3 text-xs leading-5 text-emerald-100/50">A qualidade dos campos influencia a leitura de produtividade e a comparação entre setores.</p>
+                </article>
+                <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-extrabold">Detalhamento dos serviços e peças</h3><p className="mt-1 text-xs text-emerald-100/60">Registro operacional por OS · sem estimativas financeiras</p></div><span className="rounded-full border border-emerald-700 px-3 py-1 text-xs">{pecas.length} com peças descritas</span></div>
+                  <div className="mt-4 max-h-[520px] space-y-3 overflow-y-auto pr-1">{ordensVisiveis.filter(o=>o.pecas_utilizadas?.trim()||o.descricao?.trim()).sort((a,b)=>(b.concluida_em||b.created_at).localeCompare(a.concluida_em||a.created_at)).map(o=><div key={o.id} className="rounded-xl border border-emerald-800 bg-[#002b25] p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-xs font-bold uppercase tracking-wide text-emerald-300">{o.numero_os || "OS sem número"} · {o.frota || "Frota não informada"}</div><div className="mt-1 font-semibold">{o.descricao || "Descrição não informada"}</div></div><span className={"rounded-full px-2.5 py-1 text-[10px] font-bold uppercase "+(o.status==="concluida"?"bg-lime-300/15 text-lime-200":o.status==="em_andamento"?"bg-sky-300/15 text-sky-200":o.status==="cancelada"?"bg-slate-500/20 text-slate-300":"bg-amber-300/15 text-amber-200")}>{o.status.replace("_"," ")}</span></div><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-emerald-100/60"><span>Técnico: {o.tecnico_nome || "Não atribuído"}</span><span>Setor: {o.setor || "Não informado"}</span><span>Classe: {Array.isArray(o.classe_manutencao)?o.classe_manutencao.join(", "):o.classe_manutencao || "Não informada"}</span></div><div className="mt-3 border-t border-emerald-800 pt-3 text-sm"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/50">Peças utilizadas</span><p className="mt-1 text-emerald-100/80">{o.pecas_utilizadas || "Nenhuma peça descrita"}</p></div></div>)}
+                    {ordensVisiveis.filter(o=>o.pecas_utilizadas?.trim()||o.descricao?.trim()).length===0 && <p className="rounded-xl border border-dashed border-emerald-700 p-6 text-center text-sm text-emerald-100/55">Não há detalhes de serviços para exibir neste filtro.</p>}
+                  </div>
+                </article>
+              </div>
+              <p className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-xs leading-5 text-emerald-100/50">Nota de leitura: os gráficos usam os registros de OS atualmente carregados no ambiente de teste. A taxa de conclusão exclui as OS canceladas do denominador. Não são estimados custos, horas de trabalho ou economia, pois esses dados não estão disponíveis neste painel.</p>
+            </>;
+          })()}
         </section>}
         {aba === "estoque" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mt-8">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
