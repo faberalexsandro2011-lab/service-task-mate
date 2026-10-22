@@ -156,11 +156,47 @@ function PainelTeste() {
   };
 
   const parsearLinhas = (valor: string, usuariosDisponiveis: UsuarioAdministrado[] = usuariosAdmin): LinhaImportacao[] => {
-    const linhas = valor.split(/\r?\n/).filter(l => l.trim() && !/^\s*\|?\s*:?-{2,}/.test(l));
-    if (!linhas.length) return [];
-    const pipe = linhas.some(l => l.includes("|"));
-    const matriz = pipe ? linhas.map(l => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim())) : linhas.map(l => l.split("\t"));
-    return normalizarMatriz(matriz, usuariosDisponiveis);
+    // Preserva quebras de linha dentro de células entre aspas (descrições copiadas do Excel).
+    const primeiraLinha = valor.split(/\\r?\\n/, 1)[0] ?? "";
+    const delimitador = primeiraLinha.includes("\\t") ? "\\t" : "|";
+    const matriz: string[][] = [];
+    let linha: string[] = [];
+    let campo = "";
+    let entreAspas = false;
+    for (let i = 0; i < valor.length; i++) {
+      const ch = valor[i];
+      if (ch === '"') {
+        if (entreAspas && valor[i + 1] === '"') {
+          campo += '"';
+          i++;
+        } else {
+          entreAspas = !entreAspas;
+        }
+      } else if (ch === delimitador && !entreAspas) {
+        linha.push(campo.trim());
+        campo = "";
+      } else if ((ch === "\\n" || ch === "\\r") && !entreAspas) {
+        if (ch === "\\r" && valor[i + 1] === "\\n") i++;
+        linha.push(campo.trim());
+        if (linha.some(c => c.trim())) matriz.push(linha);
+        linha = [];
+        campo = "";
+      } else {
+        campo += ch;
+      }
+    }
+    if (campo.length || linha.length) {
+      linha.push(campo.trim());
+      if (linha.some(c => c.trim())) matriz.push(linha);
+    }
+    const semSeparadores = matriz.filter(r => !r.every(c => /^:?-{2,}:?$/.test(c.trim())));
+    if (!semSeparadores.length) return [];
+    const normalizada = delimitador === "|" ? semSeparadores.map(r => {
+      const inicio = r[0]?.trim() === "" ? 1 : 0;
+      const fim = r[r.length - 1]?.trim() === "" ? r.length - 1 : r.length;
+      return r.slice(inicio, fim);
+    }) : semSeparadores;
+    return normalizarMatriz(normalizada, usuariosDisponiveis);
   };
 
   const normalizarMatriz = (matriz: unknown[][], usuariosDisponiveis: UsuarioAdministrado[] = usuariosAdmin): LinhaImportacao[] => {
