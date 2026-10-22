@@ -124,7 +124,7 @@ function PainelTeste() {
       if (perfilData?.unidade_id) setUnidadeEstoqueId(perfilData.unidade_id as string);
     }
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
-      db.from("unidades").select("id,codigo,nome").order("nome"),
+      db.from("unidades").select("id,codigo,nome,ativa").order("nome"),
       db.from("ordens_servico")
         .select("id,unidade_id,numero_os,frota,descricao,setor,localizacao,sequencia,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
         .order("created_at", { ascending: false }),
