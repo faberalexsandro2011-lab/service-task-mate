@@ -156,9 +156,9 @@ function PainelTeste() {
   };
 
   const parsearLinhas = (valor: string, usuariosDisponiveis: UsuarioAdministrado[] = usuariosAdmin): LinhaImportacao[] => {
-    // Preserva quebras de linha dentro de células entre aspas (descrições copiadas do Excel).
-    const primeiraLinha = valor.split(/\\r?\\n/, 1)[0] ?? "";
-    const delimitador = primeiraLinha.includes("\\t") ? "\\t" : "|";
+    // Parser TSV/CSV simples que preserva quebras de linha dentro de células entre aspas.
+    const primeiraLinha = valor.split(/\r?\n/, 1)[0] ?? "";
+    const delimitador = primeiraLinha.includes("\t") ? "\t" : "|";
     const matriz: string[][] = [];
     let linha: string[] = [];
     let campo = "";
@@ -175,8 +175,8 @@ function PainelTeste() {
       } else if (ch === delimitador && !entreAspas) {
         linha.push(campo.trim());
         campo = "";
-      } else if ((ch === "\\n" || ch === "\\r") && !entreAspas) {
-        if (ch === "\\r" && valor[i + 1] === "\\n") i++;
+      } else if ((ch === "\n" || ch === "\r") && !entreAspas) {
+        if (ch === "\r" && valor[i + 1] === "\n") i++;
         linha.push(campo.trim());
         if (linha.some(c => c.trim())) matriz.push(linha);
         linha = [];
