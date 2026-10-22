@@ -79,6 +79,7 @@ function PainelTeste() {
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
   const [modoGestao, setModoGestao] = useState<"fechado" | "menu" | "criar" | "colar" | "importar" | "solicitacoes">("fechado");
+  const [gestaoOSAberta, setGestaoOSAberta] = useState(false);
   const [salvandoNovaOS, setSalvandoNovaOS] = useState(false);
   const [textoPlanilha, setTextoPlanilha] = useState("");
   const [linhasImportacao, setLinhasImportacao] = useState<LinhaImportacao[]>([]);
@@ -540,7 +541,7 @@ function PainelTeste() {
               </select>
             </label>
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
-              <button type="button" onClick={() => { setAba("painel"); setModoGestao("menu"); setSolicitacaoEmEdicao(null); }} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
+              <button type="button" onClick={() => { setAba("painel"); setGestaoOSAberta(true); setModoGestao("fechado"); setSolicitacaoEmEdicao(null); }} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
               {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}
               {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
@@ -594,7 +595,7 @@ function PainelTeste() {
         {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
-        {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
+        {gestaoOSAberta && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de ordens de serviço</h2><p className="text-sm text-emerald-100/70">Escolha como deseja adicionar novas ordens ao sistema.</p></div><button type="button" onClick={() => { setModoGestao(modoGestao === "menu" ? "fechado" : "menu"); setMensagemOS(""); }} className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200"><Plus size={17}/> Adicionar OS</button></div>
           {modoGestao === "menu" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={() => setModoGestao("criar")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><Plus size={26}/><b>Criar OS</b><span className="text-xs text-emerald-100/70">Cadastrar uma ordem</span></button>
