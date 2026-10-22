@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users, LogOut } from "lucide-react";
 import { read, utils } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -604,6 +604,7 @@ function PainelTeste() {
               {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
             </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
+            <button type="button" onClick={async () => { const { error } = await supabase.auth.signOut(); if (error) { window.alert("Não foi possível encerrar a sessão: " + error.message); return; } window.location.assign("/"); }} className="inline-flex items-center gap-2 rounded-lg border border-red-700 px-3 py-2 text-sm font-semibold text-red-200 hover:bg-red-950"><LogOut size={16} /> Sair da conta</button>
           </div>
         </div>
       </header>
