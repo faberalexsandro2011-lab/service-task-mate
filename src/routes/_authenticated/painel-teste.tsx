@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { read, utils } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,6 +20,7 @@ type Ordem = {
   frota: string | null;
   descricao: string;
   setor: string | null;
+  localizacao: string | null;
   sequencia: number | null;
   tecnico_nome: string | null;
   status: "pendente" | "em_andamento" | "concluida" | "cancelada";
@@ -67,6 +68,8 @@ function PainelTeste() {
   const [filtro, setFiltro] = useState("Todas");
   const [statusFiltro, setStatusFiltro] = useState<"Todas" | Ordem["status"]>("Todas");
   const [buscaOS, setBuscaOS] = useState("");
+  const [filtrosColuna, setFiltrosColuna] = useState({ os: "", frota: "", setor: "", localizacao: "", tecnico: "" });
+  const [ordenacaoColuna, setOrdenacaoColuna] = useState<{ chave: "os" | "frota" | "setor" | "localizacao" | "tecnico"; direcao: "asc" | "desc" }>({ chave: "os", direcao: "asc" });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
@@ -115,7 +118,7 @@ function PainelTeste() {
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
       db.from("ordens_servico")
-        .select("id,unidade_id,numero_os,frota,descricao,setor,sequencia,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
+        .select("id,unidade_id,numero_os,frota,descricao,setor,localizacao,sequencia,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
         .order("created_at", { ascending: false }),
       db.from("usuarios_unidades").select("user_id,unidade_id,perfil,ativo").order("perfil"),
     ]);
@@ -488,8 +491,24 @@ function PainelTeste() {
   const ordensFiltradasPainel = ordensVisiveis.filter(ordem => {
     const statusOk = statusFiltro === "Todas" || ordem.status === statusFiltro;
     const termo = buscaOS.trim().toLocaleLowerCase("pt-BR");
-    const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.tecnico_nome, unidades.find(u => u.id === ordem.unidade_id)?.nome].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
-    return statusOk && (!termo || texto.includes(termo));
+    const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.localizacao, ordem.tecnico_nome, unidades.find(u => u.id === ordem.unidade_id)?.nome].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    const corresponde = (valor: string | null | undefined, filtro: string) => !filtro.trim() || (valor ?? "").toLocaleLowerCase("pt-BR").includes(filtro.trim().toLocaleLowerCase("pt-BR"));
+    return statusOk && (!termo || texto.includes(termo))
+      && corresponde(ordem.numero_os, filtrosColuna.os)
+      && corresponde(ordem.frota, filtrosColuna.frota)
+      && corresponde(ordem.setor, filtrosColuna.setor)
+      && corresponde(ordem.localizacao, filtrosColuna.localizacao)
+      && corresponde(ordem.tecnico_nome, filtrosColuna.tecnico);
+  }).sort((a, b) => {
+    const valor = (o: Ordem) => ordenacaoColuna.chave === "os" ? (o.numero_os || "")
+      : ordenacaoColuna.chave === "frota" ? (o.frota || "")
+      : ordenacaoColuna.chave === "setor" ? (o.setor || "")
+      : ordenacaoColuna.chave === "localizacao" ? (o.localizacao || "")
+      : (o.tecnico_nome || "");
+    const va = valor(a).toLocaleLowerCase("pt-BR");
+    const vb = valor(b).toLocaleLowerCase("pt-BR");
+    const comparacao = va.localeCompare(vb, "pt-BR", { numeric: true, sensitivity: "base" });
+    return ordenacaoColuna.direcao === "asc" ? comparacao : -comparacao;
   });
   const maisAntiga = abertas.reduce<Ordem | null>((maisVelha, ordem) =>
     !maisVelha || new Date(ordem.created_at).getTime() < new Date(maisVelha.created_at).getTime() ? ordem : maisVelha, null);
@@ -586,6 +605,27 @@ function PainelTeste() {
                 {(statusFiltro !== "Todas" || buscaOS) && <button type="button" onClick={() => { setStatusFiltro("Todas"); setBuscaOS(""); }} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-900">Limpar filtros</button>}
               </div>
             </div>
+            <div className="mt-4 rounded-xl border border-emerald-800 bg-[#002b25] p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100/65"><ListFilter size={15}/> Filtros e classificação por coluna</div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {([
+                  { chave: "os", label: "OS", placeholder: "Nº da OS" },
+                  { chave: "frota", label: "Frota", placeholder: "Filtrar frota" },
+                  { chave: "setor", label: "Setor", placeholder: "Filtrar setor" },
+                  { chave: "localizacao", label: "Localização", placeholder: "Filtrar localização" },
+                  { chave: "tecnico", label: "Técnico", placeholder: "Filtrar técnico" },
+                ] as const).map(coluna => {
+                  const ativa = ordenacaoColuna.chave === coluna.chave;
+                  return <div key={coluna.chave} className="min-w-0">
+                    <button type="button" onClick={() => setOrdenacaoColuna(atual => ({ chave: coluna.chave, direcao: atual.chave === coluna.chave && atual.direcao === "asc" ? "desc" : "asc" }))} className={"mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold transition hover:bg-emerald-900 " + (ativa ? "text-lime-300" : "text-emerald-100/80")} title={"Classificar por " + coluna.label + ", alternando crescente e decrescente"}>
+                      <span>{coluna.label}</span>{ativa ? (ordenacaoColuna.direcao === "asc" ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-50"/>}
+                    </button>
+                    <input value={filtrosColuna[coluna.chave]} onChange={e => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: e.target.value }))} placeholder={coluna.placeholder} aria-label={"Filtrar por " + coluna.label} className="w-full rounded-lg border border-emerald-700 bg-emerald-950/70 px-2.5 py-2 text-xs text-white placeholder:text-emerald-100/35 focus:border-lime-300 focus:outline-none focus:ring-1 focus:ring-lime-300"/>
+                  </div>;
+                })}
+              </div>
+              {(Object.values(filtrosColuna).some(Boolean) || buscaOS || statusFiltro !== "Todas") && <button type="button" onClick={() => { setFiltrosColuna({ os: "", frota: "", setor: "", localizacao: "", tecnico: "" }); setBuscaOS(""); setStatusFiltro("Todas"); }} className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900">Limpar todos os filtros</button>}
+            </div>
             <div className="mt-3 space-y-2">
               {ordensFiltradasPainel.slice(0, 100).map(ordem => {
                 const statusInfo = statusResumo.find(s => s.status === ordem.status);
@@ -597,7 +637,7 @@ function PainelTeste() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2"><strong className="text-sm sm:text-base">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${ordem.status === "pendente" ? "border-amber-700 bg-amber-950/50 text-amber-200" : ordem.status === "em_andamento" ? "border-sky-700 bg-sky-950/50 text-sky-200" : ordem.status === "concluida" ? "border-lime-700 bg-lime-950/40 text-lime-200" : "border-rose-800 bg-rose-950/40 text-rose-200"}`}><StatusIcon size={13}/>{statusLabel}</span></div>
                       <p className="mt-1 truncate text-sm text-emerald-100/85">{ordem.descricao || "Sem descrição"}</p>
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-100/55"><span>{unidadeNome}</span><span>{ordem.setor || "Sem setor"}</span><span>{ordem.tecnico_nome || "Sem técnico"}</span><span>{ordem.status === "concluida" ? "Concluída" : "Aberta há " + formatarIdade(ordem.created_at)}</span></div>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-100/55"><span>{unidadeNome}</span><span>{ordem.setor || "Sem setor"}</span><span>{ordem.localizacao || "Sem localização"}</span><span>{ordem.tecnico_nome || "Sem técnico"}</span><span>{ordem.status === "concluida" ? "Concluída" : "Aberta há " + formatarIdade(ordem.created_at)}</span></div>
                     </div>
                     {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="flex shrink-0 gap-2"><button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="rounded-lg border border-lime-600 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Editar</button><button type="button" onClick={() => void excluirOS(ordem)} className="rounded-lg border border-rose-800 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-950">Excluir</button></div>}
                   </div>
