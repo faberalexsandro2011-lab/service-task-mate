@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authenticated/painel-teste")({
   component: PainelTeste,
 });
 
-type Unidade = { id: string; codigo: string; nome: string };
+type Unidade = { id: string; codigo: string; nome: string; ativa?: boolean };
 type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor_central" | "visualizador";
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
@@ -74,7 +74,7 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "solicitacoes" | "analise" | "usuarios" | "estoque">("painel");
+  const [aba, setAba] = useState<"painel" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("painel");
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
@@ -90,6 +90,9 @@ function PainelTeste() {
   const [salvandoLote, setSalvandoLote] = useState(false);
   const [formNovaOS, setFormNovaOS] = useState({ numero_os: "", frota: "", descricao: "", setor: "", localizacao: "", tecnico_nome: "", tecnico_email: "", entrada: "" });
   const [formUnidadeCentral, setFormUnidadeCentral] = useState("");
+  const [nomeUnidadeNova, setNomeUnidadeNova] = useState("");
+  const [salvandoUnidade, setSalvandoUnidade] = useState(false);
+  const [mensagemUnidades, setMensagemUnidades] = useState("");
   const [edicaoOS, setEdicaoOS] = useState<{ id: string; numero_os: string; frota: string; descricao: string; setor: string; tecnico_nome: string; status: Ordem["status"]; pecas_utilizadas: string } | null>(null);
   const [salvandoOS, setSalvandoOS] = useState(false);
   const [mensagemOS, setMensagemOS] = useState("");
@@ -146,6 +149,33 @@ function PainelTeste() {
     setMovimentacoesEstoque(movData ?? []);
     if (pecasError) setMensagemEstoque("Estoque: " + pecasError.message);
     setCarregando(false);
+  };
+
+  const cadastrarUnidade = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (perfilAtual !== "gestor_central") return;
+    const nome = nomeUnidadeNova.trim().replace(/\\s+/g, " ");
+    if (nome.length < 2) { setMensagemUnidades("Informe um nome de unidade com pelo menos 2 caracteres."); return; }
+    const base = nome.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+    let codigo = base || "unidade";
+    let sufixo = 2;
+    while (unidades.some(u => u.codigo.toLowerCase() === codigo.toLowerCase())) { codigo = `${(base || "unidade").slice(0, 36)}_${sufixo++}`; }
+    setSalvandoUnidade(true); setMensagemUnidades("");
+    const { error } = await (supabase as any).from("unidades").insert({ nome, codigo, ativa: true });
+    setSalvandoUnidade(false);
+    if (error) { setMensagemUnidades("Não foi possível cadastrar a unidade: " + error.message); return; }
+    setNomeUnidadeNova("");
+    setMensagemUnidades("Unidade cadastrada no ambiente de teste.");
+    await carregar();
+  };
+
+  const atualizarUnidade = async (unidade: Unidade, alteracoes: Record<string, unknown>) => {
+    if (perfilAtual !== "gestor_central") return;
+    setMensagemUnidades("");
+    const { error } = await (supabase as any).from("unidades").update(alteracoes).eq("id", unidade.id);
+    if (error) { setMensagemUnidades("Não foi possível atualizar a unidade: " + error.message); return; }
+    setMensagemUnidades("Unidade atualizada.");
+    await carregar();
   };
 
   const cadastrarPeca = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -566,6 +596,7 @@ function PainelTeste() {
               <button type="button" onClick={() => { if (aba === "painel" && gestaoOSAberta) { setGestaoOSAberta(false); setModoGestao("fechado"); } else { setAba("painel"); setGestaoOSAberta(true); setModoGestao("menu"); } setSolicitacaoEmEdicao(null); }} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
               {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}
+              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Unidades</button>}
               {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
             </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
@@ -845,6 +876,22 @@ function PainelTeste() {
               {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(m=><tr key={m.id} className="border-t border-emerald-900"><td className="p-3 whitespace-nowrap">{new Date(m.created_at).toLocaleString("pt-BR")}</td><td className="p-3">{m.pecas_catalogo?.nome || "Peça"}</td><td className="p-3">{m.tipo==="entrada" ? "Entrada" : m.tipo==="consumo_os" ? "Consumo em OS" : "Ajuste"}</td><td className="p-3">{m.quantidade}</td><td className="p-3">{m.saldo_anterior} → {m.saldo_posterior}</td><td className="p-3">{m.observacao || (m.ordens_servico?.numero_os ? "OS " + m.ordens_servico.numero_os : "—")}</td></tr>)}
               {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={6} className="p-5 text-center text-emerald-100/60">Nenhuma movimentação registrada.</td></tr>}
             </tbody></table>
+          </div>
+        </section>}
+        {aba === "unidades" && perfilAtual === "gestor_central" && <section className="mt-8 space-y-5">
+          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Administração global</p><h1 className="mt-1 text-2xl font-extrabold">Gestão de Unidades</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Cadastre novas unidades e controle sua disponibilidade. As permissões são verificadas também no banco de dados do ambiente de teste.</p></div>
+          {mensagemUnidades && <div role="status" className="rounded-lg border border-emerald-700 bg-emerald-950/60 p-3 text-sm">{mensagemUnidades}</div>}
+          <form onSubmit={cadastrarUnidade} className="grid gap-3 rounded-2xl border border-emerald-700 bg-[#00352d] p-4 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="grid gap-1 text-sm font-semibold">Nome da nova unidade<input required minLength={2} maxLength={100} value={nomeUnidadeNova} onChange={e=>setNomeUnidadeNova(e.target.value)} placeholder="Ex.: Unidade Santa Fé" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-3 text-sm font-normal text-white"/></label>
+            <button type="submit" disabled={salvandoUnidade || nomeUnidadeNova.trim().length<2} className="rounded-lg bg-lime-300 px-5 py-3 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoUnidade ? "Cadastrando..." : "＋ Adicionar unidade"}</button>
+          </form>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {unidades.map(unidade => <article key={unidade.id} className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4">
+              <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-lg font-bold">{unidade.nome}</h2><p className="mt-1 text-xs text-emerald-100/60">Código interno: {unidade.codigo}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${unidade.ativa === false ? "bg-slate-700 text-slate-200" : "bg-lime-300/15 text-lime-200"}`}>{unidade.ativa === false ? "Inativa" : "Ativa"}</span></div>
+              <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={()=>{const novoNome=window.prompt("Novo nome da unidade:",unidade.nome);if(novoNome?.trim() && novoNome.trim()!==unidade.nome) void atualizarUnidade(unidade,{nome:novoNome.trim()});}} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">Editar nome</button><button type="button" onClick={()=>void atualizarUnidade(unidade,{ativa:unidade.ativa===false})} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">{unidade.ativa===false ? "Ativar unidade" : "Desativar unidade"}</button></div>
+              <p className="mt-3 text-xs text-emerald-100/55">OS vinculadas e histórico não são apagados ao desativar.</p>
+            </article>)}
+            {unidades.length===0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-sm text-emerald-100/60">Nenhuma unidade retornada pelo banco de teste.</div>}
           </div>
         </section>}
         {aba === "usuarios" && perfilAtual === "gestor_central" && <section className="mt-8">
