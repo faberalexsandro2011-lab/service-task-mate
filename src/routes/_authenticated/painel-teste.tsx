@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter } from "lucide-react";
 import { read, utils } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -65,6 +65,8 @@ function PainelTeste() {
   const [unidadeNova, setUnidadeNova] = useState("vale_parana");
   const [salvandoUsuario, setSalvandoUsuario] = useState(false);
   const [filtro, setFiltro] = useState("Todas");
+  const [statusFiltro, setStatusFiltro] = useState<"Todas" | Ordem["status"]>("Todas");
+  const [buscaOS, setBuscaOS] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
@@ -476,6 +478,19 @@ function PainelTeste() {
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
   const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
   const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
+  const statusResumo = [
+    { status: "Todas" as const, label: "Todas as OS", total: ordensVisiveis.length, icon: ClipboardList, color: "text-slate-100", active: "border-slate-300 bg-slate-800/70" },
+    { status: "pendente" as const, label: "Pendentes", total: ordensVisiveis.filter(o => o.status === "pendente").length, icon: Circle, color: "text-amber-300", active: "border-amber-400 bg-amber-950/60" },
+    { status: "em_andamento" as const, label: "Em andamento", total: ordensVisiveis.filter(o => o.status === "em_andamento").length, icon: PlayCircle, color: "text-sky-300", active: "border-sky-400 bg-sky-950/60" },
+    { status: "concluida" as const, label: "Concluídas", total: ordensVisiveis.filter(o => o.status === "concluida").length, icon: CheckCircle2, color: "text-lime-300", active: "border-lime-400 bg-lime-950/50" },
+    { status: "cancelada" as const, label: "Canceladas", total: ordensVisiveis.filter(o => o.status === "cancelada").length, icon: XCircle, color: "text-rose-300", active: "border-rose-400 bg-rose-950/50" },
+  ];
+  const ordensFiltradasPainel = ordensVisiveis.filter(ordem => {
+    const statusOk = statusFiltro === "Todas" || ordem.status === statusFiltro;
+    const termo = buscaOS.trim().toLocaleLowerCase("pt-BR");
+    const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.tecnico_nome, unidades.find(u => u.id === ordem.unidade_id)?.nome].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    return statusOk && (!termo || texto.includes(termo));
+  });
   const maisAntiga = abertas.reduce<Ordem | null>((maisVelha, ordem) =>
     !maisVelha || new Date(ordem.created_at).getTime() < new Date(maisVelha.created_at).getTime() ? ordem : maisVelha, null);
   const contagens = [
@@ -545,6 +560,65 @@ function PainelTeste() {
           <Metric icon={<ShieldAlert />} label="Alerta · mais de 7 dias" value={acima7d.length} accent="text-pink-300" />
           <Metric icon={<AlertTriangle />} label="OS mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact />
         </div>
+        <section className="mt-5" aria-label="Resumo interativo dos status das ordens de serviço">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <div><h2 className="text-xl font-bold">Status das ordens de serviço</h2><p className="text-sm text-emerald-100/70">Selecione um cartão para filtrar a lista. Os totais acompanham a unidade selecionada.</p></div>
+            <div className="flex items-center gap-2 text-xs text-emerald-100/60"><span className="h-2 w-2 animate-pulse rounded-full bg-lime-300" /> Dados do ambiente de teste</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            {statusResumo.map(item => {
+              const Icon = item.icon;
+              const selecionado = statusFiltro === item.status;
+              return <button key={item.status} type="button" aria-pressed={selecionado} onClick={() => setStatusFiltro(item.status)} className={`group rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-lime-300 ${selecionado ? item.active : "border-emerald-800 bg-[#00352d] hover:border-emerald-500"}`}>
+                <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-emerald-100/75">{item.label}</span><Icon size={19} className={item.color} /></div>
+                <div className={`mt-3 text-3xl font-extrabold tabular-nums ${item.color}`}>{item.total}</div>
+                <div className="mt-2 text-[11px] text-emerald-100/50">{selecionado ? "Filtro selecionado" : "Clique para filtrar"}</div>
+              </button>;
+            })}
+          </div>
+          <div className="mt-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <label className="relative flex min-w-0 flex-1 items-center">
+                <Search size={17} className="pointer-events-none absolute left-3 text-emerald-100/50" />
+                <input value={buscaOS} onChange={e => setBuscaOS(e.target.value)} placeholder="Buscar por OS, frota, técnico, setor ou descrição..." className="w-full rounded-xl border border-emerald-700 bg-emerald-950/70 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-emerald-100/40 focus:border-lime-300 focus:outline-none focus:ring-1 focus:ring-lime-300" />
+              </label>
+              <div className="flex items-center gap-2 text-sm text-emerald-100/70"><ListFilter size={16}/><span>{ordensFiltradasPainel.length} de {ordensVisiveis.length} OS</span>
+                {(statusFiltro !== "Todas" || buscaOS) && <button type="button" onClick={() => { setStatusFiltro("Todas"); setBuscaOS(""); }} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-900">Limpar filtros</button>}
+              </div>
+            </div>
+            <div className="mt-3 space-y-2">
+              {ordensFiltradasPainel.slice(0, 100).map(ordem => {
+                const statusInfo = statusResumo.find(s => s.status === ordem.status);
+                const StatusIcon = statusInfo?.icon ?? ClipboardList;
+                const unidadeNome = unidades.find(u => u.id === ordem.unidade_id)?.nome ?? "Unidade";
+                const statusLabel = ordem.status === "em_andamento" ? "Em andamento" : ordem.status === "concluida" ? "Concluída" : ordem.status === "cancelada" ? "Cancelada" : "Pendente";
+                return <article key={ordem.id} className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 transition hover:border-emerald-600 sm:p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2"><strong className="text-sm sm:text-base">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${ordem.status === "pendente" ? "border-amber-700 bg-amber-950/50 text-amber-200" : ordem.status === "em_andamento" ? "border-sky-700 bg-sky-950/50 text-sky-200" : ordem.status === "concluida" ? "border-lime-700 bg-lime-950/40 text-lime-200" : "border-rose-800 bg-rose-950/40 text-rose-200"}`}><StatusIcon size={13}/>{statusLabel}</span></div>
+                      <p className="mt-1 truncate text-sm text-emerald-100/85">{ordem.descricao || "Sem descrição"}</p>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-100/55"><span>{unidadeNome}</span><span>{ordem.setor || "Sem setor"}</span><span>{ordem.tecnico_nome || "Sem técnico"}</span><span>{ordem.status === "concluida" ? "Concluída" : "Aberta há " + formatarIdade(ordem.created_at)}</span></div>
+                    </div>
+                    {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="flex shrink-0 gap-2"><button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="rounded-lg border border-lime-600 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Editar</button><button type="button" onClick={() => void excluirOS(ordem)} className="rounded-lg border border-rose-800 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-950">Excluir</button></div>}
+                  </div>
+                  {edicaoOS?.id === ordem.id && <div className="mt-3 grid gap-3 rounded-xl border border-emerald-700 bg-emerald-950/40 p-3 sm:grid-cols-2">
+                    <label className="grid gap-1 text-xs">Número da OS<input value={edicaoOS.numero_os} onChange={e => setEdicaoOS({ ...edicaoOS, numero_os: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <label className="grid gap-1 text-xs">Frota<input value={edicaoOS.frota} onChange={e => setEdicaoOS({ ...edicaoOS, frota: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <label className="grid gap-1 text-xs sm:col-span-2">Descrição<textarea required value={edicaoOS.descricao} onChange={e => setEdicaoOS({ ...edicaoOS, descricao: e.target.value })} rows={2} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <label className="grid gap-1 text-xs">Setor<input value={edicaoOS.setor} onChange={e => setEdicaoOS({ ...edicaoOS, setor: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <label className="grid gap-1 text-xs">Técnico<input value={edicaoOS.tecnico_nome} onChange={e => setEdicaoOS({ ...edicaoOS, tecnico_nome: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <label className="grid gap-1 text-xs">Status<select value={edicaoOS.status} onChange={e => setEdicaoOS({ ...edicaoOS, status: e.target.value as Ordem["status"] })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label>
+                    <label className="grid gap-1 text-xs sm:col-span-2">Peças utilizadas<textarea value={edicaoOS.pecas_utilizadas} onChange={e => setEdicaoOS({ ...edicaoOS, pecas_utilizadas: e.target.value })} rows={2} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
+                    <div className="flex flex-wrap gap-2 sm:col-span-2"><button type="button" disabled={salvandoOS} onClick={() => void salvarEdicaoOS()} className="rounded-lg bg-lime-300 px-4 py-2 text-xs font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Salvar alterações"}</button><button type="button" onClick={() => setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-xs">Cancelar</button></div>
+                  </div>}
+                </article>;
+              })}
+              {ordensFiltradasPainel.length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center"><ClipboardList size={28} className="mx-auto text-emerald-100/40"/><p className="mt-2 font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm text-emerald-100/60">Altere o status ou a busca para ver outras ordens.</p></div>}
+              {ordensFiltradasPainel.length > 100 && <p className="pt-2 text-center text-xs text-emerald-100/50">Mostrando as primeiras 100 OS. Use a busca para refinar os resultados.</p>}
+            </div>
+          </div>
+        </section>
+
         <section className="mt-4 rounded-2xl border border-emerald-800 bg-[#003b32] p-4 sm:p-5">
           <h2 className="font-bold">Tempo em aberto</h2>
           <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-emerald-950">{contagens.map((quantidade, indice) => <div key={faixas[indice].nome} title={faixas[indice].nome + ": " + quantidade} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertas.length, 1) * 100) + "%" }} />)}</div>
