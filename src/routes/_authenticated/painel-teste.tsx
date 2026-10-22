@@ -68,7 +68,7 @@ function PainelTeste() {
   const [filtro, setFiltro] = useState("Todas");
   const [statusFiltro, setStatusFiltro] = useState<"Todas" | Ordem["status"]>("Todas");
   const [buscaOS, setBuscaOS] = useState("");
-  const [filtrosColuna, setFiltrosColuna] = useState({ os: "", frota: "", setor: "", localizacao: "", tecnico: "" });
+  const [filtrosColuna, setFiltrosColuna] = useState<{ os: string[]; frota: string[]; setor: string[]; localizacao: string[]; tecnico: string[] }>({ os: [], frota: [], setor: [], localizacao: [], tecnico: [] });
   const [ordenacaoColuna, setOrdenacaoColuna] = useState<{ chave: "os" | "frota" | "setor" | "localizacao" | "tecnico"; direcao: "asc" | "desc" }>({ chave: "os", direcao: "asc" });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -492,7 +492,7 @@ function PainelTeste() {
     const statusOk = statusFiltro === "Todas" || ordem.status === statusFiltro;
     const termo = buscaOS.trim().toLocaleLowerCase("pt-BR");
     const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.localizacao, ordem.tecnico_nome, unidades.find(u => u.id === ordem.unidade_id)?.nome].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
-    const corresponde = (valor: string | null | undefined, filtro: string) => !filtro.trim() || (valor ?? "").toLocaleLowerCase("pt-BR").includes(filtro.trim().toLocaleLowerCase("pt-BR"));
+    const corresponde = (valor: string | null | undefined, selecionados: string[]) => selecionados.length === 0 || selecionados.includes(valor?.trim() || "—");
     return statusOk && (!termo || texto.includes(termo))
       && corresponde(ordem.numero_os, filtrosColuna.os)
       && corresponde(ordem.frota, filtrosColuna.frota)
@@ -510,6 +510,13 @@ function PainelTeste() {
     const comparacao = va.localeCompare(vb, "pt-BR", { numeric: true, sensitivity: "base" });
     return ordenacaoColuna.direcao === "asc" ? comparacao : -comparacao;
   });
+  const opcoesFiltroColuna = {
+    os: [...new Set(ordensVisiveis.map(o => o.numero_os?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
+    frota: [...new Set(ordensVisiveis.map(o => o.frota?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
+    setor: [...new Set(ordensVisiveis.map(o => o.setor?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
+    localizacao: [...new Set(ordensVisiveis.map(o => o.localizacao?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
+    tecnico: [...new Set(ordensVisiveis.map(o => o.tecnico_nome?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
+  };
   const maisAntiga = abertas.reduce<Ordem | null>((maisVelha, ordem) =>
     !maisVelha || new Date(ordem.created_at).getTime() < new Date(maisVelha.created_at).getTime() ? ordem : maisVelha, null);
   const contagens = [
@@ -620,11 +627,21 @@ function PainelTeste() {
                     <button type="button" onClick={() => setOrdenacaoColuna(atual => ({ chave: coluna.chave, direcao: atual.chave === coluna.chave && atual.direcao === "asc" ? "desc" : "asc" }))} className={"mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold transition hover:bg-emerald-900 " + (ativa ? "text-lime-300" : "text-emerald-100/80")} title={"Classificar por " + coluna.label + ", alternando crescente e decrescente"}>
                       <span>{coluna.label}</span>{ativa ? (ordenacaoColuna.direcao === "asc" ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-50"/>}
                     </button>
-                    <input value={filtrosColuna[coluna.chave]} onChange={e => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: e.target.value }))} placeholder={coluna.placeholder} aria-label={"Filtrar por " + coluna.label} className="w-full rounded-lg border border-emerald-700 bg-emerald-950/70 px-2.5 py-2 text-xs text-white placeholder:text-emerald-100/35 focus:border-lime-300 focus:outline-none focus:ring-1 focus:ring-lime-300"/>
+                    <details className="group rounded-lg border border-emerald-700 bg-emerald-950/70">
+                      <summary className="cursor-pointer list-none px-2.5 py-2 text-xs text-white">{filtrosColuna[coluna.chave].length ? `${filtrosColuna[coluna.chave].length} selecionado(s)` : "Todos"} <span className="float-right text-emerald-100/60">▾</span></summary>
+                      <div className="max-h-52 overflow-y-auto border-t border-emerald-800 p-2">
+                        <button type="button" onClick={() => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: [] }))} className="mb-2 text-xs font-semibold text-lime-300 hover:underline">Limpar seleção</button>
+                        {opcoesFiltroColuna[coluna.chave].map(opcao => <label key={opcao} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1.5 text-xs text-emerald-50 hover:bg-emerald-900">
+                          <input type="checkbox" checked={filtrosColuna[coluna.chave].includes(opcao)} onChange={e => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: e.target.checked ? [...atual[coluna.chave], opcao] : atual[coluna.chave].filter(valor => valor !== opcao) }))} className="mt-0.5 accent-lime-300"/>
+                          <span className="break-words">{opcao}</span>
+                        </label>)}
+                        {opcoesFiltroColuna[coluna.chave].length === 0 && <p className="text-xs text-emerald-100/50">Nenhuma opção disponível</p>}
+                      </div>
+                    </details>
                   </div>;
                 })}
               </div>
-              {(Object.values(filtrosColuna).some(Boolean) || buscaOS || statusFiltro !== "Todas") && <button type="button" onClick={() => { setFiltrosColuna({ os: "", frota: "", setor: "", localizacao: "", tecnico: "" }); setBuscaOS(""); setStatusFiltro("Todas"); }} className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900">Limpar todos os filtros</button>}
+              {(Object.values(filtrosColuna).some(valores => valores.length > 0) || buscaOS || statusFiltro !== "Todas") && <button type="button" onClick={() => { setFiltrosColuna({ os: [], frota: [], setor: [], localizacao: [], tecnico: [] }); setBuscaOS(""); setStatusFiltro("Todas"); }} className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900">Limpar todos os filtros</button>}
             </div>
             <div className="mt-3 space-y-2">
               {ordensFiltradasPainel.slice(0, 100).map(ordem => {
