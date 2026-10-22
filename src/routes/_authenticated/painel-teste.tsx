@@ -646,7 +646,7 @@ function PainelTeste() {
           })}
         </section>}
         {aba === "painel" && <>
-        <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Centralização das ordens</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Crie OS, importe arquivos, cole planilhas e acompanhe todas as ordens neste mesmo espaço.
+        <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Centralização das ordens</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Crie OS, importe arquivos, cole planilhas e acompanhe todas as ordens neste mesmo espaço.</p></div></div>
 
         <div className="mb-3 mt-5"><h2 className="text-xl font-bold">Visão por unidade</h2><p className="text-sm text-emerald-100/70">Os números são obtidos da tabela ordens_servico; a RLS do banco controla quais unidades o usuário pode consultar.</p></div>
         <div className="grid gap-4 lg:grid-cols-3">{unidadesVisiveis.map((unidade) => {
@@ -809,6 +809,9 @@ function PainelTeste() {
           <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-emerald-950">{contagens.map((quantidade, indice) => <div key={faixas[indice].nome} title={faixas[indice].nome + ": " + quantidade} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertas.length, 1) * 100) + "%" }} />)}</div>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-emerald-100/80">{faixas.map((faixa, indice) => <span key={faixa.nome} className="flex items-center gap-2"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}: {contagens[indice]}</span>)}</div>
         </section>
+
+
+
 
         </>}
         {aba === "analise" && <section className="mt-6 space-y-5">
