@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users } from "lucide-react";
 import { read, utils } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -80,6 +80,9 @@ function PainelTeste() {
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
   const [modoGestao, setModoGestao] = useState<"fechado" | "menu" | "criar" | "colar" | "importar" | "solicitacoes">("fechado");
   const [gestaoOSAberta, setGestaoOSAberta] = useState(false);
+  const [ordensSelecionadasTransferencia, setOrdensSelecionadasTransferencia] = useState<string[]>([]);
+  const [tecnicoDestinoTransferencia, setTecnicoDestinoTransferencia] = useState("");
+  const [transferindoOS, setTransferindoOS] = useState(false);
   const [salvandoNovaOS, setSalvandoNovaOS] = useState(false);
   const [textoPlanilha, setTextoPlanilha] = useState("");
   const [linhasImportacao, setLinhasImportacao] = useState<LinhaImportacao[]>([]);
@@ -341,6 +344,25 @@ function PainelTeste() {
       await carregar();
     } catch(error) { setMensagemOS("A importação falhou: "+(error instanceof Error?error.message:"erro desconhecido")); }
     finally {setSalvandoLote(false);}
+  };
+
+  const transferirOrdensSelecionadas = async () => {
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    if (!ordensSelecionadasTransferencia.length || !tecnicoDestinoTransferencia) return;
+    const tecnico = usuariosAdmin.find(u => u.user_id === tecnicoDestinoTransferencia && u.ativo && u.perfil === "tecnico");
+    if (!tecnico) { setMensagemOS("Selecione um técnico ativo."); return; }
+    const selecionadas = ordens.filter(o => ordensSelecionadasTransferencia.includes(o.id));
+    if (selecionadas.some(o => o.unidade_id !== tecnico.unidade_id)) { setMensagemOS("O técnico selecionado precisa pertencer à mesma unidade de todas as OS selecionadas."); return; }
+    if (!window.confirm(`Transferir ${selecionadas.length} OS para ${tecnico.nome}?`)) return;
+    setTransferindoOS(true); setMensagemOS("");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    for (const ordem of selecionadas) {
+      const { error } = await db.from("ordens_servico").update({ tecnico_id: tecnico.user_id, tecnico_email: tecnico.email, tecnico_nome: tecnico.nome }).eq("id", ordem.id).eq("unidade_id", ordem.unidade_id);
+      if (error) { setMensagemOS(`A transferência foi interrompida na OS ${ordem.numero_os || ordem.frota || ordem.id}: ${error.message}`); setTransferindoOS(false); await carregar(); return; }
+    }
+    setMensagemOS(`${selecionadas.length} OS transferida(s) para ${tecnico.nome}.`);
+    setOrdensSelecionadasTransferencia([]); setTecnicoDestinoTransferencia(""); setTransferindoOS(false); await carregar();
   };
 
   const excluirOS = async (ordem: Ordem) => {
@@ -682,6 +704,12 @@ function PainelTeste() {
               </div>
               {(Object.values(filtrosColuna).some(valores => valores.length > 0) || buscaOS || statusFiltro !== "Todas") && <button type="button" onClick={() => { setFiltrosColuna({ os: [], frota: [], setor: [], localizacao: [], tecnico: [] }); setBuscaOS(""); setStatusFiltro("Todas"); }} className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900">Limpar todos os filtros</button>}
             </div>
+            {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mb-3 rounded-xl border border-emerald-700 bg-emerald-950/40 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">Transferir várias OS</strong><span className="text-xs text-emerald-100/70">{ordensSelecionadasTransferencia.length} selecionada(s)</span></div>
+              <div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => setOrdensSelecionadasTransferencia(ordensFiltradasPainel.slice(0,100).map(o=>o.id))} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">Selecionar todas as filtradas</button><button type="button" onClick={() => setOrdensSelecionadasTransferencia([])} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">Limpar seleção</button><button type="button" onClick={() => void carregarUsuariosAdmin()} disabled={carregandoUsuarios} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">{carregandoUsuarios ? "Carregando técnicos..." : "Atualizar técnicos"}</button></div>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row"><select value={tecnicoDestinoTransferencia} onChange={e=>setTecnicoDestinoTransferencia(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="">Selecione o técnico de destino</option>{usuariosAdmin.filter(u=>u.ativo && u.perfil==="tecnico" && ordens.filter(o=>ordensSelecionadasTransferencia.includes(o.id)).every(o=>o.unidade_id===u.unidade_id)).map(u=><option key={u.user_id} value={u.user_id}>{u.nome} · {unidades.find(un=>un.id===u.unidade_id)?.nome || "Unidade"}</option>)}</select><button type="button" onClick={()=>void transferirOrdensSelecionadas()} disabled={transferindoOS || !ordensSelecionadasTransferencia.length || !tecnicoDestinoTransferencia} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50"><Users size={15} className="mr-1 inline"/>{transferindoOS ? "Transferindo..." : "Transferir selecionadas"}</button></div>
+              <p className="mt-2 text-xs text-emerald-100/60">Marque mais de uma OS na lista abaixo. O técnico de destino deve ser da mesma unidade.</p>
+            </div>}
             <div className="mt-3 space-y-2">
               {ordensFiltradasPainel.slice(0, 100).map(ordem => {
                 const statusInfo = statusResumo.find(s => s.status === ordem.status);
@@ -691,6 +719,7 @@ function PainelTeste() {
                 return <article key={ordem.id} className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 transition hover:border-emerald-600 sm:p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0 flex-1">
+                      {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <label className="mb-1 flex items-center gap-2 text-xs text-emerald-100/70"><input type="checkbox" checked={ordensSelecionadasTransferencia.includes(ordem.id)} onChange={e=>setOrdensSelecionadasTransferencia(v=>e.target.checked ? [...v,ordem.id] : v.filter(id=>id!==ordem.id))} className="h-4 w-4 accent-lime-300"/>Selecionar para transferência</label>}
                       <div className="flex flex-wrap items-center gap-2"><strong className="text-sm sm:text-base">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${ordem.status === "pendente" ? "border-amber-700 bg-amber-950/50 text-amber-200" : ordem.status === "em_andamento" ? "border-sky-700 bg-sky-950/50 text-sky-200" : ordem.status === "concluida" ? "border-lime-700 bg-lime-950/40 text-lime-200" : "border-rose-800 bg-rose-950/40 text-rose-200"}`}><StatusIcon size={13}/>{statusLabel}</span></div>
                       <p className="mt-1 truncate text-sm text-emerald-100/85">{ordem.descricao || "Sem descrição"}</p>
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-100/55"><span>{unidadeNome}</span><span>{ordem.setor || "Sem setor"}</span><span>{ordem.localizacao || "Sem localização"}</span><span>{ordem.tecnico_nome || "Sem técnico"}</span><span>{ordem.status === "concluida" ? "Concluída" : "Aberta há " + formatarIdade(ordem.created_at)}</span></div>
