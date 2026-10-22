@@ -69,7 +69,7 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "analise" | "usuarios">("painel");
+  const [aba, setAba] = useState<"painel" | "analise" | "usuarios" | "estoque">("painel");
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
   const [modoGestao, setModoGestao] = useState<"menu" | "criar" | "colar" | "importar">("menu");
@@ -83,6 +83,17 @@ function PainelTeste() {
   const [edicaoOS, setEdicaoOS] = useState<{ id: string; numero_os: string; frota: string; descricao: string; setor: string; tecnico_nome: string; status: Ordem["status"]; pecas_utilizadas: string } | null>(null);
   const [salvandoOS, setSalvandoOS] = useState(false);
   const [mensagemOS, setMensagemOS] = useState("");
+  const [pecasEstoque, setPecasEstoque] = useState<any[]>([]);
+  const [movimentacoesEstoque, setMovimentacoesEstoque] = useState<any[]>([]);
+  const [unidadeEstoqueId, setUnidadeEstoqueId] = useState("");
+  const [nomePeca, setNomePeca] = useState("");
+  const [estoqueMinimo, setEstoqueMinimo] = useState("0");
+  const [quantidadeInicial, setQuantidadeInicial] = useState("0");
+  const [pecaEntradaId, setPecaEntradaId] = useState("");
+  const [quantidadeEntrada, setQuantidadeEntrada] = useState("1");
+  const [observacaoEntrada, setObservacaoEntrada] = useState("");
+  const [salvandoEstoque, setSalvandoEstoque] = useState(false);
+  const [mensagemEstoque, setMensagemEstoque] = useState("");
 
   const carregar = async () => {
     setCarregando(true);
@@ -96,7 +107,7 @@ function PainelTeste() {
       const { data: perfilData } = await db.from("usuarios_unidades").select("perfil,unidade_id").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
       const perfil = (perfilData?.perfil as PerfilUsuario | undefined) ?? null;
       setPerfilAtual(perfil);
-      setUnidadeAtualId((perfilData?.unidade_id as string | null | undefined) ?? null);
+      setUnidadeAtualId((perfilData?.unidade_id as string | null | undefined) ?? null);\n      if (perfilData?.unidade_id) setUnidadeEstoqueId(perfilData.unidade_id as string);
     }
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome").order("nome"),
@@ -118,7 +129,51 @@ function PainelTeste() {
       setErroUsuarios(resultadoUsuarios.error?.message || "");
       setAtualizadoEm(new Date());
     }
+    const { data: pecasData, error: pecasError } = await db.from("pecas_catalogo").select("*").order("nome");
+    const { data: movData } = await db.from("estoque_movimentacoes").select("*,pecas_catalogo(nome),ordens_servico(numero_os,frota)").order("created_at", { ascending: false }).limit(100);
+    setPecasEstoque(pecasData ?? []);
+    setMovimentacoesEstoque(movData ?? []);
+    if (pecasError) setMensagemEstoque("Estoque: " + pecasError.message);
     setCarregando(false);
+  };
+
+  const cadastrarPeca = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId;
+    if (!unidadeId || !nomePeca.trim()) { setMensagemEstoque("Selecione a unidade e informe o nome da peça."); return; }
+    const inicial = Number(quantidadeInicial);
+    const minimo = Number(estoqueMinimo);
+    if (!Number.isInteger(inicial) || inicial < 0 || !Number.isInteger(minimo) || minimo < 0) { setMensagemEstoque("As quantidades devem ser números inteiros iguais ou maiores que zero."); return; }
+    setSalvandoEstoque(true); setMensagemEstoque("");
+    const db = supabase as any;
+    const { data: userData } = await supabase.auth.getUser();
+    const { data: peca, error } = await db.from("pecas_catalogo").insert({
+      unidade_id: unidadeId, nome: nomePeca.trim(), estoque_atual: 0, estoque_minimo: minimo,
+      criado_por_email: userData.user?.email ?? null, ativo: true,
+    }).select("*").single();
+    if (error) { setMensagemEstoque("Não foi possível cadastrar a peça: " + error.message); setSalvandoEstoque(false); return; }
+    if (inicial > 0) {
+      const { error: entradaError } = await db.rpc("registrar_entrada_estoque", { p_peca_id: peca.id, p_quantidade: inicial, p_observacao: "Saldo inicial do cadastro" });
+      if (entradaError) { setMensagemEstoque("Peça cadastrada, mas não foi possível registrar o saldo inicial: " + entradaError.message); }
+    }
+    setNomePeca(""); setEstoqueMinimo("0"); setQuantidadeInicial("0"); setSalvandoEstoque(false);
+    await carregar();
+    if (!mensagemEstoque) setMensagemEstoque("Peça cadastrada no estoque da unidade.");
+  };
+
+  const registrarEntrada = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const qtd = Number(quantidadeEntrada);
+    if (!pecaEntradaId || !Number.isInteger(qtd) || qtd <= 0) { setMensagemEstoque("Selecione uma peça e informe uma quantidade inteira maior que zero."); return; }
+    setSalvandoEstoque(true); setMensagemEstoque("");
+    const { error } = await (supabase as any).rpc("registrar_entrada_estoque", {
+      p_peca_id: pecaEntradaId, p_quantidade: qtd, p_observacao: observacaoEntrada.trim() || null,
+    });
+    setSalvandoEstoque(false);
+    if (error) { setMensagemEstoque("Não foi possível registrar a entrada: " + error.message); return; }
+    setQuantidadeEntrada("1"); setObservacaoEntrada("");
+    setMensagemEstoque("Entrada registrada e saldo atualizado.");
+    await carregar();
   };
 
   const criarOS = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -444,7 +499,7 @@ function PainelTeste() {
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
               <button type="button" onClick={() => setAba("painel")} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Painel Geral</button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
-              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
+              {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}\n              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Usuários</button>}
             </nav>
             <button type="button" onClick={() => void carregar()} disabled={carregando} className="inline-flex items-center gap-2 rounded-lg border border-emerald-700 px-3 py-2 text-sm hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={16} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
           </div>
@@ -554,6 +609,41 @@ function PainelTeste() {
             <h3 className="font-bold">Peças utilizadas e detalhes dos serviços</h3>
             <div className="mt-3 space-y-2">{ordensVisiveis.filter((ordem) => ordem.pecas_utilizadas?.trim() || ordem.descricao?.trim()).map((ordem) => <div key={ordem.id} className="rounded-lg border border-emerald-800 bg-[#002b25] p-3 text-sm"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{ordem.numero_os || "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className="text-xs text-emerald-100/60">{ordem.tecnico_nome || "Sem técnico"} · {ordem.setor || "Sem setor"}</span></div><p className="mt-1 text-emerald-100/80">{ordem.descricao || "Sem descrição"}</p><p className="mt-1 text-xs text-emerald-100/70">Classe: {Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "Não informada"}</p><p className="mt-1 text-xs text-emerald-100/70">Peças: {ordem.pecas_utilizadas || "Não informadas"}</p></div>)}
             {ordensVisiveis.length === 0 && <p className="text-sm text-emerald-100/60">Sem registros para exibir.</p>}</div>
+          </div>
+        </section>}
+        {aba === "estoque" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mt-8">
+          <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Controle administrativo</p><h2 className="mt-1 text-2xl font-extrabold">Estoque de Peças</h2><p className="mt-1 text-sm text-emerald-100/70">Cadastro, saldo por unidade e histórico de movimentações. A baixa por consumo será registrada ao finalizar uma OS.</p></div>
+            {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade do estoque<select value={unidadeEstoqueId} onChange={e=>setUnidadeEstoqueId(e.target.value)} className="min-w-56 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione uma unidade</option>{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
+          </div>
+          {mensagemEstoque && <div role="status" className="mb-4 rounded-lg border border-emerald-700 bg-emerald-950/50 p-3 text-sm text-emerald-100">{mensagemEstoque}</div>}
+          <div className="mb-5 grid gap-4 lg:grid-cols-2">
+            <form onSubmit={cadastrarPeca} className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <div><h3 className="font-bold">Cadastrar peça</h3><p className="text-xs text-emerald-100/70">O item pertence ao estoque da unidade selecionada.</p></div>
+              <label className="grid gap-1 text-sm">Nome da peça<input required maxLength={120} value={nomePeca} onChange={e=>setNomePeca(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">Saldo inicial<input type="number" min="0" step="1" required value={quantidadeInicial} onChange={e=>setQuantidadeInicial(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label><label className="grid gap-1 text-sm">Estoque mínimo<input type="number" min="0" step="1" required value={estoqueMinimo} onChange={e=>setEstoqueMinimo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label></div>
+              <button disabled={salvandoEstoque || !(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId) || !nomePeca.trim()} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoEstoque ? "Salvando..." : "Cadastrar peça"}</button>
+            </form>
+            <form onSubmit={registrarEntrada} className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <div><h3 className="font-bold">Registrar entrada</h3><p className="text-xs text-emerald-100/70">A entrada é registrada no histórico com o saldo anterior e o novo saldo.</p></div>
+              <label className="grid gap-1 text-sm">Peça<select required value={pecaEntradaId} onChange={e=>setPecaEntradaId(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione a peça</option>{pecasEstoque.filter(p=>p.ativo && p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><option key={p.id} value={p.id}>{p.nome} · saldo {p.estoque_atual}</option>)}</select></label>
+              <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">Quantidade recebida<input type="number" min="1" step="1" required value={quantidadeEntrada} onChange={e=>setQuantidadeEntrada(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label><label className="grid gap-1 text-sm">Observação<input value={observacaoEntrada} onChange={e=>setObservacaoEntrada(e.target.value)} placeholder="Ex.: reposição mensal" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label></div>
+              <button disabled={salvandoEstoque || !pecaEntradaId} className="rounded-lg border border-lime-400 px-4 py-2.5 font-bold text-lime-200 disabled:opacity-50">{salvandoEstoque ? "Registrando..." : "Registrar entrada"}</button>
+            </form>
+          </div>
+          <div className="mb-5 overflow-x-auto rounded-2xl border border-emerald-800">
+            <div className="border-b border-emerald-800 bg-[#003b32] p-4"><h3 className="font-bold">Saldo atual por peça</h3><p className="text-xs text-emerald-100/70">Itens em nível mínimo ficam destacados para reposição.</p></div>
+            <table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Peça</th><th className="p-3">Unidade</th><th className="p-3">Saldo</th><th className="p-3">Mínimo</th><th className="p-3">Situação</th></tr></thead><tbody>
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><tr key={p.id} className="border-t border-emerald-900"><td className="p-3 font-semibold">{p.nome}</td><td className="p-3">{unidades.find(u=>u.id===p.unidade_id)?.nome || "—"}</td><td className="p-3 text-lg font-extrabold">{p.estoque_atual}</td><td className="p-3">{p.estoque_minimo}</td><td className="p-3"><span className={p.estoque_atual<=p.estoque_minimo ? "rounded-md bg-amber-950 px-2 py-1 text-amber-200" : "rounded-md bg-emerald-950 px-2 py-1 text-emerald-200"}>{p.estoque_atual<=p.estoque_minimo ? "Repor estoque" : "Disponível"}</span></td></tr>)}
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={5} className="p-5 text-center text-emerald-100/60">{unidadeEstoqueId || perfilAtual === "admin_unidade" ? "Nenhuma peça cadastrada nesta unidade." : "Selecione uma unidade para consultar o estoque."}</td></tr>}
+            </tbody></table>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-emerald-800">
+            <div className="border-b border-emerald-800 bg-[#003b32] p-4"><h3 className="font-bold">Últimas movimentações</h3><p className="text-xs text-emerald-100/70">Entradas e consumo vinculado às OS.</p></div>
+            <table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Data</th><th className="p-3">Peça</th><th className="p-3">Movimentação</th><th className="p-3">Quantidade</th><th className="p-3">Saldo</th><th className="p-3">Observação</th></tr></thead><tbody>
+              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(m=><tr key={m.id} className="border-t border-emerald-900"><td className="p-3 whitespace-nowrap">{new Date(m.created_at).toLocaleString("pt-BR")}</td><td className="p-3">{m.pecas_catalogo?.nome || "Peça"}</td><td className="p-3">{m.tipo==="entrada" ? "Entrada" : m.tipo==="consumo_os" ? "Consumo em OS" : "Ajuste"}</td><td className="p-3">{m.quantidade}</td><td className="p-3">{m.saldo_anterior} → {m.saldo_posterior}</td><td className="p-3">{m.observacao || (m.ordens_servico?.numero_os ? "OS " + m.ordens_servico.numero_os : "—")}</td></tr>)}
+              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={6} className="p-5 text-center text-emerald-100/60">Nenhuma movimentação registrada.</td></tr>}
+            </tbody></table>
           </div>
         </section>}
         {aba === "usuarios" && perfilAtual === "gestor_central" && <section className="mt-8">
