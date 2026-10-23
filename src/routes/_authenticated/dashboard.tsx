@@ -1285,8 +1285,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
         </Button>
       )}
       {canClose && (
-        <Button size="sm" variant="outline" className="h-9 w-full min-w-0 border-emerald-600 px-2 text-emerald-700 hover:bg-emerald-50" disabled={busy} onClick={(event) => { event.stopPropagation(); void closeOrder(); }}>
-          <CheckCircle2 /> Fechar OS
+        <Button size="sm" className="h-9 w-full min-w-0 border-[#EA580C] bg-[#EA580C] px-2 text-white hover:bg-[#C2410C]" disabled={busy} onClick={(event) => { event.stopPropagation(); void closeOrder(); }}>
+          <CheckCircle2 /> Fechar no PIMS
         </Button>
       )}
       {canFinish && (
@@ -1441,7 +1441,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             {order.localizacao && <Button variant="outline" onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.localizacao ?? "")}`, "_blank", "noopener,noreferrer")}><MapPin /> Abrir localização no mapa</Button>}
             {(canStart || canClose || canFinish || canCancel || canDelete) && <div className="flex flex-wrap gap-2 border-t pt-4">
               {canStart && <Button disabled={busy} onClick={() => void start()}><Play /> Iniciar atendimento</Button>}
-              {canClose && <Button variant="outline" disabled={busy} onClick={() => void closeOrder()}><CheckCircle2 /> Fechar OS</Button>}
+              {canClose && <Button className="border-[#EA580C] bg-[#EA580C] text-white hover:bg-[#C2410C]" disabled={busy} onClick={() => void closeOrder()}><CheckCircle2 /> Fechar no PIMS</Button>}
               {canFinish && (String(order.numero_os ?? "").trim() || !order.concluida_em) && <Button disabled={busy} onClick={() => setFinishOpen(true)}><CheckCircle2 /> {String(order.numero_os ?? "").trim() ? (order.concluida_em ? "Concluir serviço" : "Finalizar serviço") : "Registrar horário de finalização"}</Button>}
               {canFinish && !String(order.numero_os ?? "").trim() && Boolean(order.concluida_em) && <span className="inline-flex items-center rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">Horário registrado · aguardando número da OS do ADM</span>}
               {canCancel && <Button variant="outline" disabled={busy} onClick={() => void cancel()}><Ban /> Cancelar OS</Button>}
