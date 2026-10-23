@@ -818,11 +818,11 @@ function PainelTeste() {
           </header>
           <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
         {aba === "inicio" && <section className="space-y-6">
-          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] p-5 sm:p-7">
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Painel de operações</p>
-            <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Resumo das ordens de serviço</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as OS de todas as unidades e selecione uma unidade para analisar suas ordens.</p>
-            <p className="mt-3 text-xs text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p>
+          <div className="rounded-xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] px-4 py-3 sm:px-5 sm:py-4">
+            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-lime-300">Painel de operações</p>
+            <h1 className="mt-1 text-xl font-extrabold sm:text-2xl">Resumo das ordens de serviço</h1>
+            <p className="mt-1 max-w-3xl text-xs leading-relaxed text-emerald-100/70">Acompanhe as OS de todas as unidades e selecione uma unidade para analisar suas ordens.</p>
+            <p className="mt-2 text-[11px] text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p>
           </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <Metric icon={<ClipboardList/>} label="OS abertas" value={abertas.length} accent="text-lime-300" compact/>
