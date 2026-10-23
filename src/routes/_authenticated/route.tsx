@@ -31,10 +31,10 @@ export const Route = createFileRoute("/_authenticated")({
             .select("perfil")
             .eq("user_id", userId)
             .eq("ativo", true)
-            .eq("perfil", "gestor_central")
+            .in("perfil", ["gestor_central", "gestor"])
             .maybeSingle();
 
-          if (centralProfile?.perfil === "gestor_central") {
+          if (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor") {
             role = "gestor";
           } else {
             const { data: unitProfile } = await supabase
