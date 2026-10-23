@@ -170,26 +170,42 @@ function PainelTeste() {
   };
 
   const excluirUnidadeTeste = async (unidade: Unidade) => {
-    if (perfilAtual !== "gestor_central") return;
-    const nomeConfirmado = window.prompt(
-      `EXCLUSÃO DEFINITIVA NO AMBIENTE DE TESTE\\n\\nUnidade: ${unidade.nome}\\n\\nA exclusão só será feita se não houver OS, usuários ou peças vinculadas. Para confirmar, digite exatamente o nome da unidade:`,
-    );
-    if (nomeConfirmado === null) return;
-    setMensagemUnidades("Conferindo vínculos e permissões...");
-    const { data, error } = await (supabase as any).rpc("excluir_unidade_teste", {
-      p_unidade_id: unidade.id,
-      p_confirmacao: nomeConfirmado,
-    });
-    if (error) {
-      setMensagemUnidades("Exclusão não realizada: " + error.message);
+    if (perfilAtual !== "gestor_central") {
+      window.alert("Apenas o Gestor Geral pode excluir unidades no ambiente de teste.");
       return;
     }
-    const resultado = data as { deleted?: boolean; unidade?: string; ordens_servico?: number; usuarios_vinculados?: number; pecas_catalogo?: number; message?: string };
-    setMensagemUnidades(
-      (resultado.message || "Operação concluída.") +
-      ` OS: ${resultado.ordens_servico ?? "—"}; usuários vinculados: ${resultado.usuarios_vinculados ?? "—"}; peças: ${resultado.pecas_catalogo ?? "—"}.`
+    const nomeConfirmado = window.prompt(
+      `EXCLUSÃO DEFINITIVA NO AMBIENTE DE TESTE\n\nUnidade: ${unidade.nome}\n\nA exclusão só será feita se não houver OS, usuários ou peças vinculadas. Para confirmar, digite exatamente o nome da unidade:`,
     );
-    if (resultado.deleted) await carregar();
+    if (nomeConfirmado === null) return;
+    if (nomeConfirmado !== unidade.nome) {
+      window.alert("Exclusão cancelada: o nome digitado não corresponde exatamente ao nome da unidade.");
+      return;
+    }
+    setMensagemUnidades("Conferindo vínculos e permissões...");
+    try {
+      const { data, error } = await (supabase as any).rpc("excluir_unidade_teste", {
+        p_unidade_id: unidade.id,
+        p_confirmacao: nomeConfirmado,
+      });
+      if (error) {
+        const mensagem = "Exclusão não realizada: " + error.message;
+        setMensagemUnidades(mensagem);
+        window.alert(mensagem);
+        return;
+      }
+      const resultado = data as { deleted?: boolean; unidade?: string; ordens_servico?: number; usuarios_vinculados?: number; pecas_catalogo?: number; message?: string };
+      const mensagem = (resultado.message || "Operação concluída.") +
+        `\nOS: ${resultado.ordens_servico ?? "—"}; usuários vinculados: ${resultado.usuarios_vinculados ?? "—"}; peças: ${resultado.pecas_catalogo ?? "—"}.`;
+      setMensagemUnidades(mensagem);
+      window.alert(mensagem);
+      if (resultado.deleted) await carregar();
+    } catch (erro) {
+      const detalhe = erro instanceof Error ? erro.message : String(erro);
+      const mensagem = "Falha inesperada ao excluir unidade: " + detalhe;
+      setMensagemUnidades(mensagem);
+      window.alert(mensagem);
+    }
   };
 
   const atualizarUnidade = async (unidade: Unidade, alteracoes: Record<string, unknown>) => {
