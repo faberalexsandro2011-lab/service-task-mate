@@ -752,12 +752,63 @@ function PainelTeste() {
             </div>
           </header>
           <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        {aba === "inicio" && <section className="flex min-h-[55vh] flex-col justify-center">
-          <div className="max-w-3xl py-8 sm:py-12">
-            <p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Página Inicial</p>
-            <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Bem-vindo ao Central OS</h1>
-            <p className="mt-3 max-w-2xl text-base leading-relaxed text-emerald-100/70">Use o menu lateral para acessar a gestão das ordens de serviço, o histórico, a análise técnica e as demais áreas liberadas para seu perfil.</p>
+        {aba === "inicio" && <section className="space-y-6">
+          <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] p-5 sm:p-7">
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Painel de operações</p>
+            <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Resumo das ordens de serviço</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as OS de todas as unidades, identifique as mais antigas e selecione uma unidade para analisar suas ordens.</p>
+            <p className="mt-3 text-xs text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p>
           </div>
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <Metric icon={<ClipboardList/>} label="OS abertas" value={abertas.length} accent="text-lime-300" compact/>
+            <Metric icon={<Clock3/>} label="Abertas há mais de 48h" value={acima48h.length} accent="text-amber-300" compact/>
+            <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact/>
+            <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact/>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[1.15fr_1fr]">
+            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Atenção necessária</h2><p className="mt-1 text-xs text-emerald-100/55">Ordens que precisam de acompanhamento</p></div><AlertTriangle className="text-amber-300" size={22}/></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-amber-700/50 bg-amber-950/25 p-4"><div className="text-xs font-semibold text-amber-200">Solicitações aguardando número</div><div className="mt-2 text-3xl font-extrabold text-amber-200">{ordensVisiveis.filter(o=>!o.numero_os?.trim()&&o.status!=="cancelada").length}</div><button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("solicitacoes");}} className="mt-3 text-xs font-bold text-amber-100 underline underline-offset-4">Ver solicitações →</button></div>
+                <div className="rounded-xl border border-rose-700/50 bg-rose-950/25 p-4"><div className="text-xs font-semibold text-rose-200">OS abertas há mais de 48 horas</div><div className="mt-2 text-3xl font-extrabold text-rose-200">{acima48h.length}</div><p className="mt-3 text-xs text-rose-100/70">Confira as unidades abaixo para localizar as pendências.</p></div>
+              </div>
+              <h3 className="mt-5 text-sm font-bold">Ordens abertas mais antigas</h3>
+              <div className="mt-3 space-y-2">{[...abertas].sort((a,b)=>a.created_at.localeCompare(b.created_at)).slice(0,5).map(ordem=><article key={ordem.id} className="flex items-start justify-between gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3"><div className="min-w-0"><div className="break-words text-sm font-bold">{ordem.numero_os ? "OS " + ordem.numero_os : "OS sem número"} · {ordem.frota || "Frota não informada"}</div><div className="mt-1 text-xs text-emerald-100/55">{unidades.find(u=>u.id===ordem.unidade_id)?.nome || "Unidade"} · {ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"}</div><p className="mt-1 line-clamp-2 text-xs text-emerald-100/70">{ordem.descricao}</p></div><span className="shrink-0 text-xs font-bold text-amber-200">{formatarIdade(ordem.created_at)}</span></article>)}{abertas.length===0 && <p className="rounded-xl border border-dashed border-emerald-700 p-5 text-sm text-emerald-100/55">Não há ordens abertas para a seleção atual.</p>}</div>
+            </section>
+            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+              <h2 className="text-lg font-extrabold">Antiguidade das OS abertas</h2><p className="mt-1 text-xs text-emerald-100/55">Distribuição por tempo desde a abertura</p>
+              <div className="mt-4 space-y-3">{faixas.map((faixa,indice)=><div key={faixa.nome}><div className="mb-1 flex justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={"h-2.5 w-2.5 rounded-full "+faixa.cor}/>{faixa.nome}</span><strong>{contagens[indice]}</strong></div><div className="h-2 overflow-hidden rounded-full bg-emerald-950"><div className={"h-full "+faixa.cor} style={{width:(contagens[indice]/Math.max(abertas.length,1)*100)+"%"}}/></div></div>)}</div>
+              <div className="mt-5 border-t border-emerald-800 pt-4 text-xs text-emerald-100/60">Os dados são carregados do banco de teste e respeitam as permissões e unidades disponíveis para sua conta.</div>
+            </section>
+          </div>
+          <section>
+            <div className="mb-3"><h2 className="text-xl font-extrabold">Analisar OS por unidade</h2><p className="mt-1 text-sm text-emerald-100/65">Selecione uma unidade para ver os totais e consultar as OS antigas e atuais.</p></div>
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">{unidadesVisiveis.map(unidade => {
+              const ordensUnidade=ordensVisiveis.filter(ordem=>ordem.unidade_id===unidade.id);
+              const abertasUnidade=ordensUnidade.filter(ordem=>ordem.status==="pendente"||ordem.status==="em_andamento");
+              const faixasUnidade=[
+                abertasUnidade.filter(ordem=>idadeEmHoras(ordem.created_at)<24).length,
+                abertasUnidade.filter(ordem=>idadeEmHoras(ordem.created_at)>=24&&idadeEmHoras(ordem.created_at)<48).length,
+                abertasUnidade.filter(ordem=>idadeEmHoras(ordem.created_at)>=48&&idadeEmHoras(ordem.created_at)<168).length,
+                abertasUnidade.filter(ordem=>idadeEmHoras(ordem.created_at)>=168&&idadeEmHoras(ordem.created_at)<360).length,
+                abertasUnidade.filter(ordem=>idadeEmHoras(ordem.created_at)>=360).length
+              ];
+              const selecionada=ordemSelecionada===unidade.id;
+              return <article key={unidade.id} className={"rounded-2xl border bg-gradient-to-br from-[#003e34] to-[#002e28] p-5 "+(selecionada?"border-lime-400 ring-1 ring-lime-400/40":"border-emerald-800")}>
+                <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{unidade.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-2.5 py-1.5 text-xs text-emerald-100">{unidade.ativa===false?"Inativa":"Ativa"}</span></div>
+                <div className="mt-4 grid grid-cols-2 gap-3"><div><div className="text-3xl font-extrabold text-lime-300">{abertasUnidade.length}</div><div className="text-xs text-emerald-100/65">OS abertas</div></div><div><div className="text-3xl font-extrabold">{ordensUnidade.length}</div><div className="text-xs text-emerald-100/65">Total de OS</div></div><div><div className="text-xl font-bold text-lime-200">{ordensUnidade.filter(o=>o.status==="concluida").length}</div><div className="text-xs text-emerald-100/65">Concluídas</div></div><div><div className="text-xl font-bold text-amber-200">{abertasUnidade.filter(o=>idadeEmHoras(o.created_at)>=48).length}</div><div className="text-xs text-emerald-100/65">Abertas há +48h</div></div></div>
+                <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{faixasUnidade.map((quantidade,indice)=><div key={faixas[indice].nome} className={faixas[indice].cor} style={{width:(quantidade/Math.max(abertasUnidade.length,1)*100)+"%"}/>)}</div>
+                <div className="mt-3 space-y-1">{faixas.map((faixa,indice)=><div key={faixa.nome} className="flex justify-between text-xs text-emerald-100/65"><span>{faixa.nome}</span><strong>{faixasUnidade[indice]}</strong></div>)}</div>
+                <button type="button" onClick={()=>{setOrdemSelecionada(selecionada?null:unidade.id);setStatusFiltro("Todas");setBuscaOS("");setFiltrosColuna({os:[],frota:[],setor:[],localizacao:[],tecnico:[]});}} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2.5 text-sm font-bold transition hover:bg-emerald-900">{selecionada?"Fechar análise":"Analisar OS desta unidade"}</button>
+              </article>;
+            })}</div>
+          </section>
+          {ordemSelecionada && <section className="space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5" aria-label="Análise das ordens da unidade selecionada">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-extrabold">OS da unidade: {unidades.find(u=>u.id===ordemSelecionada)?.nome||"Unidade"}</h2><p className="mt-1 text-sm text-emerald-100/65">Consulte ordens atuais e antigas, filtre por situação e pesquise por OS, frota ou técnico.</p></div><button type="button" onClick={()=>setOrdemSelecionada(null)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold">Fechar análise</button></div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">{statusResumo.map(item=>{const Icon=item.icon;const selecionado=statusFiltro===item.status;return <button key={item.status} type="button" aria-pressed={selecionado} onClick={()=>setStatusFiltro(item.status)} className={"rounded-xl border p-3 text-left transition "+(selecionado?item.active:"border-emerald-800 bg-[#002b25] hover:border-emerald-500")}><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-emerald-100/75">{item.label}</span><Icon size={17} className={item.color}/></div><div className={"mt-2 text-2xl font-extrabold "+item.color}>{item.total}</div></button>})}</div>
+            <div className="flex flex-col gap-3 sm:flex-row"><label className="relative flex min-w-0 flex-1 items-center"><Search size={16} className="pointer-events-none absolute left-3 text-emerald-100/50"/><input value={buscaOS} onChange={e=>setBuscaOS(e.target.value)} placeholder="Buscar OS, frota, setor, técnico ou descrição..." className="w-full rounded-xl border border-emerald-700 bg-emerald-950/70 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-emerald-100/40"/></label><span className="self-center text-xs text-emerald-100/60">{ordensFiltradasPainel.length} de {ordensPainelUnidade.length} OS</span></div>
+            <div className="overflow-x-auto rounded-xl border border-emerald-800"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-emerald-950 text-emerald-100/80"><tr><th className="p-3">Situação</th><th className="p-3">OS</th><th className="p-3">Frota</th><th className="p-3">Setor</th><th className="p-3">Técnico</th><th className="p-3">Descrição</th><th className="p-3">Entrada</th><th className="p-3">Idade</th></tr></thead><tbody>{ordensFiltradasPainel.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top"><td className="p-3">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status]}</td><td className="p-3 font-semibold">{ordem.numero_os||"Sem número"}</td><td className="p-3">{ordem.frota||"—"}</td><td className="p-3">{ordem.setor||"—"}</td><td className="p-3">{ordem.tecnico_nome||"—"}</td><td className="max-w-sm whitespace-normal p-3">{ordem.descricao||"—"}</td><td className="p-3">{ordem.entrada||"—"}</td><td className="p-3">{formatarIdade(ordem.created_at)}</td></tr>)}{ordensFiltradasPainel.length===0&&<tr><td colSpan={8} className="p-6 text-center text-emerald-100/55">Nenhuma OS corresponde aos filtros selecionados.</td></tr>}</tbody></table></div>
+          </section>}
         </section>}
         {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
