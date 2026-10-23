@@ -330,13 +330,15 @@ function TechnicalAnalysis() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <Kpi icon={<ClipboardList />} label="OS analisadas" value={formatNumber(metrics.total)} detail={periodLabel(period)} />
           <Kpi icon={<CheckCircle2 />} label="Serviços realizados" value={formatNumber(metrics.completed)} detail={metrics.total ? metrics.completionRate + "% concluídas" : "Sem registros"} />
           <Kpi icon={<Activity />} label="OS abertas" value={formatNumber(metrics.open)} detail={metrics.inProgress + " em andamento"} />
           <Kpi icon={<Package />} label="Peças lançadas" value={formatNumber(metrics.partsLines)} detail={metrics.uniqueParts + " tipos diferentes"} />
           <Kpi icon={<TrendingUpIcon />} label="OS em recorrência" value={formatNumber(metrics.recurrentOrders)} detail={metrics.recurrenceRate + "% do período"} />
-          <Kpi icon={<Clock3 />} label="Tempo médio" value={formatDuration(metrics.averageHours)} detail="Início → fechamento" />
+          <Kpi icon={<Clock3 />} label="Até iniciar" value={formatDuration(metrics.averageStartDelayHours)} detail="Abertura → início" />
+          <Kpi icon={<Wrench />} label="Tempo de execução" value={formatDuration(metrics.averageHours)} detail="Início → conclusão técnica" />
+          <Kpi icon={<ShieldAlert />} label="Tipos recorrentes" value={formatNumber(metrics.recurrenceTypes)} detail="Frota + tipo de serviço" />
         </section>
 
         <section className="grid gap-5">
@@ -480,7 +482,7 @@ function TechnicalAnalysis() {
         <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
           <Panel
             title="Recorrências de manutenção"
-            subtitle="Mesmo tipo de serviço na mesma frota aparece como recorrência a partir da 2ª ocorrência."
+            subtitle="Sinaliza repetição da mesma categoria de serviço na mesma frota. É um alerta analítico, não uma confirmação automática de defeito idêntico."
             icon={<ShieldAlert className="size-4" />}
             tone={recurrenceRows.length ? "warning" : "normal"}
           >
@@ -513,7 +515,7 @@ function TechnicalAnalysis() {
               <div className="rounded-xl border border-dashed p-7 text-center">
                 <CheckCircle2 className="mx-auto size-8 text-emerald-600" />
                 <p className="mt-2 text-sm font-semibold">Nenhuma recorrência identificada</p>
-                <p className="mt-1 text-xs text-muted-foreground">O período selecionado não possui duas ocorrências do mesmo serviço na mesma frota.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Não há pares frota + tipo de serviço com duas ou mais OS no período selecionado.</p>
               </div>
             )}
           </Panel>
@@ -945,13 +947,22 @@ function buildMetrics(orders: Ordem[]) {
   ).size;
 
   const durations = orders
-    .filter((order) => order.data_inicio && order.concluida_em)
+    .filter((order) => order.data_inicio && order.concluida_em && order.status === "concluida")
     .map((order) => (new Date(order.concluida_em!).getTime() - new Date(order.data_inicio!).getTime()) / 3_600_000)
     .filter((hours) => Number.isFinite(hours) && hours > 0);
   const averageHours = durations.length ? durations.reduce((sum, hours) => sum + hours, 0) / durations.length : 0;
 
+  const startDelays = orders
+    .filter((order) => order.data_inicio)
+    .map((order) => (new Date(order.data_inicio!).getTime() - new Date(order.created_at).getTime()) / 3_600_000)
+    .filter((hours) => Number.isFinite(hours) && hours >= 0);
+  const averageStartDelayHours = startDelays.length
+    ? startDelays.reduce((sum, hours) => sum + hours, 0) / startDelays.length
+    : 0;
+
   const recurrenceRows = buildRecurrenceRows(orders);
   const recurrentOrders = recurrenceRows.reduce((sum, row) => sum + row.total, 0);
+  const recurrenceTypes = recurrenceRows.length;
 
   return {
     total,
@@ -963,6 +974,8 @@ function buildMetrics(orders: Ordem[]) {
     partsLines,
     uniqueParts,
     averageHours,
+    averageStartDelayHours,
+    recurrenceTypes,
     recurrentOrders,
     recurrenceRate: total ? Math.round((recurrentOrders / total) * 100) : 0,
     completionRate: total ? Math.round((completed / total) * 100) : 0,
