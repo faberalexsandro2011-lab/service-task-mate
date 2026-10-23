@@ -169,6 +169,29 @@ function PainelTeste() {
     await carregar();
   };
 
+  const excluirUnidadeTeste = async (unidade: Unidade) => {
+    if (perfilAtual !== "gestor_central") return;
+    const nomeConfirmado = window.prompt(
+      `EXCLUSÃO DEFINITIVA NO AMBIENTE DE TESTE\\n\\nUnidade: ${unidade.nome}\\n\\nA exclusão só será feita se não houver OS, usuários ou peças vinculadas. Para confirmar, digite exatamente o nome da unidade:`,
+    );
+    if (nomeConfirmado === null) return;
+    setMensagemUnidades("Conferindo vínculos e permissões...");
+    const { data, error } = await (supabase as any).rpc("excluir_unidade_teste", {
+      p_unidade_id: unidade.id,
+      p_confirmacao: nomeConfirmado,
+    });
+    if (error) {
+      setMensagemUnidades("Exclusão não realizada: " + error.message);
+      return;
+    }
+    const resultado = data as { deleted?: boolean; unidade?: string; ordens_servico?: number; usuarios_vinculados?: number; pecas_catalogo?: number; message?: string };
+    setMensagemUnidades(
+      (resultado.message || "Operação concluída.") +
+      ` OS: ${resultado.ordens_servico ?? "—"}; usuários vinculados: ${resultado.usuarios_vinculados ?? "—"}; peças: ${resultado.pecas_catalogo ?? "—"}.`
+    );
+    if (resultado.deleted) await carregar();
+  };
+
   const atualizarUnidade = async (unidade: Unidade, alteracoes: Record<string, unknown>) => {
     if (perfilAtual !== "gestor_central") return;
     setMensagemUnidades("");
@@ -933,7 +956,7 @@ function PainelTeste() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {unidades.map(unidade => <article key={unidade.id} className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="break-words text-lg font-bold">{unidade.nome}</h2><p className="mt-1 text-xs text-emerald-100/60">Código interno: {unidade.codigo}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${unidade.ativa === false ? "bg-slate-700 text-slate-200" : "bg-lime-300/15 text-lime-200"}`}>{unidade.ativa === false ? "Inativa" : "Ativa"}</span></div>
-              <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={()=>{const novoNome=window.prompt("Novo nome da unidade:",unidade.nome);if(novoNome?.trim() && novoNome.trim()!==unidade.nome) void atualizarUnidade(unidade,{nome:novoNome.trim()});}} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">Editar nome</button><button type="button" onClick={()=>void atualizarUnidade(unidade,{ativa:unidade.ativa===false})} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">{unidade.ativa===false ? "Ativar unidade" : "Desativar unidade"}</button></div>
+              <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={()=>{const novoNome=window.prompt("Novo nome da unidade:",unidade.nome);if(novoNome?.trim() && novoNome.trim()!==unidade.nome) void atualizarUnidade(unidade,{nome:novoNome.trim()});}} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">Editar nome</button><button type="button" onClick={()=>void atualizarUnidade(unidade,{ativa:unidade.ativa===false})} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">{unidade.ativa===false ? "Ativar unidade" : "Desativar unidade"}</button><button type="button" onClick={()=>void excluirUnidadeTeste(unidade)} className="rounded-lg border border-red-700 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950">Excluir definitivamente</button></div>
               <p className="mt-3 text-xs text-emerald-100/55">OS vinculadas e histórico não são apagados ao desativar.</p>
             </article>)}
             {unidades.length===0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-sm text-emerald-100/60">Nenhuma unidade retornada pelo banco de teste.</div>}
