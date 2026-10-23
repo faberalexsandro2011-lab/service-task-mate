@@ -756,7 +756,7 @@ function PainelTeste() {
           <div className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] p-5 sm:p-7">
             <p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Painel de operações</p>
             <h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Resumo das ordens de serviço</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as OS de todas as unidades, identifique as mais antigas e selecione uma unidade para analisar suas ordens.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as OS de todas as unidades e selecione uma unidade para analisar suas ordens.</p>
             <p className="mt-3 text-xs text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p>
           </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -764,22 +764,6 @@ function PainelTeste() {
             <Metric icon={<Clock3/>} label="Abertas há mais de 48h" value={acima48h.length} accent="text-amber-300" compact/>
             <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact/>
             <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact/>
-          </div>
-          <div className="grid gap-5 xl:grid-cols-[1.15fr_1fr]">
-            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Atenção necessária</h2><p className="mt-1 text-xs text-emerald-100/55">Ordens que precisam de acompanhamento</p></div><AlertTriangle className="text-amber-300" size={22}/></div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-amber-700/50 bg-amber-950/25 p-4"><div className="text-xs font-semibold text-amber-200">Solicitações aguardando número</div><div className="mt-2 text-3xl font-extrabold text-amber-200">{ordensVisiveis.filter(o=>!o.numero_os?.trim()&&o.status!=="cancelada").length}</div><button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("solicitacoes");}} className="mt-3 text-xs font-bold text-amber-100 underline underline-offset-4">Ver solicitações →</button></div>
-                <div className="rounded-xl border border-rose-700/50 bg-rose-950/25 p-4"><div className="text-xs font-semibold text-rose-200">OS abertas há mais de 48 horas</div><div className="mt-2 text-3xl font-extrabold text-rose-200">{acima48h.length}</div><p className="mt-3 text-xs text-rose-100/70">Confira as unidades abaixo para localizar as pendências.</p></div>
-              </div>
-              <h3 className="mt-5 text-sm font-bold">Ordens abertas mais antigas</h3>
-              <div className="mt-3 space-y-2">{[...abertas].sort((a,b)=>a.created_at.localeCompare(b.created_at)).slice(0,5).map(ordem=><article key={ordem.id} className="flex items-start justify-between gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3"><div className="min-w-0"><div className="break-words text-sm font-bold">{ordem.numero_os ? "OS " + ordem.numero_os : "OS sem número"} · {ordem.frota || "Frota não informada"}</div><div className="mt-1 text-xs text-emerald-100/55">{unidades.find(u=>u.id===ordem.unidade_id)?.nome || "Unidade"} · {ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"}</div><p className="mt-1 line-clamp-2 text-xs text-emerald-100/70">{ordem.descricao}</p></div><span className="shrink-0 text-xs font-bold text-amber-200">{formatarIdade(ordem.created_at)}</span></article>)}{abertas.length===0 && <p className="rounded-xl border border-dashed border-emerald-700 p-5 text-sm text-emerald-100/55">Não há ordens abertas para a seleção atual.</p>}</div>
-            </section>
-            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
-              <h2 className="text-lg font-extrabold">Antiguidade das OS abertas</h2><p className="mt-1 text-xs text-emerald-100/55">Distribuição por tempo desde a abertura</p>
-              <div className="mt-4 space-y-3">{faixas.map((faixa,indice)=><div key={faixa.nome}><div className="mb-1 flex justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={"h-2.5 w-2.5 rounded-full "+faixa.cor}/>{faixa.nome}</span><strong>{contagens[indice]}</strong></div><div className="h-2 overflow-hidden rounded-full bg-emerald-950"><div className={"h-full "+faixa.cor} style={{width:(contagens[indice]/Math.max(abertas.length,1)*100)+"%"}}/></div></div>)}</div>
-              <div className="mt-5 border-t border-emerald-800 pt-4 text-xs text-emerald-100/60">Os dados são carregados do banco de teste e respeitam as permissões e unidades disponíveis para sua conta.</div>
-            </section>
           </div>
           <section>
             <div className="mb-3"><h2 className="text-xl font-extrabold">Analisar OS por unidade</h2><p className="mt-1 text-sm text-emerald-100/65">Selecione uma unidade para ver os totais e consultar as OS antigas e atuais.</p></div>
