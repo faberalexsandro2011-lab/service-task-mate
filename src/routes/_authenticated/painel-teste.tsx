@@ -217,6 +217,47 @@ function PainelTeste() {
     await carregar();
   };
 
+  const excluirPecaEstoqueTeste = async (peca: any) => {
+    if (perfilAtual !== "gestor_central") {
+      window.alert("Apenas o Gestor Geral pode excluir peças no ambiente de teste.");
+      return;
+    }
+    const nomeConfirmado = window.prompt(
+      `EXCLUSÃO DE PEÇA NO AMBIENTE DE TESTE\\n\\nPeça: ${peca.nome}\\nUnidade: ${unidades.find(u => u.id === peca.unidade_id)?.nome ?? "—"}\\nSaldo atual: ${peca.estoque_atual}\\n\\nMovimentações sem vínculo com OS serão removidas junto com a peça. Histórico vinculado a OS será preservado e bloqueará a exclusão.\\n\\nDigite exatamente o nome da peça para confirmar:`,
+    );
+    if (nomeConfirmado === null) return;
+    if (nomeConfirmado !== peca.nome) {
+      window.alert("Exclusão cancelada: o nome digitado não corresponde exatamente ao nome da peça.");
+      return;
+    }
+    setSalvandoEstoque(true);
+    setMensagemEstoque("Conferindo vínculos e permissões da peça...");
+    try {
+      const { data, error } = await (supabase as any).rpc("excluir_peca_estoque_teste", {
+        p_peca_id: peca.id,
+        p_confirmacao: nomeConfirmado,
+      });
+      if (error) {
+        const mensagem = "Peça não excluída: " + error.message;
+        setMensagemEstoque(mensagem);
+        window.alert(mensagem);
+        return;
+      }
+      const resultado = data as { deleted?: boolean; peca?: string; movimentacoes_removidas?: number };
+      const mensagem = resultado.deleted
+        ? `Peça "${resultado.peca ?? peca.nome}" excluída do estoque de teste. Movimentações removidas: ${resultado.movimentacoes_removidas ?? 0}.`
+        : "A peça não foi excluída.";
+      setMensagemEstoque(mensagem);
+      window.alert(mensagem);
+      if (resultado.deleted) await carregar();
+    } catch (erro) {
+      const detalhe = erro instanceof Error ? erro.message : String(erro);
+      setMensagemEstoque("Falha inesperada ao excluir a peça: " + detalhe);
+    } finally {
+      setSalvandoEstoque(false);
+    }
+  };
+
   const cadastrarPeca = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId;
@@ -949,9 +990,9 @@ function PainelTeste() {
           </div>
           <div className="mb-5 overflow-x-auto rounded-2xl border border-emerald-800">
             <div className="border-b border-emerald-800 bg-[#003b32] p-4"><h3 className="font-bold">Saldo atual por peça</h3><p className="text-xs text-emerald-100/70">Itens em nível mínimo ficam destacados para reposição.</p></div>
-            <table className="w-full min-w-[650px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Peça</th><th className="p-3">Unidade</th><th className="p-3">Saldo</th><th className="p-3">Mínimo</th><th className="p-3">Situação</th></tr></thead><tbody>
-              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><tr key={p.id} className="border-t border-emerald-900"><td className="p-3 font-semibold">{p.nome}</td><td className="p-3">{unidades.find(u=>u.id===p.unidade_id)?.nome || "—"}</td><td className="p-3 text-lg font-extrabold">{p.estoque_atual}</td><td className="p-3">{p.estoque_minimo}</td><td className="p-3"><span className={p.estoque_atual<=p.estoque_minimo ? "rounded-md bg-amber-950 px-2 py-1 text-amber-200" : "rounded-md bg-emerald-950 px-2 py-1 text-emerald-200"}>{p.estoque_atual<=p.estoque_minimo ? "Repor estoque" : "Disponível"}</span></td></tr>)}
-              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={5} className="p-5 text-center text-emerald-100/60">{unidadeEstoqueId || perfilAtual === "admin_unidade" ? "Nenhuma peça cadastrada nesta unidade." : "Selecione uma unidade para consultar o estoque."}</td></tr>}
+            <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Peça</th><th className="p-3">Unidade</th><th className="p-3">Saldo</th><th className="p-3">Mínimo</th><th className="p-3">Situação</th>{perfilAtual === "gestor_central" && <th className="p-3">Ações</th>}</tr></thead><tbody>
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><tr key={p.id} className="border-t border-emerald-900"><td className="p-3 font-semibold">{p.nome}</td><td className="p-3">{unidades.find(u=>u.id===p.unidade_id)?.nome || "—"}</td><td className="p-3 text-lg font-extrabold">{p.estoque_atual}</td><td className="p-3">{p.estoque_minimo}</td><td className="p-3"><span className={p.estoque_atual<=p.estoque_minimo ? "rounded-md bg-amber-950 px-2 py-1 text-amber-200" : "rounded-md bg-emerald-950 px-2 py-1 text-emerald-200"}>{p.estoque_atual<=p.estoque_minimo ? "Repor estoque" : "Disponível"}</span></td>{perfilAtual === "gestor_central" && <td className="p-3"><button type="button" disabled={salvandoEstoque} onClick={()=>void excluirPecaEstoqueTeste(p)} className="inline-flex items-center gap-1 rounded-lg border border-red-700 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:opacity-50"><Trash2 size={14}/> Excluir peça</button></td>}</tr>)}
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={perfilAtual === "gestor_central" ? 6 : 5} className="p-5 text-center text-emerald-100/60">{unidadeEstoqueId || perfilAtual === "admin_unidade" ? "Nenhuma peça cadastrada nesta unidade." : "Selecione uma unidade para consultar o estoque."}</td></tr>}
             </tbody></table>
           </div>
           <div className="overflow-x-auto rounded-2xl border border-emerald-800">
