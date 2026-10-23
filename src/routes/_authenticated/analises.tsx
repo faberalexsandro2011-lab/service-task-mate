@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -90,6 +90,7 @@ function TechnicalAnalysis() {
   const [search, setSearch] = useState("");
   const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const sectorDetailsRef = useRef<HTMLDivElement | null>(null);
   const [selectedSectorCard, setSelectedSectorCard] = useState<"total" | "completed" | "open" | "fleets">("total");
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
@@ -138,6 +139,12 @@ function TechnicalAnalysis() {
     await queryClient.invalidateQueries({ queryKey: ["technical-analysis"] });
     window.alert("Base técnica atualizada. Os indicadores serão recalculados com os dados salvos.");
   }
+
+  useEffect(() => {
+    if (selectedSector && window.matchMedia("(max-width: 1279px)").matches) {
+      sectorDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedSector]);
 
   useEffect(() => {
     const channel = supabase
@@ -580,8 +587,8 @@ function TechnicalAnalysis() {
                 {!selectedSector ? (
                   <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed p-8 text-center"><div><Activity className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 text-sm font-semibold">Selecione um setor</p><p className="mt-1 text-xs text-muted-foreground">Os indicadores detalhados e todas as OS do setor serão exibidos aqui.</p></div></div>
                 ) : (
-                  <div className="min-w-0 space-y-4">
-                    <div><h3 className="text-lg font-bold">{selectedSector}</h3><p className="text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado</p></div>
+                  <div ref={sectorDetailsRef} className="min-w-0 scroll-mt-4 space-y-4">
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-primary">Setor selecionado</p><h3 className="mt-1 text-lg font-bold">{selectedSector}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado. O detalhamento foi aberto abaixo da lista.</p></div>
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       {([
                         { key: "total" as const, icon: <ClipboardList />, label: "Total de OS", value: selectedSectorOrders.length, detail: "Todas as ordens" },
