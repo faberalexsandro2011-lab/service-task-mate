@@ -630,6 +630,21 @@ function PainelTeste() {
   useEffect(() => { if (perfilAtual === "admin_unidade" && unidadeAtualId) { const propria = unidades.find(u => u.id === unidadeAtualId); if (propria && filtro !== propria.nome) setFiltro(propria.nome); } }, [perfilAtual, unidadeAtualId, unidades, filtro]);
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
   const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id)).sort((a, b) => (a.sequencia ?? Number.MAX_SAFE_INTEGER) - (b.sequencia ?? Number.MAX_SAFE_INTEGER) || a.created_at.localeCompare(b.created_at));
+  const resumoConsolidadoUnidades = unidadesVisiveis.map((unidade) => {
+    const registros = ordensVisiveis.filter((ordem) => ordem.unidade_id === unidade.id);
+    const concluidas = registros.filter((ordem) => ordem.status === "concluida");
+    const canceladas = registros.filter((ordem) => ordem.status === "cancelada");
+    const pendentes = registros.filter((ordem) => ordem.status === "pendente");
+    const emAndamento = registros.filter((ordem) => ordem.status === "em_andamento");
+    const tecnicos = new Set(registros.map((ordem) => (ordem.tecnico_email || ordem.tecnico_nome || "").trim().toLocaleLowerCase("pt-BR")).filter(Boolean));
+    const duracoes = concluidas
+      .filter((ordem) => ordem.data_inicio && ordem.concluida_em && new Date(ordem.concluida_em).getTime() >= new Date(ordem.data_inicio).getTime())
+      .map((ordem) => (new Date(ordem.concluida_em!).getTime() - new Date(ordem.data_inicio!).getTime()) / 3_600_000);
+    const mediaExecucao = duracoes.length ? duracoes.reduce((soma, horas) => soma + horas, 0) / duracoes.length : null;
+    const baseTaxa = registros.length - canceladas.length;
+    return { unidade, total: registros.length, pendentes: pendentes.length, emAndamento: emAndamento.length, concluidas: concluidas.length, canceladas: canceladas.length, tecnicos: tecnicos.size, taxaConclusao: baseTaxa > 0 ? Math.round(concluidas.length / baseTaxa * 100) : 0, mediaExecucao };
+  });
+  const formatarMediaExecucao = (horas: number | null) => horas === null ? "Sem dados" : horas < 1 ? Math.round(horas * 60) + " min" : horas.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " h";
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
   const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
   const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
@@ -809,6 +824,32 @@ function PainelTeste() {
                 <button type="button" onClick={()=>{setOrdemSelecionada(selecionada?null:unidade.id);setStatusFiltro("Todas");setBuscaOS("");setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]});}} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2.5 text-sm font-bold transition hover:bg-emerald-900">{selecionada?"Fechar análise":"Analisar OS desta unidade"}</button>
               </article>;
             })}</div>
+          </section>
+          <section className="space-y-3 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5" aria-label="Comparativo consolidado por unidade">
+            <div>
+              <h2 className="text-xl font-extrabold">Comparativo consolidado por unidade</h2>
+              <p className="mt-1 text-sm text-emerald-100/65">Compare volume, situação das OS e produtividade no mesmo quadro. A taxa de conclusão desconsidera OS canceladas; o tempo médio usa somente OS concluídas com início e conclusão registrados.</p>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-emerald-800">
+              <table className="w-full min-w-[1050px] text-left text-xs">
+                <thead className="bg-emerald-950 text-emerald-100/80"><tr><th className="p-3">Unidade</th><th className="p-3 text-right">Total OS</th><th className="p-3 text-right">Pendentes</th><th className="p-3 text-right">Em andamento</th><th className="p-3 text-right">Concluídas</th><th className="p-3 text-right">Canceladas</th><th className="p-3 text-right">Conclusão</th><th className="p-3 text-right">Técnicos com OS</th><th className="p-3 text-right">Tempo médio de execução</th></tr></thead>
+                <tbody>
+                  {resumoConsolidadoUnidades.map((item) => <tr key={item.unidade.id} className="border-t border-emerald-800/80 hover:bg-emerald-900/30">
+                    <td className="p-3 font-bold">{item.unidade.nome}<div className="mt-1 text-[10px] font-normal text-emerald-100/50">{item.unidade.ativa === false ? "Inativa" : "Ativa"}</div></td>
+                    <td className="p-3 text-right font-bold">{item.total}</td>
+                    <td className="p-3 text-right text-amber-200">{item.pendentes}</td>
+                    <td className="p-3 text-right text-sky-200">{item.emAndamento}</td>
+                    <td className="p-3 text-right text-lime-200">{item.concluidas}</td>
+                    <td className="p-3 text-right text-rose-200">{item.canceladas}</td>
+                    <td className="p-3 text-right font-bold">{item.taxaConclusao}%</td>
+                    <td className="p-3 text-right">{item.tecnicos}</td>
+                    <td className="p-3 text-right">{formatarMediaExecucao(item.mediaExecucao)}</td>
+                  </tr>)}
+                  {resumoConsolidadoUnidades.length === 0 && <tr><td colSpan={9} className="p-5 text-center text-emerald-100/60">Nenhuma unidade disponível para este perfil.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-emerald-100/45">A produtividade é apresentada como quantidade de técnicos que possuem OS vinculadas à unidade e taxa de conclusão; não é uma classificação individual de desempenho.</p>
           </section>
           {ordemSelecionada && <section className="space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5" aria-label="Análise das ordens da unidade selecionada">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-extrabold">OS da unidade: {unidades.find(u=>u.id===ordemSelecionada)?.nome||"Unidade"}</h2><p className="mt-1 text-sm text-emerald-100/65">Consulte ordens atuais e antigas, filtre por situação e pesquise por OS, frota ou técnico.</p></div><button type="button" onClick={()=>setOrdemSelecionada(null)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold">Fechar análise</button></div>
