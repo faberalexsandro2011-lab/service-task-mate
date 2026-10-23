@@ -91,6 +91,9 @@ function PainelTeste() {
   const [historicoDataFinal, setHistoricoDataFinal] = useState("");
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
+  const [usuarioAtualId, setUsuarioAtualId] = useState<string | null>(null);
+  const [nomePerfil, setNomePerfil] = useState("");
+  const [salvandoNomePerfil, setSalvandoNomePerfil] = useState(false);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
   const [modoGestao, setModoGestao] = useState<"fechado" | "menu" | "criar" | "colar" | "importar" | "solicitacoes">("fechado");
   const [gestaoOSAberta, setGestaoOSAberta] = useState(false);
@@ -131,6 +134,8 @@ function PainelTeste() {
     const db = supabase as any;
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
+      setUsuarioAtualId(authData.user.id);
+      setNomePerfil(String(authData.user.user_metadata?.nome ?? ""));
       const { data: perfilData } = await db.from("usuarios_unidades").select("perfil,unidade_id").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
       const perfil = (perfilData?.perfil as PerfilUsuario | undefined) ?? null;
       setPerfilAtual(perfil);
@@ -573,6 +578,28 @@ function PainelTeste() {
       setErroUsuarios(error instanceof Error ? error.message : "Não foi possível criar o usuário.");
     } finally {
       setSalvandoUsuario(false);
+    }
+  };
+
+  const salvarNomePerfil = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nome = nomePerfil.trim();
+    if (!usuarioAtualId || nome.length < 2 || nome.length > 120) {
+      setErroUsuarios("Informe um nome com pelo menos 2 caracteres.");
+      return;
+    }
+    setSalvandoNomePerfil(true);
+    setErroUsuarios("");
+    setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({ action: "update", user_id: usuarioAtualId, nome });
+      setMensagemUsuarios("Nome do Gestor Geral atualizado no ambiente de teste.");
+      await carregarUsuariosAdmin();
+      await carregar();
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível atualizar o nome.");
+    } finally {
+      setSalvandoNomePerfil(false);
     }
   };
 
@@ -1094,6 +1121,7 @@ function PainelTeste() {
           <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "admin_unidade" ? "O servidor vincula automaticamente cada técnico à sua própria unidade." : "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação."} Senhas nunca são exibidas.</p></div>
           {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
           {mensagemUsuarios && <div role="status" className="mb-4 rounded-xl border border-lime-700 bg-lime-950/30 p-3 text-sm text-lime-100">{mensagemUsuarios}</div>}
+          {perfilAtual === "gestor_central" && <form onSubmit={salvarNomePerfil} className="mb-5 grid gap-3 rounded-2xl border border-lime-700/70 bg-lime-950/20 p-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><h3 className="font-bold">Nome do seu perfil</h3><p className="mt-1 text-xs text-emerald-100/70">Atualize somente o nome exibido da sua conta principal. E-mail, senha e permissões não serão alterados.</p><label className="mt-3 grid gap-1 text-sm">Nome completo<input required minLength={2} maxLength={120} value={nomePerfil} onChange={e=>setNomePerfil(e.target.value)} placeholder="Digite seu nome completo" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label></div><button type="submit" disabled={salvandoNomePerfil || nomePerfil.trim().length<2 || !usuarioAtualId} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNomePerfil ? "Salvando…" : "Salvar meu nome"}</button></form>}
           <form onSubmit={criarUsuario} className="mb-6 grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="sm:col-span-2 lg:col-span-3"><h3 className="font-bold">Cadastrar usuário</h3><p className="mt-1 text-xs text-emerald-100/70">A senha inicial deve ter pelo menos 8 caracteres. Informe uma senha temporária e compartilhe-a com segurança.</p></div>
             <label className="grid gap-1 text-sm">Nome completo<input required maxLength={120} value={nomeNovo} onChange={e=>setNomeNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
