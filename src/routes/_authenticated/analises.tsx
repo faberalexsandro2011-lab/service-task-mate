@@ -63,14 +63,32 @@ async function getAnalysisData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: roleRows, error: roleError } = await supabase
-    .from("user_roles")
-    .select("user_id, role")
-    .eq("user_id", authData.user.id);
+  // O banco isolado de teste multiunidade usa usuarios_unidades;
+  // a produção tradicional usa user_roles. Consultamos primeiro o modelo
+  // multiunidade e só recorremos ao legado quando essa tabela não existir.
+  const { data: unitProfile, error: unitProfileError } = await supabase
+    .from("usuarios_unidades")
+    .select("perfil")
+    .eq("user_id", authData.user.id)
+    .eq("ativo", true)
+    .maybeSingle();
 
-  if (roleError) throw roleError;
-  const role = roleRows?.[0]?.role ?? "tecnico";
-  if (role !== "gestor") throw new Error("A análise técnica está disponível apenas para gestores.");
+  let role: string | null = null;
+  if (!unitProfileError) {
+    role = unitProfile?.perfil ?? null;
+  } else {
+    const { data: roleRows, error: roleError } = await supabase
+      .from("user_roles")
+      .select("user_id, role")
+      .eq("user_id", authData.user.id);
+
+    if (roleError) throw roleError;
+    role = roleRows?.[0]?.role ?? null;
+  }
+
+  if (role !== "gestor" && role !== "gestor_central") {
+    throw new Error("A análise técnica está disponível apenas para gestores.");
+  }
 
   const { data: orders, error } = await supabase
     .from("ordens_servico")
