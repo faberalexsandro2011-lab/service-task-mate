@@ -678,7 +678,7 @@ function PainelTeste() {
       const unidadeNome = unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
       const registro: Record<string, unknown> = { Unidade: unidadeNome };
       for (const [chave, valor] of Object.entries(ordem as unknown as Record<string, unknown>)) {
-        const nome = chave.replace(/_/g, " ").replace(/\\b\\w/g, (letra) => letra.toLocaleUpperCase("pt-BR"));
+        const nome = chave.replace(/_/g, " ").replace(/\b\w/g, (letra) => letra.toLocaleUpperCase("pt-BR"));
         registro[nome] = Array.isArray(valor) ? valor.join(", ") : valor;
       }
       return registro;
@@ -690,7 +690,7 @@ function PainelTeste() {
     const metadados = utils.aoa_to_sheet([
       ["Central OS — Histórico detalhado"],
       ["Exportado em", new Date().toLocaleString("pt-BR")],
-      ["Filtros", `Status: ${historicoStatus}; unidade: ${filtro}; período de abertura: ${historicoDataInicial || "início"} a ${historicoDataFinal || "hoje"}`],
+      ["Filtros", `Status: ${historicoStatus}; unidade: ${filtro}; período de criação: ${historicoDataInicial || "início"} a ${historicoDataFinal || "hoje"}`],
       ["Registros exportados", linhas.length],
     ]);
     utils.book_append_sheet(livro, metadados, "Resumo da exportação");
