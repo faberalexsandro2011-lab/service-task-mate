@@ -89,10 +89,10 @@ function Index() {
         .select("perfil")
         .eq("user_id", authData.user.id)
         .eq("ativo", true)
-        .eq("perfil", "gestor_central")
+        .in("perfil", ["gestor_central", "gestor"])
         .maybeSingle();
 
-      if (!centralProfileError && centralProfile?.perfil === "gestor_central") {
+      if (!centralProfileError && (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor")) {
         await navigate({ to: "/painel-teste", replace: true });
         return;
       }
