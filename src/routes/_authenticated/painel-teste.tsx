@@ -77,7 +77,7 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("painel");
+  const [aba, setAba] = useState<"inicio" | "gestao_os" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("inicio");
   const [historicoBusca, setHistoricoBusca] = useState("");
   const [historicoStatus, setHistoricoStatus] = useState<"Todas" | Ordem["status"]>("Todas");
   const [historicoFrota, setHistoricoFrota] = useState("");
@@ -716,32 +716,76 @@ function PainelTeste() {
 
   return (
     <div className="min-h-screen bg-[#002b25] text-slate-50">
-      <header className="border-b border-emerald-800 bg-[#00251f] px-4 py-4 sm:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div><div className="text-xl font-extrabold">Central OS</div><div className="text-xs text-emerald-200">PAINEL CONSOLIDADO · AMBIENTE DE TESTE</div></div>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-3 text-sm text-emerald-100">Unidade
-              <select value={perfilAtual === "admin_unidade" ? (unidades.find(u => u.id === unidadeAtualId)?.nome ?? "") : filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">
-                {perfilAtual !== "admin_unidade" && <option>Todas</option>}{(perfilAtual === "admin_unidade" ? unidades.filter(u => u.id === unidadeAtualId) : unidades).map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
-              </select>
-            </label>
-            <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
-              <button type="button" onClick={() => { if (aba === "painel" && gestaoOSAberta) { setGestaoOSAberta(false); setModoGestao("fechado"); } else { setAba("painel"); setGestaoOSAberta(true); setModoGestao("menu"); } setSolicitacaoEmEdicao(null); }} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
-              <button type="button" onClick={() => setAba("historico")} aria-current={aba === "historico" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "historico" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Histórico de OS</button>
-              <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
-              {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}
-              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Unidades</button>}
-              {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
-            </nav>
-            <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-emerald-800 pl-2">
-              <button type="button" onClick={() => void carregar()} disabled={carregando} aria-label="Atualizar painel" title="Atualizar painel" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-emerald-200/75 transition hover:bg-emerald-900 hover:text-emerald-50 disabled:opacity-50"><RefreshCw size={14} className={carregando ? "animate-spin" : ""} /> Atualizar</button>
-              <button type="button" onClick={async () => { const { error } = await supabase.auth.signOut(); if (error) { window.alert("Não foi possível encerrar a sessão: " + error.message); return; } window.location.assign("/"); }} title="Sair da conta" className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-emerald-200/60 transition hover:bg-emerald-900 hover:text-emerald-50"><LogOut size={14} /> Sair</button>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        <aside className="z-20 flex w-full shrink-0 flex-col border-b border-emerald-800 bg-[#00251f] md:min-h-screen md:w-64 md:border-b-0 md:border-r">
+          <div className="border-b border-emerald-800 px-5 py-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-300 text-emerald-950"><Building2 size={24}/></div>
+              <div><div className="text-xl font-extrabold tracking-tight">Central OS</div><div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.16em] text-emerald-300">Painel de operações</div></div>
             </div>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-950/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200"><span className="h-1.5 w-1.5 rounded-full bg-amber-300"/> Ambiente de teste</div>
           </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl p-4 sm:p-8">
-        {aba === "painel" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+          <nav aria-label="Menu principal" className="flex gap-1 overflow-x-auto p-3 md:flex-1 md:flex-col md:overflow-visible">
+            <button type="button" onClick={() => {setAba("inicio");setGestaoOSAberta(false);setModoGestao("fechado");}} aria-current={aba === "inicio" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "inicio" ? "bg-lime-300 text-emerald-950 shadow-lg shadow-black/10" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Página Inicial</button>
+            <button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("menu");setSolicitacaoEmEdicao(null);}} aria-current={aba === "gestao_os" && modoGestao !== "solicitacoes" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "gestao_os" && modoGestao !== "solicitacoes" ? "bg-lime-300 text-emerald-950 shadow-lg shadow-black/10" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Gestão de OS<span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
+            {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("solicitacoes");}} aria-current={aba === "gestao_os" && modoGestao === "solicitacoes" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "gestao_os" && modoGestao === "solicitacoes" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Clock3 size={18}/>Solicitações<span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>}
+            <button type="button" onClick={() => setAba("historico")} aria-current={aba === "historico" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "historico" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><FileSpreadsheet size={18}/>Histórico de OS</button>
+            <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ShieldAlert size={18}/>Análise Técnica</button>
+            {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Estoque de Peças</button>}
+            {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Gestão de Unidades</button>}
+            {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Users size={18}/>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
+          </nav>
+          <div className="hidden border-t border-emerald-800 p-4 text-[11px] leading-relaxed text-emerald-100/45 md:block">Central OS · Gestão de manutenção multiunidade<br/>Área isolada para testes e validação.</div>
+        </aside>
+        <div className="min-w-0 flex-1">
+          <header className="sticky top-0 z-10 border-b border-emerald-800/80 bg-[#002b25]/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Central OS / {({inicio:"Visão geral",gestao_os:"Gestão de OS",historico:"Histórico de OS",solicitacoes:"Solicitações",analise:"Análise Técnica",estoque:"Estoque de Peças",unidades:"Gestão de Unidades",usuarios:perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"} as Record<string,string>)[aba] || "Painel"}</div><div className="mt-1 text-xs text-emerald-100/55">Acompanhe a operação em um só lugar</div></div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-emerald-100/75">Unidade
+                  <select value={perfilAtual === "admin_unidade" ? (unidades.find(u => u.id === unidadeAtualId)?.nome ?? "") : filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="max-w-[180px] rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white">
+                    {perfilAtual !== "admin_unidade" && <option>Todas</option>}{(perfilAtual === "admin_unidade" ? unidades.filter(u => u.id === unidadeAtualId) : unidades).map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
+                  </select>
+                </label>
+                <button type="button" onClick={() => void carregar()} disabled={carregando} aria-label="Atualizar painel" title="Atualizar painel" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={14} className={carregando ? "animate-spin" : ""}/><span className="hidden sm:inline">Atualizar</span></button>
+                <button type="button" onClick={async () => { const { error } = await supabase.auth.signOut(); if (error) { window.alert("Não foi possível encerrar a sessão: " + error.message); return; } window.location.assign("/"); }} title="Sair da conta" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-100/70 transition hover:bg-emerald-900 hover:text-white"><LogOut size={14}/><span className="hidden sm:inline">Sair</span></button>
+              </div>
+            </div>
+          </header>
+          <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
+        {aba === "inicio" && <section className="space-y-6">
+          <div className="flex flex-col gap-4 rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
+            <div><p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Painel de operações</p><h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Bom trabalho. Aqui está o resumo da operação.</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as ordens de serviço, identifique pendências e acesse rapidamente as áreas do Central OS.</p><p className="mt-3 text-xs text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p></div>
+            <button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("menu");}} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-lime-300 px-5 py-3 text-sm font-extrabold text-emerald-950 shadow-lg shadow-black/10 transition hover:bg-lime-200"><ClipboardList size={18}/>Abrir Gestão de OS</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("Todas");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<ClipboardList/>} label="Total de OS" value={ordensVisiveis.length} accent="text-white" compact/></button>
+            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("pendente");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<Circle/>} label="Pendentes" value={ordensVisiveis.filter(o=>o.status==="pendente").length} accent="text-amber-300" compact/></button>
+            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("em_andamento");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<PlayCircle/>} label="Em andamento" value={ordensVisiveis.filter(o=>o.status==="em_andamento").length} accent="text-sky-300" compact/></button>
+            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("concluida");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<CheckCircle2/>} label="Concluídas" value={ordensVisiveis.filter(o=>o.status==="concluida").length} accent="text-lime-300" compact/></button>
+            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("cancelada");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<XCircle/>} label="Canceladas" value={ordensVisiveis.filter(o=>o.status==="cancelada").length} accent="text-rose-300" compact/></button>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
+            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Atenção necessária</h2><p className="mt-1 text-xs text-emerald-100/55">Ordens que merecem acompanhamento</p></div><AlertTriangle className="text-amber-300" size={22}/></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-amber-700/50 bg-amber-950/25 p-4"><div className="text-xs font-semibold text-amber-200">Aguardando número da OS</div><div className="mt-2 text-3xl font-extrabold text-amber-200">{ordensVisiveis.filter(o=>!o.numero_os?.trim()&&o.status!=="cancelada").length}</div><button type="button" onClick={() => {setAba("gestao_os");setModoGestao("solicitacoes");}} className="mt-3 text-xs font-bold text-amber-100 underline underline-offset-4">Ver solicitações →</button></div>
+                <div className="rounded-xl border border-rose-700/50 bg-rose-950/25 p-4"><div className="text-xs font-semibold text-rose-200">Abertas há mais de 48 horas</div><div className="mt-2 text-3xl font-extrabold text-rose-200">{acima48h.length}</div><button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("Todas");}} className="mt-3 text-xs font-bold text-rose-100 underline underline-offset-4">Revisar Gestão de OS →</button></div>
+              </div>
+              <h3 className="mt-5 text-sm font-bold">Ordens abertas mais antigas</h3>
+              <div className="mt-3 space-y-2">{[...abertas].sort((a,b)=>a.created_at.localeCompare(b.created_at)).slice(0,5).map(ordem=><button key={ordem.id} type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setBuscaOS(ordem.numero_os || ordem.frota || "");}} className="flex w-full items-start justify-between gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><div className="min-w-0"><div className="truncate text-sm font-bold">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</div><div className="mt-1 truncate text-xs text-emerald-100/55">{unidades.find(u=>u.id===ordem.unidade_id)?.nome || "Unidade"} · {ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"}</div></div><span className="shrink-0 text-xs font-bold text-amber-200">{formatarIdade(ordem.created_at)}</span></button>)}{abertas.length===0 && <p className="rounded-xl border border-dashed border-emerald-700 p-5 text-sm text-emerald-100/55">Não há ordens abertas para a unidade selecionada.</p>}</div>
+            </section>
+            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5"><h2 className="text-lg font-extrabold">Acesso rápido</h2><p className="mt-1 text-xs text-emerald-100/55">Entre diretamente na área desejada.</p><div className="mt-4 grid gap-2">
+              <button type="button" onClick={() => setAba("historico")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><FileSpreadsheet className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Histórico de OS</span><span className="block text-xs text-emerald-100/55">Consultar e exportar registros</span></span></button>
+              <button type="button" onClick={() => setAba("analise")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><ShieldAlert className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Análise Técnica</span><span className="block text-xs text-emerald-100/55">Indicadores, setores e produtividade</span></span></button>
+              {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><ClipboardList size={18}/><span><span className="block text-sm font-bold">Estoque de Peças</span><span className="block text-xs text-emerald-100/55">Saldos e movimentações</span></span></button>}
+              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><Building2 className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Gestão de Unidades</span><span className="block text-xs text-emerald-100/55">Administração multiunidade</span></span></button>}
+              {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><Users className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</span><span className="block text-xs text-emerald-100/55">Contas e permissões</span></span></button>}
+            </div></section>
+          </div>
+          <div className="rounded-xl border border-emerald-800/70 bg-[#002b25] px-4 py-3 text-xs text-emerald-100/55">Dados exibidos conforme as permissões do usuário e a unidade selecionada. Os indicadores são atualizados ao usar o botão Atualizar.</div>
+        </section>}
+        {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Solicitações de OS</p><h1 className="text-xl font-extrabold">Ver e analisar pedidos dos técnicos</h1><p className="mt-1 text-sm text-emerald-100/70">Confira as solicitações pendentes e informe o número oficial sem criar outro registro.</p></div>
             <span className="rounded-full border border-amber-500/50 bg-amber-950/40 px-3 py-1.5 text-sm font-bold text-amber-200">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length} aguardando abertura</span>
@@ -777,7 +821,7 @@ function PainelTeste() {
             </article>;
           })}
         </section>}
-        {aba === "painel" && <>
+        {aba === "gestao_os" && <>
         <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Centralização das ordens</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Crie OS, importe arquivos, cole planilhas e acompanhe todas as ordens neste mesmo espaço.</p></div></div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -1142,7 +1186,9 @@ function PainelTeste() {
         </section>}
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. As permissões de criar e editar OS são validadas também pelas políticas RLS do banco de teste; o banco oficial e suas OS não são consultados por esta rota.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {atualizadoEm.toLocaleString("pt-BR")}</p>}
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
