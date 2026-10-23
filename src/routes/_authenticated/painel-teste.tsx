@@ -71,8 +71,8 @@ function PainelTeste() {
   const [filtro, setFiltro] = useState("Todas");
   const [statusFiltro, setStatusFiltro] = useState<"Todas" | Ordem["status"]>("Todas");
   const [buscaOS, setBuscaOS] = useState("");
-  const [filtrosColuna, setFiltrosColuna] = useState<{ os: string[]; frota: string[]; setor: string[]; localizacao: string[]; tecnico: string[] }>({ os: [], frota: [], setor: [], localizacao: [], tecnico: [] });
-  const [ordenacaoColuna, setOrdenacaoColuna] = useState<{ chave: "os" | "frota" | "setor" | "localizacao" | "tecnico"; direcao: "asc" | "desc" }>({ chave: "os", direcao: "asc" });
+  const [filtrosColuna, setFiltrosColuna] = useState<{ situacao: string[]; os: string[]; frota: string[]; setor: string[]; tecnico: string[]; descricao: string[]; entrada: string[]; idade: string[]; localizacao: string[] }>({ situacao: [], os: [], frota: [], setor: [], tecnico: [], descricao: [], entrada: [], idade: [], localizacao: [] });
+  const [ordenacaoColuna, setOrdenacaoColuna] = useState<{ chave: "situacao" | "os" | "frota" | "setor" | "tecnico" | "descricao" | "entrada" | "idade"; direcao: "asc" | "desc" }>({ chave: "os", direcao: "asc" });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
@@ -642,23 +642,42 @@ function PainelTeste() {
     const termo = buscaOS.trim().toLocaleLowerCase("pt-BR");
     const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.localizacao, ordem.tecnico_nome, unidades.find(u => u.id === ordem.unidade_id)?.nome].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
     const corresponde = (valor: string | null | undefined, selecionados: string[]) => selecionados.length === 0 || selecionados.includes(valor?.trim() || "—");
+    const idadeFaixa = (o: Ordem) => { const h = idadeEmHoras(o.created_at); return h < 24 ? "Até 24h" : h < 48 ? "24–48h" : h < 168 ? "2–7 dias" : h < 360 ? "7–15 dias" : "Mais de 15 dias"; };
+    const situacaoLabel = (o: Ordem) => ({ pendente: "Pendente", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" } as Record<string, string>)[o.status] || o.status;
     return statusOk && (!termo || texto.includes(termo))
+      && corresponde(situacaoLabel(ordem), filtrosColuna.situacao)
       && corresponde(ordem.numero_os, filtrosColuna.os)
       && corresponde(ordem.frota, filtrosColuna.frota)
       && corresponde(ordem.setor, filtrosColuna.setor)
-      && corresponde(ordem.localizacao, filtrosColuna.localizacao)
-      && corresponde(ordem.tecnico_nome, filtrosColuna.tecnico);
+      && corresponde(ordem.tecnico_nome, filtrosColuna.tecnico)
+      && corresponde(ordem.descricao, filtrosColuna.descricao)
+      && corresponde(ordem.entrada, filtrosColuna.entrada)
+      && corresponde(idadeFaixa(ordem), filtrosColuna.idade);
   }).sort((a, b) => {
-    const valor = (o: Ordem) => ordenacaoColuna.chave === "os" ? (o.numero_os || "")
+    const valor = (o: Ordem): string | number => ordenacaoColuna.chave === "situacao" ? (({ pendente: "Pendente", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" } as Record<string, string>)[o.status] || o.status)
+      : ordenacaoColuna.chave === "os" ? (o.numero_os || "")
       : ordenacaoColuna.chave === "frota" ? (o.frota || "")
       : ordenacaoColuna.chave === "setor" ? (o.setor || "")
-      : ordenacaoColuna.chave === "localizacao" ? (o.localizacao || "")
-      : (o.tecnico_nome || "");
-    const va = valor(a).toLocaleLowerCase("pt-BR");
-    const vb = valor(b).toLocaleLowerCase("pt-BR");
-    const comparacao = va.localeCompare(vb, "pt-BR", { numeric: true, sensitivity: "base" });
+      : ordenacaoColuna.chave === "tecnico" ? (o.tecnico_nome || "")
+      : ordenacaoColuna.chave === "descricao" ? (o.descricao || "")
+      : ordenacaoColuna.chave === "entrada" ? (o.entrada || "")
+      : idadeEmHoras(o.created_at);
+    const va = valor(a), vb = valor(b);
+    const comparacao = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).toLocaleLowerCase("pt-BR").localeCompare(String(vb).toLocaleLowerCase("pt-BR"), "pt-BR", { numeric: true, sensitivity: "base" });
     return ordenacaoColuna.direcao === "asc" ? comparacao : -comparacao;
   });
+  const valorFiltroPainel = (o: Ordem, chave: "situacao" | "os" | "frota" | "setor" | "tecnico" | "descricao" | "entrada" | "idade") => {
+    if (chave === "situacao") return ({ pendente: "Pendente", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" } as Record<string, string>)[o.status] || o.status;
+    if (chave === "os") return o.numero_os?.trim() || "—";
+    if (chave === "frota") return o.frota?.trim() || "—";
+    if (chave === "setor") return o.setor?.trim() || "—";
+    if (chave === "tecnico") return o.tecnico_nome?.trim() || "—";
+    if (chave === "descricao") return o.descricao?.trim() || "—";
+    if (chave === "entrada") return o.entrada?.trim() || "—";
+    const h = idadeEmHoras(o.created_at);
+    return h < 24 ? "Até 24h" : h < 48 ? "24–48h" : h < 168 ? "2–7 dias" : h < 360 ? "7–15 dias" : "Mais de 15 dias";
+  };
+  const opcoesFiltroPainel = (chave: "situacao" | "os" | "frota" | "setor" | "tecnico" | "descricao" | "entrada" | "idade") => [...new Set(ordensPainelUnidade.map(o => valorFiltroPainel(o, chave)))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" }));
   const ordensHistoricoFiltradas = ordensVisiveis.filter((ordem) => {
     const termo = historicoBusca.trim().toLocaleLowerCase("pt-BR");
     const unidadeNome = unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
@@ -783,7 +802,7 @@ function PainelTeste() {
                 <div className="mt-4 grid grid-cols-2 gap-3"><div><div className="text-3xl font-extrabold text-lime-300">{abertasUnidade.length}</div><div className="text-xs text-emerald-100/65">OS abertas</div></div><div><div className="text-3xl font-extrabold">{ordensUnidade.length}</div><div className="text-xs text-emerald-100/65">Total de OS</div></div><div><div className="text-xl font-bold text-lime-200">{ordensUnidade.filter(o=>o.status==="concluida").length}</div><div className="text-xs text-emerald-100/65">Concluídas</div></div><div><div className="text-xl font-bold text-amber-200">{abertasUnidade.filter(o=>idadeEmHoras(o.created_at)>=48).length}</div><div className="text-xs text-emerald-100/65">Abertas há +48h</div></div></div>
                 <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{faixasUnidade.map((quantidade,indice)=><div key={faixas[indice].nome} className={faixas[indice].cor} style={{width:(quantidade/Math.max(abertasUnidade.length,1)*100)+"%"}}/>)}</div>
                 <div className="mt-3 space-y-1">{faixas.map((faixa,indice)=><div key={faixa.nome} className="flex justify-between text-xs text-emerald-100/65"><span>{faixa.nome}</span><strong>{faixasUnidade[indice]}</strong></div>)}</div>
-                <button type="button" onClick={()=>{setOrdemSelecionada(selecionada?null:unidade.id);setStatusFiltro("Todas");setBuscaOS("");setFiltrosColuna({os:[],frota:[],setor:[],localizacao:[],tecnico:[]});}} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2.5 text-sm font-bold transition hover:bg-emerald-900">{selecionada?"Fechar análise":"Analisar OS desta unidade"}</button>
+                <button type="button" onClick={()=>{setOrdemSelecionada(selecionada?null:unidade.id);setStatusFiltro("Todas");setBuscaOS("");setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]});}} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2.5 text-sm font-bold transition hover:bg-emerald-900">{selecionada?"Fechar análise":"Analisar OS desta unidade"}</button>
               </article>;
             })}</div>
           </section>
@@ -791,7 +810,7 @@ function PainelTeste() {
             <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-extrabold">OS da unidade: {unidades.find(u=>u.id===ordemSelecionada)?.nome||"Unidade"}</h2><p className="mt-1 text-sm text-emerald-100/65">Consulte ordens atuais e antigas, filtre por situação e pesquise por OS, frota ou técnico.</p></div><button type="button" onClick={()=>setOrdemSelecionada(null)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold">Fechar análise</button></div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">{statusResumo.map(item=>{const Icon=item.icon;const selecionado=statusFiltro===item.status;return <button key={item.status} type="button" aria-pressed={selecionado} onClick={()=>setStatusFiltro(item.status)} className={"rounded-xl border p-3 text-left transition "+(selecionado?item.active:"border-emerald-800 bg-[#002b25] hover:border-emerald-500")}><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-emerald-100/75">{item.label}</span><Icon size={17} className={item.color}/></div><div className={"mt-2 text-2xl font-extrabold "+item.color}>{item.total}</div></button>})}</div>
             <div className="flex flex-col gap-3 sm:flex-row"><label className="relative flex min-w-0 flex-1 items-center"><Search size={16} className="pointer-events-none absolute left-3 text-emerald-100/50"/><input value={buscaOS} onChange={e=>setBuscaOS(e.target.value)} placeholder="Buscar OS, frota, setor, técnico ou descrição..." className="w-full rounded-xl border border-emerald-700 bg-emerald-950/70 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-emerald-100/40"/></label><span className="self-center text-xs text-emerald-100/60">{ordensFiltradasPainel.length} de {ordensPainelUnidade.length} OS</span></div>
-            <div className="overflow-x-auto rounded-xl border border-emerald-800"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-emerald-950 text-emerald-100/80"><tr><th className="p-3">Situação</th><th className="p-3">OS</th><th className="p-3">Frota</th><th className="p-3">Setor</th><th className="p-3">Técnico</th><th className="p-3">Descrição</th><th className="p-3">Entrada</th><th className="p-3">Idade</th></tr></thead><tbody>{ordensFiltradasPainel.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top"><td className="p-3">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status]}</td><td className="p-3 font-semibold">{ordem.numero_os||"Sem número"}</td><td className="p-3">{ordem.frota||"—"}</td><td className="p-3">{ordem.setor||"—"}</td><td className="p-3">{ordem.tecnico_nome||"—"}</td><td className="max-w-sm whitespace-normal p-3">{ordem.descricao||"—"}</td><td className="p-3">{ordem.entrada||"—"}</td><td className="p-3">{formatarIdade(ordem.created_at)}</td></tr>)}{ordensFiltradasPainel.length===0&&<tr><td colSpan={8} className="p-6 text-center text-emerald-100/55">Nenhuma OS corresponde aos filtros selecionados.</td></tr>}</tbody></table></div>
+            <div className="overflow-x-auto rounded-xl border border-emerald-800"><table className="w-full min-w-[1200px] text-left text-xs"><thead className="bg-emerald-950 text-emerald-100/80"><tr>{([{chave:"situacao",rotulo:"Situação"},{chave:"os",rotulo:"OS"},{chave:"frota",rotulo:"Frota"},{chave:"setor",rotulo:"Setor"},{chave:"tecnico",rotulo:"Técnico"},{chave:"descricao",rotulo:"Descrição"},{chave:"entrada",rotulo:"Entrada"},{chave:"idade",rotulo:"Idade"}] as const).map(coluna=><th key={coluna.chave} className="min-w-[125px] p-2 align-top"><div className="flex items-center justify-between gap-1"><button type="button" onClick={()=>setOrdenacaoColuna(atual=>({chave:coluna.chave,direcao:atual.chave===coluna.chave&&atual.direcao==="asc"?"desc":"asc"}))} className="inline-flex items-center gap-1 rounded px-1 py-1 text-left font-bold hover:bg-emerald-800" title={"Classificar por "+coluna.rotulo}>{coluna.rotulo}{ordenacaoColuna.chave===coluna.chave?(ordenacaoColuna.direcao==="asc"?<ArrowUp size={13}/>:<ArrowDown size={13}/>):<ArrowUpDown size={13}/>}</button><ListFilter size={13} className={filtrosColuna[coluna.chave].length?"text-lime-300":"text-emerald-100/50"}/></div><select aria-label={"Filtrar "+coluna.rotulo} value={filtrosColuna[coluna.chave][0]||""} onChange={e=>setFiltrosColuna(atual=>({...atual,[coluna.chave]:e.target.value?[e.target.value]:[]}))} className="mt-1 w-full max-w-[160px] rounded border border-emerald-800 bg-[#002b25] px-1.5 py-1 text-[11px] text-emerald-50"><option value="">Todos</option>{opcoesFiltroPainel(coluna.chave).map(opcao=><option key={opcao} value={opcao}>{opcao}</option>)}</select></th>)}</tr></thead><tbody>{ordensFiltradasPainel.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top"><td className="p-3">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status]}</td><td className="p-3 font-semibold">{ordem.numero_os||"Sem número"}</td><td className="p-3">{ordem.frota||"—"}</td><td className="p-3">{ordem.setor||"—"}</td><td className="p-3">{ordem.tecnico_nome||"—"}</td><td className="max-w-sm whitespace-normal p-3">{ordem.descricao||"—"}</td><td className="p-3">{ordem.entrada||"—"}</td><td className="p-3">{formatarIdade(ordem.created_at)}</td></tr>)}{ordensFiltradasPainel.length===0&&<tr><td colSpan={8} className="p-6 text-center text-emerald-100/55">Nenhuma OS corresponde aos filtros selecionados.</td></tr>}</tbody></table></div>
           </section>}
         </section>}
         {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
