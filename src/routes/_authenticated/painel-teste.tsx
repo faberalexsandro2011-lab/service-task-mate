@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/painel-teste")({
 });
 
 type Unidade = { id: string; codigo: string; nome: string; ativa?: boolean };
-type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor_central" | "visualizador";
+type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor" | "gestor_central" | "visualizador";
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
 type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; tecnico_original: string; tecnico_valido: boolean; valid: boolean };
@@ -309,7 +309,7 @@ function PainelTeste() {
 
   const criarOS = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") return;
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
     if (!unidadeId) { setMensagemOS("Selecione a unidade para abrir a OS."); return; }
     setSalvandoNovaOS(true);
@@ -430,7 +430,7 @@ function PainelTeste() {
     return parsed.map(l => { let seq = l.sequencia; if (seq == null || usados.has(seq)) { while (usados.has(proxima)) proxima++; seq = proxima; } usados.add(seq); proxima = Math.max(proxima, seq + 1); return { ...l, sequencia: seq }; });
   };
   const salvarImportacao = async () => {
-    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") {
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") {
       setMensagemOS("Importação não permitida para este perfil (" + String(perfilAtual || "não identificado") + "). Entre com o Gestor Central ou ADM da unidade no ambiente de teste.");
       return;
     }
@@ -467,7 +467,7 @@ function PainelTeste() {
   };
 
   const transferirOrdensSelecionadas = async () => {
-    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") return;
     if (!ordensSelecionadasTransferencia.length || !tecnicoDestinoTransferencia) return;
     const tecnico = usuariosAdmin.find(u => u.user_id === tecnicoDestinoTransferencia && u.ativo && u.perfil === "tecnico");
     if (!tecnico) { setMensagemOS("Selecione um técnico ativo."); return; }
@@ -499,7 +499,7 @@ function PainelTeste() {
   };
 
   const salvarEdicaoOS = async () => {
-    if (!edicaoOS || (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central")) return;
+    if (!edicaoOS || (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central")) return;
     setSalvandoOS(true);
     setMensagemOS("");
     // A política RLS do banco de teste limita o UPDATE às OS da unidade do ADM.
@@ -559,7 +559,7 @@ function PainelTeste() {
       await executarAcaoUsuario({
         action: "create", nome: nomeNovo, email: emailNovo, password: senhaNova,
         perfil: perfilCriado,
-        unidade_codigo: perfilCriado === "gestor_central" ? "" : perfilAtual === "admin_unidade" ? codigoUnidadeADM : unidadeNova,
+        unidade_codigo: (perfilCriado === "gestor_central" || perfilCriado === "gestor") ? "" : perfilAtual === "admin_unidade" ? codigoUnidadeADM : unidadeNova,
       });
       setMensagemUsuarios("Usuário criado e vinculado ao ambiente de teste.");
       setNomeNovo(""); setEmailNovo(""); setSenhaNova("");
@@ -577,7 +577,7 @@ function PainelTeste() {
     try {
       await executarAcaoUsuario({
         action: "update", user_id: usuario.user_id, perfil,
-        ...(perfil === "gestor_central" ? {} : { unidade_codigo: unidadeCodigo }),
+        ...((perfil === "gestor_central" || perfil === "gestor") ? {} : { unidade_codigo: unidadeCodigo }),
       });
       setMensagemUsuarios("Perfil e unidade atualizados.");
       await carregarUsuariosAdmin();
@@ -613,7 +613,7 @@ function PainelTeste() {
   };
 
   useEffect(() => { void carregar(); }, []);
-  useEffect(() => { if (aba === "usuarios" || modoGestao === "colar" || modoGestao === "importar") void carregarUsuariosAdmin(); }, [aba, modoGestao]);
+  useEffect(() => { if (aba === "usuarios" || modoGestao === "criar" || modoGestao === "colar" || modoGestao === "importar") void carregarUsuariosAdmin(); }, [aba, modoGestao]);
 
   const unidadesVisiveis = useMemo(
     () => perfilAtual === "admin_unidade"
@@ -621,7 +621,7 @@ function PainelTeste() {
       : filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
     [filtro, unidades, perfilAtual, unidadeAtualId],
   );
-  useEffect(() => { if (perfilAtual === "gestor_central" && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
+  useEffect(() => { if ((perfilAtual === "gestor" || perfilAtual === "gestor_central") && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
   useEffect(() => { const ativas = unidades.filter((unidade) => unidade.ativa !== false); if (perfilAtual === "gestor_central" && ativas.length && !ativas.some((unidade) => unidade.codigo === unidadeNova)) setUnidadeNova(ativas[0].codigo); }, [perfilAtual, unidades, unidadeNova]);
   useEffect(() => { if (perfilAtual === "admin_unidade" && unidadeAtualId) { const propria = unidades.find(u => u.id === unidadeAtualId); if (propria && filtro !== propria.nome) setFiltro(propria.nome); } }, [perfilAtual, unidadeAtualId, unidades, filtro]);
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
@@ -810,7 +810,7 @@ function PainelTeste() {
             <div className="overflow-x-auto rounded-xl border border-emerald-800"><table className="w-full min-w-[900px] text-left text-xs"><thead className="bg-emerald-950 text-emerald-100/80"><tr><th className="p-3">Situação</th><th className="p-3">OS</th><th className="p-3">Frota</th><th className="p-3">Setor</th><th className="p-3">Técnico</th><th className="p-3">Descrição</th><th className="p-3">Entrada</th><th className="p-3">Idade</th></tr></thead><tbody>{ordensFiltradasPainel.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top"><td className="p-3">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status]}</td><td className="p-3 font-semibold">{ordem.numero_os||"Sem número"}</td><td className="p-3">{ordem.frota||"—"}</td><td className="p-3">{ordem.setor||"—"}</td><td className="p-3">{ordem.tecnico_nome||"—"}</td><td className="max-w-sm whitespace-normal p-3">{ordem.descricao||"—"}</td><td className="p-3">{ordem.entrada||"—"}</td><td className="p-3">{formatarIdade(ordem.created_at)}</td></tr>)}{ordensFiltradasPainel.length===0&&<tr><td colSpan={8} className="p-6 text-center text-emerald-100/55">Nenhuma OS corresponde aos filtros selecionados.</td></tr>}</tbody></table></div>
           </section>}
         </section>}
-        {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+        {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Solicitações de OS</p><h1 className="text-xl font-extrabold">Ver e analisar pedidos dos técnicos</h1><p className="mt-1 text-sm text-emerald-100/70">Confira as solicitações pendentes e informe o número oficial sem criar outro registro.</p></div>
             <span className="rounded-full border border-amber-500/50 bg-amber-950/40 px-3 py-1.5 text-sm font-bold text-amber-200">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length} aguardando abertura</span>
@@ -853,7 +853,7 @@ function PainelTeste() {
         {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
-        {gestaoOSAberta && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
+        {gestaoOSAberta && (perfilAtual === "admin_unidade" || perfilAtual === "gestor" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
           {modoGestao !== "menu" && <div className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">{modoGestao === "criar" ? "Criar nova OS" : modoGestao === "colar" ? "Colar planilha" : "Importar planilha"}</h2><button type="button" onClick={()=>setModoGestao("menu")} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs">Voltar às opções</button></div>}
           {modoGestao === "menu" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={() => setModoGestao("criar")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><Plus size={26}/><b>Criar OS</b><span className="text-xs text-emerald-100/70">Cadastrar uma ordem</span></button>
@@ -862,7 +862,7 @@ function PainelTeste() {
             <button type="button" onClick={() => setModoGestao("solicitacoes")} className="relative flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><ClipboardList size={26}/><b>Solicitações de OS</b><span className="text-xs text-emerald-100/70">Ver e analisar pedidos dos técnicos</span><span className="absolute right-3 top-3 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length} pendente(s)</span></button>
           </div>}
           {modoGestao === "criar" && <form onSubmit={criarOS} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={formUnidadeCentral} onChange={e=>setFormUnidadeCentral(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
+            {(perfilAtual === "gestor" || perfilAtual === "gestor_central") && <label className="grid gap-1 text-sm">Unidade<select required value={formUnidadeCentral} onChange={e=>setFormUnidadeCentral(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white">{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
             <label className="grid gap-1 text-sm">Número da OS<input required value={formNovaOS.numero_os} onChange={e=>setFormNovaOS({...formNovaOS,numero_os:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
             <label className="grid gap-1 text-sm">Frota<input required value={formNovaOS.frota} onChange={e=>setFormNovaOS({...formNovaOS,frota:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
             <label className="grid gap-1 text-sm">Entrada / data<input type="date" value={formNovaOS.entrada} onChange={e=>setFormNovaOS({...formNovaOS,entrada:e.target.value})} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label>
@@ -1050,8 +1050,8 @@ function PainelTeste() {
             <label className="grid gap-1 text-sm">Nome completo<input required maxLength={120} value={nomeNovo} onChange={e=>setNomeNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">E-mail<input required type="email" value={emailNovo} onChange={e=>setEmailNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">Senha inicial<input required type="password" minLength={8} maxLength={128} value={senhaNova} onChange={e=>setSenhaNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
-            {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Perfil<select value={perfilNovo} onChange={e=>setPerfilNovo(e.target.value as PerfilUsuario)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM da unidade</option><option value="visualizador">Somente visualização</option><option value="gestor_central">Gestor Geral</option></select></label>}
-            {perfilAtual === "gestor_central" && perfilNovo !== "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={unidadeNova} onChange={e=>setUnidadeNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="" disabled>Selecione uma unidade</option>{unidades.filter(unidade => unidade.ativa !== false).map(unidade => <option key={unidade.id} value={unidade.codigo}>{unidade.nome}</option>)}</select></label>}
+            {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Perfil<select value={perfilNovo} onChange={e=>setPerfilNovo(e.target.value as PerfilUsuario)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM da unidade</option><option value="visualizador">Somente visualização</option><option value="gestor">Gestor</option><option value="gestor_central">Gestor Geral</option></select></label>}
+            {perfilAtual === "gestor_central" && perfilNovo !== "gestor_central" && perfilNovo !== "gestor" && <label className="grid gap-1 text-sm">Unidade<select required value={unidadeNova} onChange={e=>setUnidadeNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="" disabled>Selecione uma unidade</option>{unidades.filter(unidade => unidade.ativa !== false).map(unidade => <option key={unidade.id} value={unidade.codigo}>{unidade.nome}</option>)}</select></label>}
             {perfilAtual === "admin_unidade" && <div className="grid gap-1 text-sm"><span>Unidade vinculada</span><div className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2">{unidades.find(unidade => unidade.id === unidadeAtualId)?.nome ?? "Carregando unidade..."}</div></div>}
             <div className="flex items-end"><button disabled={salvandoUsuario} type="submit" className="w-full rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 hover:bg-lime-200 disabled:opacity-50">{salvandoUsuario ? "Salvando…" : "Criar usuário"}</button></div>
           </form>
@@ -1061,8 +1061,8 @@ function PainelTeste() {
               <thead className="bg-[#003b32] text-emerald-100"><tr><th className="p-3">Usuário</th><th className="p-3">Perfil / unidade</th><th className="p-3">Situação</th><th className="p-3">Ações</th></tr></thead>
               <tbody>{usuariosAdmin.map(usuario => <tr key={usuario.user_id} className="border-t border-emerald-900 align-top">
                 <td className="p-3"><div className="font-semibold">{usuario.nome || "Nome não informado"}</div><div className="text-xs text-emerald-100/70">{usuario.email}</div><div className="mt-1 font-mono text-[10px] text-emerald-100/40">{usuario.user_id}</div></td>
-                <td className="p-3"><div>{({admin_unidade:"ADM da unidade",tecnico:"Técnico",gestor_central:"Gestor Geral",visualizador:"Somente visualização"} as Record<string,string>)[usuario.perfil] || usuario.perfil}</div><div className="text-xs text-emerald-100/70">{usuario.unidade_id ? unidades.find(u=>u.id===usuario.unidade_id)?.nome || "Unidade não encontrada" : "Todas as unidades"}</div>
-                  {perfilAtual === "gestor_central" && usuario.perfil !== "gestor_central" && <div className="mt-2 flex flex-wrap gap-2"><select aria-label={`Perfil de ${usuario.email}`} defaultValue={usuario.perfil} id={`perfil-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM</option><option value="visualizador">Visualizador</option></select><select aria-label={`Unidade de ${usuario.email}`} defaultValue={unidades.find(u=>u.id===usuario.unidade_id)?.codigo || "vale_parana"} id={`unidade-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white">{unidades.map(unidade=><option key={unidade.id} value={unidade.codigo} disabled={unidade.ativa === false}>{unidade.nome}{unidade.ativa === false ? " (inativa)" : ""}</option>)}</select><button type="button" onClick={()=>{const p=document.getElementById(`perfil-${usuario.user_id}`) as HTMLSelectElement|null;const u=document.getElementById(`unidade-${usuario.user_id}`) as HTMLSelectElement|null;if(p&&u)void atualizarUsuario(usuario,p.value as PerfilUsuario,u.value)}} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">Salvar</button></div>}
+                <td className="p-3"><div>{({admin_unidade:"ADM da unidade",tecnico:"Técnico",gestor:"Gestor",gestor_central:"Gestor Geral",visualizador:"Somente visualização"} as Record<string,string>)[usuario.perfil] || usuario.perfil}</div><div className="text-xs text-emerald-100/70">{usuario.unidade_id ? unidades.find(u=>u.id===usuario.unidade_id)?.nome || "Unidade não encontrada" : "Todas as unidades"}</div>
+                  {perfilAtual === "gestor_central" && usuario.perfil !== "gestor_central" && <div className="mt-2 flex flex-wrap gap-2"><select aria-label={`Perfil de ${usuario.email}`} defaultValue={usuario.perfil} id={`perfil-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select><select aria-label={`Unidade de ${usuario.email}`} defaultValue={unidades.find(u=>u.id===usuario.unidade_id)?.codigo || "vale_parana"} id={`unidade-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white">{unidades.map(unidade=><option key={unidade.id} value={unidade.codigo} disabled={unidade.ativa === false}>{unidade.nome}{unidade.ativa === false ? " (inativa)" : ""}</option>)}</select><button type="button" onClick={()=>{const p=document.getElementById(`perfil-${usuario.user_id}`) as HTMLSelectElement|null;const u=document.getElementById(`unidade-${usuario.user_id}`) as HTMLSelectElement|null;if(p&&u)void atualizarUsuario(usuario,p.value as PerfilUsuario,u.value)}} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">Salvar</button></div>}
                 </td>
                 <td className="p-3"><span className={usuario.ativo ? "rounded-md bg-emerald-900 px-2 py-1 text-emerald-200" : "rounded-md bg-red-950 px-2 py-1 text-red-200"}>{usuario.ativo ? "Ativo" : "Inativo"}</span></td>
                 <td className="p-3">{perfilAtual === "gestor_central" && <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>void alternarAtivo(usuario)} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">{usuario.ativo ? "Desativar" : "Ativar"}</button><button type="button" onClick={()=>void excluirUsuario(usuario)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-200 hover:bg-red-950">Excluir</button></div>}</td>
