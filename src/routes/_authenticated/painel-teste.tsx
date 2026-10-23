@@ -782,8 +782,8 @@ function PainelTeste() {
   return (
     <div className="min-h-screen bg-[#002b25] text-slate-50">
       <div className="flex min-h-screen flex-col md:flex-row">
-        <aside className="z-20 flex w-full shrink-0 flex-col border-b border-emerald-800 bg-[#00251f] md:min-h-screen md:w-64 md:border-b-0 md:border-r">
-          <div className="border-b border-emerald-800 px-5 py-5">
+        <aside className="z-20 flex w-full shrink-0 flex-col border-b border-emerald-800 bg-[#00251f] md:min-h-screen md:w-56 md:border-b-0 md:border-r">
+          <div className="border-b border-emerald-800 px-4 py-5">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-300 text-emerald-950"><Building2 size={24}/></div>
               <div><div className="text-xl font-extrabold tracking-tight">Central OS</div><div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.16em] text-emerald-300">Painel de operações</div></div>
