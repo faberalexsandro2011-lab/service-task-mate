@@ -486,7 +486,7 @@ function PainelTeste() {
   };
 
   const excluirOS = async (ordem: Ordem) => {
-    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor_central") return;
+    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") return;
     if (!window.confirm("Excluir a OS " + (ordem.numero_os || ordem.frota || ordem.id) + " desta unidade? Esta ação não pode ser desfeita.")) return;
     // A exclusão é restringida ao registro da unidade e também validada pela RLS do banco de teste.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
