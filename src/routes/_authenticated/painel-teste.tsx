@@ -753,37 +753,12 @@ function PainelTeste() {
             </div>
           </header>
           <main className="mx-auto max-w-[1600px] p-4 sm:p-6 lg:p-8">
-        {aba === "inicio" && <section className="space-y-6">
-          <div className="flex flex-col gap-4 rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#06483c] via-[#003b32] to-[#002e28] p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
-            <div><p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Painel de operações</p><h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">Bom trabalho. Aqui está o resumo da operação.</h1><p className="mt-2 max-w-2xl text-sm leading-relaxed text-emerald-100/70">Acompanhe as ordens de serviço, identifique pendências e acesse rapidamente as áreas do Central OS.</p><p className="mt-3 text-xs text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p></div>
-            <button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("menu");}} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-lime-300 px-5 py-3 text-sm font-extrabold text-emerald-950 shadow-lg shadow-black/10 transition hover:bg-lime-200"><ClipboardList size={18}/>Abrir Gestão de OS</button>
+        {aba === "inicio" && <section className="flex min-h-[55vh] flex-col justify-center">
+          <div className="max-w-3xl py-8 sm:py-12">
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-lime-300">Página Inicial</p>
+            <h1 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">Bem-vindo ao Central OS</h1>
+            <p className="mt-3 max-w-2xl text-base leading-relaxed text-emerald-100/70">Use o menu lateral para acessar a gestão das ordens de serviço, o histórico, a análise técnica e as demais áreas liberadas para seu perfil.</p>
           </div>
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("Todas");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<ClipboardList/>} label="Total de OS" value={ordensVisiveis.length} accent="text-white" compact/></button>
-            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("pendente");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<Circle/>} label="Pendentes" value={ordensVisiveis.filter(o=>o.status==="pendente").length} accent="text-amber-300" compact/></button>
-            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("em_andamento");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<PlayCircle/>} label="Em andamento" value={ordensVisiveis.filter(o=>o.status==="em_andamento").length} accent="text-sky-300" compact/></button>
-            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("concluida");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<CheckCircle2/>} label="Concluídas" value={ordensVisiveis.filter(o=>o.status==="concluida").length} accent="text-lime-300" compact/></button>
-            <button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("cancelada");}} className="text-left transition hover:-translate-y-0.5"><Metric icon={<XCircle/>} label="Canceladas" value={ordensVisiveis.filter(o=>o.status==="cancelada").length} accent="text-rose-300" compact/></button>
-          </div>
-          <div className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
-            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-extrabold">Atenção necessária</h2><p className="mt-1 text-xs text-emerald-100/55">Ordens que merecem acompanhamento</p></div><AlertTriangle className="text-amber-300" size={22}/></div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-amber-700/50 bg-amber-950/25 p-4"><div className="text-xs font-semibold text-amber-200">Aguardando número da OS</div><div className="mt-2 text-3xl font-extrabold text-amber-200">{ordensVisiveis.filter(o=>!o.numero_os?.trim()&&o.status!=="cancelada").length}</div><button type="button" onClick={() => {setAba("gestao_os");setModoGestao("solicitacoes");}} className="mt-3 text-xs font-bold text-amber-100 underline underline-offset-4">Ver solicitações →</button></div>
-                <div className="rounded-xl border border-rose-700/50 bg-rose-950/25 p-4"><div className="text-xs font-semibold text-rose-200">Abertas há mais de 48 horas</div><div className="mt-2 text-3xl font-extrabold text-rose-200">{acima48h.length}</div><button type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setStatusFiltro("Todas");}} className="mt-3 text-xs font-bold text-rose-100 underline underline-offset-4">Revisar Gestão de OS →</button></div>
-              </div>
-              <h3 className="mt-5 text-sm font-bold">Ordens abertas mais antigas</h3>
-              <div className="mt-3 space-y-2">{[...abertas].sort((a,b)=>a.created_at.localeCompare(b.created_at)).slice(0,5).map(ordem=><button key={ordem.id} type="button" onClick={() => {setAba("gestao_os");setModoGestao("menu");setBuscaOS(ordem.numero_os || ordem.frota || "");}} className="flex w-full items-start justify-between gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><div className="min-w-0"><div className="truncate text-sm font-bold">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</div><div className="mt-1 truncate text-xs text-emerald-100/55">{unidades.find(u=>u.id===ordem.unidade_id)?.nome || "Unidade"} · {ordem.setor || "Sem setor"} · {ordem.tecnico_nome || "Sem técnico"}</div></div><span className="shrink-0 text-xs font-bold text-amber-200">{formatarIdade(ordem.created_at)}</span></button>)}{abertas.length===0 && <p className="rounded-xl border border-dashed border-emerald-700 p-5 text-sm text-emerald-100/55">Não há ordens abertas para a unidade selecionada.</p>}</div>
-            </section>
-            <section className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5"><h2 className="text-lg font-extrabold">Acesso rápido</h2><p className="mt-1 text-xs text-emerald-100/55">Entre diretamente na área desejada.</p><div className="mt-4 grid gap-2">
-              <button type="button" onClick={() => setAba("historico")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><FileSpreadsheet className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Histórico de OS</span><span className="block text-xs text-emerald-100/55">Consultar e exportar registros</span></span></button>
-              <button type="button" onClick={() => setAba("analise")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><ShieldAlert className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Análise Técnica</span><span className="block text-xs text-emerald-100/55">Indicadores, setores e produtividade</span></span></button>
-              {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><ClipboardList size={18}/><span><span className="block text-sm font-bold">Estoque de Peças</span><span className="block text-xs text-emerald-100/55">Saldos e movimentações</span></span></button>}
-              {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><Building2 className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">Gestão de Unidades</span><span className="block text-xs text-emerald-100/55">Administração multiunidade</span></span></button>}
-              {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} className="flex items-center gap-3 rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-left transition hover:border-emerald-600"><Users className="text-lime-300" size={19}/><span><span className="block text-sm font-bold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</span><span className="block text-xs text-emerald-100/55">Contas e permissões</span></span></button>}
-            </div></section>
-          </div>
-          <div className="rounded-xl border border-emerald-800/70 bg-[#002b25] px-4 py-3 text-xs text-emerald-100/55">Dados exibidos conforme as permissões do usuário e a unidade selecionada. Os indicadores são atualizados ao usar o botão Atualizar.</div>
         </section>}
         {aba === "gestao_os" && modoGestao === "solicitacoes" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section id="solicitacoes-os" className="mb-6 space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -821,46 +796,15 @@ function PainelTeste() {
             </article>;
           })}
         </section>}
-        {aba === "gestao_os" && <>
-        <div className="mb-6 flex items-start gap-3"><Building2 className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Centralização das ordens</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Crie OS, importe arquivos, cole planilhas e acompanhe todas as ordens neste mesmo espaço.</p></div></div>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Metric icon={<ClipboardList />} label="OS abertas" value={abertas.length} accent="text-lime-300" />
-          <Metric icon={<Clock3 />} label="Abertas há mais de 48h" value={acima48h.length} accent="text-red-300" />
-          <Metric icon={<ShieldAlert />} label="Alerta · mais de 7 dias" value={acima7d.length} accent="text-pink-300" />
-          <Metric icon={<AlertTriangle />} label="OS mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact />
-        </div>
-
-        <div className="mb-3 mt-5"><h2 className="text-xl font-bold">Visão por unidade</h2><p className="text-sm text-emerald-100/70">Os números são obtidos da tabela ordens_servico; a RLS do banco controla quais unidades o usuário pode consultar.</p></div>
-        <div className="grid gap-4 lg:grid-cols-3">{unidadesVisiveis.map((unidade) => {
-          const ordensUnidade = ordensVisiveis.filter((ordem) => ordem.unidade_id === unidade.id);
-          const abertasUnidade = ordensUnidade.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
-          const faixaUnidade = [
-            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) < 24).length,
-            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 24 && idadeEmHoras(ordem.created_at) < 48).length,
-            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48 && idadeEmHoras(ordem.created_at) < 168).length,
-            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168 && idadeEmHoras(ordem.created_at) < 360).length,
-            abertasUnidade.filter((ordem) => idadeEmHoras(ordem.created_at) >= 360).length,
-          ];
-          return <article key={unidade.id} className="rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-5">
-            <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-widest text-emerald-300">Unidade</div><h3 className="mt-1 text-lg font-extrabold">{unidade.nome}</h3></div><span className="rounded-lg border border-emerald-700 px-3 py-2 text-xs text-emerald-100">{perfilAtual === "admin_unidade" || perfilAtual === "gestor_central" ? "Gerenciar OS" : "Leitura"}</span></div>
-            <div className="mt-4 flex items-baseline gap-2"><span className="text-4xl font-extrabold text-lime-300">{abertasUnidade.length}</span><span className="text-sm text-emerald-100/70">OS abertas</span></div>
-            <div className="mt-4 flex h-2.5 overflow-hidden rounded-full bg-emerald-950">{faixaUnidade.map((quantidade, indice) => <div key={faixas[indice].nome} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertasUnidade.length, 1) * 100) + "%" }} />)}</div>
-            <div className="mt-4 space-y-2 border-t border-emerald-800 pt-3">{faixas.map((faixa, indice) => <div key={faixa.nome} className="flex justify-between text-sm"><span className="flex items-center gap-2 text-emerald-100/80"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}</span><strong>{faixaUnidade[indice]}</strong></div>)}</div>
-            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-800 pt-3"><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.filter((ordem) => ordem.status === "concluida").length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Concluídas</div></div><div><div className="text-xl font-bold text-lime-300">{ordensUnidade.length}</div><div className="text-[10px] uppercase tracking-wide text-emerald-100/70">Total de OS</div></div></div>
-            <button type="button" onClick={() => setOrdemSelecionada(ordemSelecionada === unidade.id ? null : unidade.id)} className="mt-4 w-full rounded-lg border border-emerald-600 px-4 py-2 text-sm font-bold hover:bg-emerald-900">{ordemSelecionada === unidade.id ? "Ocultar OS" : "Ver OS da unidade"}</button>
-
-          </article>;
-        })}</div>
-
-
+        {aba === "gestao_os" && modoGestao !== "solicitacoes" && <>
+        <div className="mb-6 flex items-start gap-3"><ClipboardList className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Ordens de serviço</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Escolha uma ação para cadastrar ou enviar ordens de serviço.</p></div></div>
         {erro && <div role="alert" className="mb-5 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-100"><strong>Não foi possível carregar os dados.</strong><p className="mt-1 break-words">{erro}</p><p className="mt-2 text-xs">Confira a sessão de teste e os vínculos de unidade do usuário. Nenhum dado fictício é exibido como se fosse real.</p></div>}
         {carregando && <p role="status" className="mb-4 text-sm text-emerald-100/80">Consultando o banco de teste…</p>}
         {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
         {gestaoOSAberta && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Gestão de ordens de serviço</h2><p className="text-sm text-emerald-100/70">Escolha como deseja adicionar novas ordens ao sistema.</p></div><button type="button" onClick={() => { setModoGestao(modoGestao === "menu" ? "fechado" : "menu"); setMensagemOS(""); }} className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 hover:bg-lime-200"><Plus size={17}/> Adicionar OS</button></div>
+          {modoGestao !== "menu" && <div className="mb-3 flex items-center justify-between gap-3"><h2 className="font-bold">{modoGestao === "criar" ? "Criar nova OS" : modoGestao === "colar" ? "Colar planilha" : "Importar planilha"}</h2><button type="button" onClick={()=>setModoGestao("menu")} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs">Voltar às opções</button></div>}
           {modoGestao === "menu" && <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <button type="button" onClick={() => setModoGestao("criar")} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><Plus size={26}/><b>Criar OS</b><span className="text-xs text-emerald-100/70">Cadastrar uma ordem</span></button>
             <button type="button" onClick={() => {setModoGestao("colar");setTextoPlanilha("");setLinhasImportacao([]);}} className="flex min-h-28 flex-col items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 p-4 hover:bg-emerald-900"><ClipboardPaste size={26}/><b>Colar planilha</b><span className="text-xs text-emerald-100/70">Copiar do Excel e colar</span></button>
@@ -883,112 +827,6 @@ function PainelTeste() {
           {modoGestao === "importar" && <div className="mt-4 grid gap-3"><p className="text-sm text-emerald-100/80">Escolha uma planilha Excel (.xlsx/.xls) ou arquivo CSV. O sistema mostrará uma prévia antes de salvar.</p><label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-emerald-600 p-8 text-center hover:bg-emerald-950/50"><FileSpreadsheet size={30}/><b>{nomeArquivo || "Escolher ficheiro Excel ou CSV"}</b><span className="text-xs text-emerald-100/70">Máximo 20 MB</span><input type="file" accept=".xlsx,.xls,.csv" className="mt-2 max-w-full text-sm" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>20*1024*1024){setMensagemOS("O ficheiro excede o limite de 20 MB.");return;}try{const lista=await carregarUsuariosAdmin();const wb=read(await file.arrayBuffer(),{cellDates:true});const sheet=wb.Sheets[wb.SheetNames[0]];if(!sheet)throw new Error("Planilha vazia");const matrix=utils.sheet_to_json<unknown[]>(sheet,{header:1,defval:"",raw:true});setLinhasImportacao(normalizarMatriz(matrix,lista));setNomeArquivo(file.name);setMensagemOS("");}catch(err){setMensagemOS("Não foi possível ler o ficheiro: "+(err instanceof Error?err.message:"erro"));}}}/></label><button type="button" onClick={()=>setModoGestao("menu")} className="justify-self-start rounded-lg border border-emerald-700 px-4 py-2">Voltar</button></div>}
           {linhasImportacao.length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{linhasImportacao.filter(l=>l.valid).length} linha(s) válidas · {linhasImportacao.filter(l=>!l.valid).length} com erro</div><div className="max-h-64 overflow-auto rounded-lg border border-emerald-800"><table className="w-full min-w-[620px] text-left text-xs"><thead className="sticky top-0 bg-emerald-950"><tr><th className="p-2">Estado</th><th className="p-2">OS</th><th className="p-2">Frota</th><th className="p-2">Setor</th><th className="p-2">Técnico</th><th className="p-2">Descrição</th></tr></thead><tbody>{linhasImportacao.slice(0,150).map((l,i)=><tr key={l.numero_os+"-"+i} className="border-t border-emerald-900"><td className="p-2">{!l.tecnico_original ? "Técnico em branco" : !l.tecnico_valido ? "Técnico sem vínculo" : !l.numero_os || !l.frota ? "Verificar dados" : "Válida"}</td><td className="p-2">{l.numero_os||"—"}</td><td className="p-2">{l.frota||"—"}</td><td className="p-2">{l.setor||"—"}</td><td className="p-2">{l.tecnico_nome || l.tecnico_original || "—"}</td><td className="p-2">{l.descricao||"—"}</td></tr>)}</tbody></table></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={()=>void salvarImportacao()} disabled={salvandoLote||!linhasImportacao.some(l=>l.valid)||linhasImportacao.some(l=>!l.tecnico_original||!l.tecnico_valido)} className="rounded-lg bg-lime-300 px-4 py-2 font-bold text-emerald-950 disabled:opacity-50">{salvandoLote ? "Salvando..." : "Importar " + linhasImportacao.filter(l=>l.valid).length + " OS"}</button><button type="button" onClick={()=>{setLinhasImportacao([]);setTextoPlanilha("");setNomeArquivo("");}} className="rounded-lg border border-emerald-700 px-4 py-2">Limpar prévia</button></div></div>}
         </section>}
-        {ordemSelecionada && <section className="mt-5" aria-label="Resumo interativo dos status das ordens de serviço">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="text-xl font-bold">Status das ordens de serviço</h2><p className="text-sm text-emerald-100/70">Selecione um cartão para filtrar a lista. Os totais acompanham a unidade selecionada.</p></div>
-            <div className="flex items-center gap-2 text-xs text-emerald-100/60"><span className="h-2 w-2 animate-pulse rounded-full bg-lime-300" /> Dados do ambiente de teste</div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-            {statusResumo.map(item => {
-              const Icon = item.icon;
-              const selecionado = statusFiltro === item.status;
-              return <button key={item.status} type="button" aria-pressed={selecionado} onClick={() => setStatusFiltro(item.status)} className={`group rounded-2xl border p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-lime-300 ${selecionado ? item.active : "border-emerald-800 bg-[#00352d] hover:border-emerald-500"}`}>
-                <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-emerald-100/75">{item.label}</span><Icon size={19} className={item.color} /></div>
-                <div className={`mt-3 text-3xl font-extrabold tabular-nums ${item.color}`}>{item.total}</div>
-                <div className="mt-2 text-[11px] text-emerald-100/50">{selecionado ? "Filtro selecionado" : "Clique para filtrar"}</div>
-              </button>;
-            })}
-          </div>
-          <div className="mt-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-3 sm:p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label className="relative flex min-w-0 flex-1 items-center">
-                <Search size={17} className="pointer-events-none absolute left-3 text-emerald-100/50" />
-                <input value={buscaOS} onChange={e => setBuscaOS(e.target.value)} placeholder="Buscar por OS, frota, técnico, setor ou descrição..." className="w-full rounded-xl border border-emerald-700 bg-emerald-950/70 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-emerald-100/40 focus:border-lime-300 focus:outline-none focus:ring-1 focus:ring-lime-300" />
-              </label>
-              <div className="flex items-center gap-2 text-sm text-emerald-100/70"><ListFilter size={16}/><span>{ordensFiltradasPainel.length} de {ordensPainelUnidade.length} OS</span>
-                {(statusFiltro !== "Todas" || buscaOS) && <button type="button" onClick={() => { setStatusFiltro("Todas"); setBuscaOS(""); }} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold hover:bg-emerald-900">Limpar filtros</button>}
-              </div>
-            </div>
-            <div className="mt-4 rounded-xl border border-emerald-800 bg-[#002b25] p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100/65"><ListFilter size={15}/> Filtros e classificação por coluna</div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {([
-                  { chave: "os", label: "OS", placeholder: "Nº da OS" },
-                  { chave: "frota", label: "Frota", placeholder: "Filtrar frota" },
-                  { chave: "setor", label: "Setor", placeholder: "Filtrar setor" },
-                  { chave: "localizacao", label: "Localização", placeholder: "Filtrar localização" },
-                  { chave: "tecnico", label: "Técnico", placeholder: "Filtrar técnico" },
-                ] as const).map(coluna => {
-                  const ativa = ordenacaoColuna.chave === coluna.chave;
-                  return <div key={coluna.chave} className="min-w-0">
-                    <button type="button" onClick={() => setOrdenacaoColuna(atual => ({ chave: coluna.chave, direcao: atual.chave === coluna.chave && atual.direcao === "asc" ? "desc" : "asc" }))} className={"mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-bold transition hover:bg-emerald-900 " + (ativa ? "text-lime-300" : "text-emerald-100/80")} title={"Classificar por " + coluna.label + ", alternando crescente e decrescente"}>
-                      <span>{coluna.label}</span>{ativa ? (ordenacaoColuna.direcao === "asc" ? <ArrowUp size={14}/> : <ArrowDown size={14}/>) : <ArrowUpDown size={14} className="opacity-50"/>}
-                    </button>
-                    <details className="group rounded-lg border border-emerald-700 bg-emerald-950/70">
-                      <summary className="cursor-pointer list-none px-2.5 py-2 text-xs text-white">{filtrosColuna[coluna.chave].length ? `${filtrosColuna[coluna.chave].length} selecionado(s)` : "Todos"} <span className="float-right text-emerald-100/60">▾</span></summary>
-                      <div className="max-h-52 overflow-y-auto border-t border-emerald-800 p-2">
-                        <button type="button" onClick={() => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: [] }))} className="mb-2 text-xs font-semibold text-lime-300 hover:underline">Limpar seleção</button>
-                        {opcoesFiltroColuna[coluna.chave].map(opcao => <label key={opcao} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1.5 text-xs text-emerald-50 hover:bg-emerald-900">
-                          <input type="checkbox" checked={filtrosColuna[coluna.chave].includes(opcao)} onChange={e => setFiltrosColuna(atual => ({ ...atual, [coluna.chave]: e.target.checked ? [...atual[coluna.chave], opcao] : atual[coluna.chave].filter(valor => valor !== opcao) }))} className="mt-0.5 accent-lime-300"/>
-                          <span className="break-words">{opcao}</span>
-                        </label>)}
-                        {opcoesFiltroColuna[coluna.chave].length === 0 && <p className="text-xs text-emerald-100/50">Nenhuma opção disponível</p>}
-                      </div>
-                    </details>
-                  </div>;
-                })}
-              </div>
-              {(Object.values(filtrosColuna).some(valores => valores.length > 0) || buscaOS || statusFiltro !== "Todas") && <button type="button" onClick={() => { setFiltrosColuna({ os: [], frota: [], setor: [], localizacao: [], tecnico: [] }); setBuscaOS(""); setStatusFiltro("Todas"); }} className="mt-3 rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900">Limpar todos os filtros</button>}
-            </div>
-            {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="mb-3 rounded-xl border border-emerald-700 bg-emerald-950/40 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-sm">Transferir várias OS</strong><span className="text-xs text-emerald-100/70">{ordensSelecionadasTransferencia.length} selecionada(s)</span></div>
-              <div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => setOrdensSelecionadasTransferencia(ordensFiltradasPainel.slice(0,100).map(o=>o.id))} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">Selecionar todas as filtradas</button><button type="button" onClick={() => setOrdensSelecionadasTransferencia([])} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">Limpar seleção</button><button type="button" onClick={() => void carregarUsuariosAdmin()} disabled={carregandoUsuarios} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs">{carregandoUsuarios ? "Carregando técnicos..." : "Atualizar técnicos"}</button></div>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row"><select value={tecnicoDestinoTransferencia} onChange={e=>setTecnicoDestinoTransferencia(e.target.value)} className="min-w-0 flex-1 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="">Selecione o técnico de destino</option>{usuariosAdmin.filter(u=>u.ativo && u.perfil==="tecnico" && ordens.filter(o=>ordensSelecionadasTransferencia.includes(o.id)).every(o=>o.unidade_id===u.unidade_id)).map(u=><option key={u.user_id} value={u.user_id}>{u.nome} · {unidades.find(un=>un.id===u.unidade_id)?.nome || "Unidade"}</option>)}</select><button type="button" onClick={()=>void transferirOrdensSelecionadas()} disabled={transferindoOS || !ordensSelecionadasTransferencia.length || !tecnicoDestinoTransferencia} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50"><Users size={15} className="mr-1 inline"/>{transferindoOS ? "Transferindo..." : "Transferir selecionadas"}</button></div>
-              <p className="mt-2 text-xs text-emerald-100/60">Marque mais de uma OS na lista abaixo. O técnico de destino deve ser da mesma unidade.</p>
-            </div>}
-            <div className="mt-3 space-y-2">
-              {ordensFiltradasPainel.slice(0, 100).map(ordem => {
-                const statusInfo = statusResumo.find(s => s.status === ordem.status);
-                const StatusIcon = statusInfo?.icon ?? ClipboardList;
-                const unidadeNome = unidades.find(u => u.id === ordem.unidade_id)?.nome ?? "Unidade";
-                const statusLabel = ordem.status === "em_andamento" ? "Em andamento" : ordem.status === "concluida" ? "Concluída" : ordem.status === "cancelada" ? "Cancelada" : "Pendente";
-                return <article key={ordem.id} className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 transition hover:border-emerald-600 sm:p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1">
-                      {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <label className="mb-1 flex items-center gap-2 text-xs text-emerald-100/70"><input type="checkbox" checked={ordensSelecionadasTransferencia.includes(ordem.id)} onChange={e=>setOrdensSelecionadasTransferencia(v=>e.target.checked ? [...v,ordem.id] : v.filter(id=>id!==ordem.id))} className="h-4 w-4 accent-lime-300"/>Selecionar para transferência</label>}
-                      <div className="flex flex-wrap items-center gap-2"><strong className="text-sm sm:text-base">{ordem.numero_os ? `OS ${ordem.numero_os}` : "OS sem número"} · {ordem.frota || "Frota não informada"}</strong><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold ${ordem.status === "pendente" ? "border-amber-700 bg-amber-950/50 text-amber-200" : ordem.status === "em_andamento" ? "border-sky-700 bg-sky-950/50 text-sky-200" : ordem.status === "concluida" ? "border-lime-700 bg-lime-950/40 text-lime-200" : "border-rose-800 bg-rose-950/40 text-rose-200"}`}><StatusIcon size={13}/>{statusLabel}</span></div>
-                      <p className="mt-1 truncate text-sm text-emerald-100/85">{ordem.descricao || "Sem descrição"}</p>
-                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-emerald-100/55"><span>{unidadeNome}</span><span>{ordem.setor || "Sem setor"}</span><span>{ordem.localizacao || "Sem localização"}</span><span>{ordem.tecnico_nome || "Sem técnico"}</span><span>{ordem.status === "concluida" ? "Concluída" : "Aberta há " + formatarIdade(ordem.created_at)}</span></div>
-                    </div>
-                    {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <div className="flex shrink-0 gap-2"><button type="button" onClick={() => { setMensagemOS(""); setEdicaoOS({ id: ordem.id, numero_os: ordem.numero_os || "", frota: ordem.frota || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "", status: ordem.status, pecas_utilizadas: ordem.pecas_utilizadas || "" }); }} className="rounded-lg border border-lime-600 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Editar</button><button type="button" onClick={() => void excluirOS(ordem)} className="rounded-lg border border-rose-800 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-950">Excluir</button></div>}
-                  </div>
-                  {edicaoOS?.id === ordem.id && <div className="mt-3 grid gap-3 rounded-xl border border-emerald-700 bg-emerald-950/40 p-3 sm:grid-cols-2">
-                    <label className="grid gap-1 text-xs">Número da OS<input value={edicaoOS.numero_os} onChange={e => setEdicaoOS({ ...edicaoOS, numero_os: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <label className="grid gap-1 text-xs">Frota<input value={edicaoOS.frota} onChange={e => setEdicaoOS({ ...edicaoOS, frota: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <label className="grid gap-1 text-xs sm:col-span-2">Descrição<textarea required value={edicaoOS.descricao} onChange={e => setEdicaoOS({ ...edicaoOS, descricao: e.target.value })} rows={2} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <label className="grid gap-1 text-xs">Setor<input value={edicaoOS.setor} onChange={e => setEdicaoOS({ ...edicaoOS, setor: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <label className="grid gap-1 text-xs">Técnico<input value={edicaoOS.tecnico_nome} onChange={e => setEdicaoOS({ ...edicaoOS, tecnico_nome: e.target.value })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <label className="grid gap-1 text-xs">Status<select value={edicaoOS.status} onChange={e => setEdicaoOS({ ...edicaoOS, status: e.target.value as Ordem["status"] })} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></label>
-                    <label className="grid gap-1 text-xs sm:col-span-2">Peças utilizadas<textarea value={edicaoOS.pecas_utilizadas} onChange={e => setEdicaoOS({ ...edicaoOS, pecas_utilizadas: e.target.value })} rows={2} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm" /></label>
-                    <div className="flex flex-wrap gap-2 sm:col-span-2"><button type="button" disabled={salvandoOS} onClick={() => void salvarEdicaoOS()} className="rounded-lg bg-lime-300 px-4 py-2 text-xs font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Salvar alterações"}</button><button type="button" onClick={() => setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-xs">Cancelar</button></div>
-                  </div>}
-                </article>;
-              })}
-              {ordensFiltradasPainel.length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center"><ClipboardList size={28} className="mx-auto text-emerald-100/40"/><p className="mt-2 font-semibold">Nenhuma OS encontrada</p><p className="mt-1 text-sm text-emerald-100/60">Altere o status ou a busca para ver outras ordens.</p></div>}
-              {ordensFiltradasPainel.length > 100 && <p className="pt-2 text-center text-xs text-emerald-100/50">Mostrando as primeiras 100 OS. Use a busca para refinar os resultados.</p>}
-            </div>
-          </div>
-        </section>}
-
-        <section className="mt-4 rounded-2xl border border-emerald-800 bg-[#003b32] p-4 sm:p-5">
-          <h2 className="font-bold">Tempo em aberto</h2>
-          <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-emerald-950">{contagens.map((quantidade, indice) => <div key={faixas[indice].nome} title={faixas[indice].nome + ": " + quantidade} className={faixas[indice].cor} style={{ width: (quantidade / Math.max(abertas.length, 1) * 100) + "%" }} />)}</div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-emerald-100/80">{faixas.map((faixa, indice) => <span key={faixa.nome} className="flex items-center gap-2"><i className={`h-2.5 w-2.5 rounded-full ${faixa.cor}`} />{faixa.nome}: {contagens[indice]}</span>)}</div>
-        </section>
-
-
-
-
         </>}
         {aba === "historico" && <section className="mt-6 space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
