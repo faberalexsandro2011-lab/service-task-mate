@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users, LogOut, Trash2 } from "lucide-react";
-import { read, utils } from "xlsx";
+import { read, utils, writeFile } from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
@@ -74,7 +74,14 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
-  const [aba, setAba] = useState<"painel" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("painel");
+  const [aba, setAba] = useState<"painel" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("painel");
+  const [historicoBusca, setHistoricoBusca] = useState("");
+  const [historicoStatus, setHistoricoStatus] = useState<"Todas" | Ordem["status"]>("Todas");
+  const [historicoFrota, setHistoricoFrota] = useState("");
+  const [historicoSetor, setHistoricoSetor] = useState("");
+  const [historicoTecnico, setHistoricoTecnico] = useState("");
+  const [historicoDataInicial, setHistoricoDataInicial] = useState("");
+  const [historicoDataFinal, setHistoricoDataFinal] = useState("");
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
@@ -126,7 +133,7 @@ function PainelTeste() {
     const [resultadoUnidades, resultadoOrdens, resultadoUsuarios] = await Promise.all([
       db.from("unidades").select("id,codigo,nome,ativa").order("nome"),
       db.from("ordens_servico")
-        .select("id,unidade_id,numero_os,frota,descricao,setor,localizacao,sequencia,tecnico_nome,status,created_at,data_inicio,concluida_em,classe_manutencao,pecas_utilizadas")
+        .select("*")
         .order("created_at", { ascending: false }),
       db.from("usuarios_unidades").select("user_id,unidade_id,perfil,ativo").order("perfil"),
     ]);
@@ -649,6 +656,44 @@ function PainelTeste() {
     const comparacao = va.localeCompare(vb, "pt-BR", { numeric: true, sensitivity: "base" });
     return ordenacaoColuna.direcao === "asc" ? comparacao : -comparacao;
   });
+  const ordensHistoricoFiltradas = ordensVisiveis.filter((ordem) => {
+    const termo = historicoBusca.trim().toLocaleLowerCase("pt-BR");
+    const unidadeNome = unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
+    const texto = [ordem.numero_os, ordem.frota, ordem.descricao, ordem.setor, ordem.localizacao, ordem.tecnico_nome, ordem.tecnico_email, ordem.classe_manutencao, ordem.pecas_utilizadas, unidadeNome, ordem.status]
+      .flatMap((v) => Array.isArray(v) ? v : [v]).filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    const data = String(ordem.created_at ?? "").slice(0, 10);
+    return (!termo || texto.includes(termo))
+      && (historicoStatus === "Todas" || ordem.status === historicoStatus)
+      && (!historicoFrota || String(ordem.frota ?? "") === historicoFrota)
+      && (!historicoSetor || String(ordem.setor ?? "") === historicoSetor)
+      && (!historicoTecnico || String(ordem.tecnico_nome ?? "") === historicoTecnico)
+      && (!historicoDataInicial || data >= historicoDataInicial)
+      && (!historicoDataFinal || data <= historicoDataFinal);
+  }).sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  const exportarHistoricoOS = () => {
+    const linhas = ordensHistoricoFiltradas.map((ordem) => {
+      const unidadeNome = unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
+      const registro: Record<string, unknown> = { Unidade: unidadeNome };
+      for (const [chave, valor] of Object.entries(ordem as unknown as Record<string, unknown>)) {
+        const nome = chave.replace(/_/g, " ").replace(/\\b\\w/g, (letra) => letra.toLocaleUpperCase("pt-BR"));
+        registro[nome] = Array.isArray(valor) ? valor.join(", ") : valor;
+      }
+      return registro;
+    });
+    const planilha = utils.json_to_sheet(linhas);
+    planilha["!cols"] = Object.keys(linhas[0] ?? {}).map((chave) => ({ wch: Math.min(38, Math.max(14, chave.length + 2)) }));
+    const livro = utils.book_new();
+    utils.book_append_sheet(livro, planilha, "Histórico de OS");
+    const metadados = utils.aoa_to_sheet([
+      ["Central OS — Histórico detalhado"],
+      ["Exportado em", new Date().toLocaleString("pt-BR")],
+      ["Filtros", `Status: ${historicoStatus}; unidade: ${filtro}; período de abertura: ${historicoDataInicial || "início"} a ${historicoDataFinal || "hoje"}`],
+      ["Registros exportados", linhas.length],
+    ]);
+    utils.book_append_sheet(livro, metadados, "Resumo da exportação");
+    writeFile(livro, `historico_os_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
   const opcoesFiltroColuna = {
     os: [...new Set(ordensVisiveis.map(o => o.numero_os?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
     frota: [...new Set(ordensVisiveis.map(o => o.frota?.trim() || "—"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" })),
@@ -679,6 +724,7 @@ function PainelTeste() {
             </label>
             <nav aria-label="Seções do painel" className="flex items-center gap-1 rounded-lg border border-emerald-800 bg-[#00352d] p-1">
               <button type="button" onClick={() => { if (aba === "painel" && gestaoOSAberta) { setGestaoOSAberta(false); setModoGestao("fechado"); } else { setAba("painel"); setGestaoOSAberta(true); setModoGestao("menu"); } setSolicitacaoEmEdicao(null); }} aria-current={aba === "painel" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "painel" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de OS <span className="ml-1 rounded-full bg-amber-400 px-1.5 py-0.5 text-xs font-bold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
+              <button type="button" onClick={() => setAba("historico")} aria-current={aba === "historico" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "historico" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Histórico de OS</button>
               <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Análise Técnica</button>
               {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Estoque de Peças</button>}
               {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`rounded-md px-3 py-2 text-sm font-semibold ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100 hover:bg-emerald-900"}`}>Gestão de Unidades</button>}
@@ -897,6 +943,46 @@ function PainelTeste() {
 
 
         </>}
+        {aba === "historico" && <section className="mt-6 space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Arquivo de ordens de serviço</p><h1 className="mt-1 text-2xl font-extrabold">Histórico de OS</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Consulta de registros preservados no banco de teste. Use os filtros e exporte todos os campos disponíveis de cada OS para Excel.</p></div>
+            <button type="button" onClick={exportarHistoricoOS} disabled={!ordensHistoricoFiltradas.length} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-lime-300 px-4 py-3 text-sm font-extrabold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet size={18}/> Exportar detalhado (.xlsx)</button>
+          </div>
+          <div className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Buscar em todos os campos
+              <input value={historicoBusca} onChange={e=>setHistoricoBusca(e.target.value)} placeholder="OS, frota, descrição, peças..." className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"/>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Situação
+              <select value={historicoStatus} onChange={e=>setHistoricoStatus(e.target.value as typeof historicoStatus)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"><option value="Todas">Todas as situações</option><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Frota
+              <select value={historicoFrota} onChange={e=>setHistoricoFrota(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"><option value="">Todas as frotas</option>{[...new Set(ordensVisiveis.map(o=>o.frota).filter((v):v is string=>Boolean(v)))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true})).map(v=><option key={v} value={v}>{v}</option>)}</select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Setor
+              <select value={historicoSetor} onChange={e=>setHistoricoSetor(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"><option value="">Todos os setores</option>{[...new Set(ordensVisiveis.map(o=>o.setor).filter((v):v is string=>Boolean(v)))].sort((a,b)=>a.localeCompare(b,"pt-BR")).map(v=><option key={v} value={v}>{v}</option>)}</select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Técnico
+              <select value={historicoTecnico} onChange={e=>setHistoricoTecnico(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"><option value="">Todos os técnicos</option>{[...new Set(ordensVisiveis.map(o=>o.tecnico_nome).filter((v):v is string=>Boolean(v)))].sort((a,b)=>a.localeCompare(b,"pt-BR")).map(v=><option key={v} value={v}>{v}</option>)}</select>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Abertura a partir de
+              <input type="date" value={historicoDataInicial} onChange={e=>setHistoricoDataInicial(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"/>
+            </label>
+            <label className="grid gap-1 text-xs font-semibold text-emerald-100/80">Abertura até
+              <input type="date" value={historicoDataFinal} onChange={e=>setHistoricoDataFinal(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2.5 text-sm font-normal text-white"/>
+            </label>
+            <div className="flex items-end"><button type="button" onClick={()=>{setHistoricoBusca("");setHistoricoStatus("Todas");setHistoricoFrota("");setHistoricoSetor("");setHistoricoTecnico("");setHistoricoDataInicial("");setHistoricoDataFinal("");}} className="w-full rounded-lg border border-emerald-700 px-3 py-2.5 text-sm font-semibold hover:bg-emerald-900">Limpar filtros</button></div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-bold text-lime-200">{ordensHistoricoFiltradas.length} OS encontradas</span><span className="text-xs text-emerald-100/60">A unidade selecionada no topo limita a consulta; “Todas” mostra o consolidado conforme sua permissão.</span></div>
+          <div className="overflow-x-auto rounded-2xl border border-emerald-800">
+            <table className="w-full min-w-[1500px] text-left text-xs">
+              <thead className="bg-emerald-950/80 text-emerald-100"><tr><th className="p-3">Unidade</th><th className="p-3">Nº OS</th><th className="p-3">Frota</th><th className="p-3">Setor</th><th className="p-3">Descrição detalhada</th><th className="p-3">Localização</th><th className="p-3">Técnico</th><th className="p-3">Classe manutenção</th><th className="p-3">Peças utilizadas</th><th className="p-3">Status</th><th className="p-3">Abertura</th><th className="p-3">Início</th><th className="p-3">Conclusão</th><th className="p-3">ID do registro</th></tr></thead>
+              <tbody>{ordensHistoricoFiltradas.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top hover:bg-emerald-900/30"><td className="p-3 whitespace-nowrap">{unidades.find(u=>u.id===ordem.unidade_id)?.nome ?? "—"}</td><td className="p-3 font-bold whitespace-nowrap">{ordem.numero_os || "Sem número"}</td><td className="p-3 whitespace-nowrap">{ordem.frota || "—"}</td><td className="p-3">{ordem.setor || "—"}</td><td className="p-3 min-w-[260px] whitespace-pre-wrap">{ordem.descricao || "—"}</td><td className="p-3 min-w-[160px]">{ordem.localizacao || "—"}</td><td className="p-3 whitespace-nowrap">{ordem.tecnico_nome || ordem.tecnico_email || "—"}</td><td className="p-3 min-w-[150px]">{Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "—"}</td><td className="p-3 min-w-[180px] whitespace-pre-wrap">{ordem.pecas_utilizadas || "—"}</td><td className="p-3 whitespace-nowrap">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status] || ordem.status}</td><td className="p-3 whitespace-nowrap">{ordem.created_at ? new Date(ordem.created_at).toLocaleString("pt-BR") : "—"}</td><td className="p-3 whitespace-nowrap">{ordem.data_inicio ? new Date(ordem.data_inicio).toLocaleString("pt-BR") : "—"}</td><td className="p-3 whitespace-nowrap">{ordem.concluida_em ? new Date(ordem.concluida_em).toLocaleString("pt-BR") : "—"}</td><td className="p-3 font-mono text-[10px]">{ordem.id}</td></tr>)}
+                {ordensHistoricoFiltradas.length===0 && <tr><td colSpan={14} className="p-8 text-center text-emerald-100/60">Nenhuma OS encontrada com os filtros selecionados.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-emerald-100/55">A exportação Excel inclui todos os campos que o banco de teste retornar para cada OS, além do nome da unidade e uma aba de resumo com data, filtros e quantidade exportada. A aba Histórico é somente consulta; ela não altera nem apaga ordens.</p>
+        </section>}
         {aba === "analise" && <section className="mt-6 space-y-5">
           {(() => {
             const total = ordensVisiveis.length;
