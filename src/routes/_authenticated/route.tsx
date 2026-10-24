@@ -1,12 +1,25 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOfflineRole, saveOfflineRole } from "@/lib/offline";
+import { getCentralOSDeviceId, getCentralOSDeviceLabel, getCentralOSUserAgent } from "@/lib/deviceAccess";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session?.user) throw redirect({ to: "/" });
+    if (navigator.onLine) {
+      const { data: deviceCheck, error: deviceCheckError } = await supabase.rpc("registrar_dispositivo_acesso", {
+        p_device_id: getCentralOSDeviceId(),
+        p_nome_dispositivo: getCentralOSDeviceLabel(),
+        p_user_agent: getCentralOSUserAgent(),
+      });
+      if (deviceCheckError || deviceCheck?.permitido !== true) {
+        await supabase.auth.signOut();
+        throw redirect({ to: "/", replace: true });
+      }
+    }
 
     let role: "gestor" | "admin_unidade" | "tecnico" | "visualizador" = "tecnico";
     if (navigator.onLine) {
