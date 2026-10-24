@@ -2002,7 +2002,12 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
-        const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
+        // Atualiza os dados vindos da planilha sem reabrir a OS nem trocar
+        // quem a criou originalmente. O status e os metadados de criação ficam preservados.
+        const updatePayload = { ...item };
+        delete updatePayload.status;
+        delete updatePayload.criado_por_email;
+        const { error } = await supabase.from("ordens_servico").update(updatePayload).eq("id", existing.id);
         if (error) throw error;
         updatedCount++;
         await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação por " + creator.email);
@@ -2012,7 +2017,9 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
           await logHistory(existing.id, creator, "transferida", de ? "Transferida de " + de + " para " + para : "Enviada para " + para);
         }
       } else {
-        const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
+        const insertPayload = { ...item, numero_os: String(item.numero_os ?? "").trim(), status: item.status ?? "pendente" };
+        if (!insertPayload.criado_por_email) insertPayload.criado_por_email = creator.email;
+        const { data: created, error } = await supabase.from("ordens_servico").insert(insertPayload).select("id, tecnico_nome, tecnico_email").single();
         if (error) throw error;
         createdCount++;
         await logHistory(created.id, creator, "aberta", "OS aberta por " + creator.email + " via importação");
@@ -2269,7 +2276,12 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
-        const { error } = await supabase.from("ordens_servico").update(item).eq("id", existing.id);
+        // Atualiza os dados vindos da planilha sem reabrir a OS nem trocar
+        // quem a criou originalmente. O status e os metadados de criação ficam preservados.
+        const updatePayload = { ...item };
+        delete updatePayload.status;
+        delete updatePayload.criado_por_email;
+        const { error } = await supabase.from("ordens_servico").update(updatePayload).eq("id", existing.id);
         if (error) throw error;
         updatedCount++;
         await logHistory(existing.id, creator, "atualizada", "OS " + item.numero_os + " atualizada via importação por " + creator.email);
@@ -2279,7 +2291,9 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
           await logHistory(existing.id, creator, "transferida", de ? "Transferida de " + de + " para " + para : "Enviada para " + para);
         }
       } else {
-        const { data: created, error } = await supabase.from("ordens_servico").insert(item).select("id, tecnico_nome, tecnico_email").single();
+        const insertPayload = { ...item, numero_os: String(item.numero_os ?? "").trim(), status: item.status ?? "pendente" };
+        if (!insertPayload.criado_por_email) insertPayload.criado_por_email = creator.email;
+        const { data: created, error } = await supabase.from("ordens_servico").insert(insertPayload).select("id, tecnico_nome, tecnico_email").single();
         if (error) throw error;
         createdCount++;
         await logHistory(created.id, creator, "aberta", "OS aberta por " + creator.email + " via importação");
