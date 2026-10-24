@@ -100,7 +100,35 @@ export const Route = createFileRoute("/_authenticated")({
     }
     return { user: data.session.user, role };
   },
-  component: () => (
+  component: AuthenticatedLayout,
+});
+
+function AuthenticatedLayout() {
+  useEffect(() => {
+    let checking = false;
+    const timer = window.setInterval(async () => {
+      if (checking || !navigator.onLine) return;
+      checking = true;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session?.user) return;
+        const { data, error } = await supabase.rpc("registrar_dispositivo_acesso", {
+          p_device_id: getCentralOSDeviceId(),
+          p_nome_dispositivo: getCentralOSDeviceLabel(),
+          p_user_agent: getCentralOSUserAgent(),
+        });
+        if (error || data?.permitido !== true) {
+          await supabase.auth.signOut();
+          window.location.assign("/");
+        }
+      } finally {
+        checking = false;
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
     <div className="flex min-h-screen flex-col">
       <main className="flex-1">
         <Outlet />
@@ -109,5 +137,5 @@ export const Route = createFileRoute("/_authenticated")({
         Desenvolvido por: <span className="font-semibold text-foreground">ALEX FABER</span>
       </footer>
     </div>
-  ),
-});
+  );
+}
