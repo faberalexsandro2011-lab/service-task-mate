@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getCentralOSDeviceId, getCentralOSDeviceLabel, getCentralOSUserAgent } from "@/lib/deviceAccess";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +81,18 @@ function Index() {
       }
       return;
     }
+    const { data: deviceCheck, error: deviceCheckError } = await supabase.rpc("registrar_dispositivo_acesso", {
+      p_device_id: getCentralOSDeviceId(),
+      p_nome_dispositivo: getCentralOSDeviceLabel(),
+      p_user_agent: getCentralOSUserAgent(),
+    });
+    if (deviceCheckError || deviceCheck?.permitido !== true) {
+      await supabase.auth.signOut();
+      setBusy(false);
+      setError(deviceCheck?.motivo || "Não foi possível validar este dispositivo. Tente novamente ou contacte o Gestor Geral.");
+      return;
+    }
+    setBusy(false);
     // No ambiente isolado multiunidade, direciona o Gestor Geral ao painel de teste,
     // sem abrir o dashboard legado que depende da tabela public.profiles.
     const { data: authData } = await supabase.auth.getUser();
