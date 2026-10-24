@@ -724,7 +724,12 @@ function PainelTeste() {
     await carregarDispositivos();
   };
 
-  useEffect(() => { if (aba === "dispositivos" && perfilAtual === "gestor_central") void carregarDispositivos(); }, [aba, perfilAtual]);
+  useEffect(() => {
+    if (aba !== "dispositivos" || perfilAtual !== "gestor_central") return;
+    void carregarDispositivos();
+    const timer = window.setInterval(() => void carregarDispositivos(), 30000);
+    return () => window.clearInterval(timer);
+  }, [aba, perfilAtual]);
 
 
   const unidadesVisiveis = useMemo(
