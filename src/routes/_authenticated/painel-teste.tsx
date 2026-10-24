@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users, LogOut, Trash2 } from "lucide-react";
 import { read, utils, writeFile } from "xlsx";
+import { MonitorSmartphone, ShieldCheck, ShieldX, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
@@ -12,6 +13,7 @@ type Unidade = { id: string; codigo: string; nome: string; ativa?: boolean };
 type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor" | "gestor_central" | "visualizador";
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
+type DispositivoAcesso = { id: string; user_id: string; user_email: string | null; device_id: string; nome_dispositivo: string; user_agent: string | null; bloqueado: boolean; criado_em: string; ultimo_acesso_em: string; bloqueado_em: string | null };
 type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; tecnico_original: string; tecnico_valido: boolean; valid: boolean };
 type Ordem = {
   id: string;
@@ -81,7 +83,10 @@ function PainelTeste() {
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
   const [ordemDetalhes, setOrdemDetalhes] = useState<Ordem | null>(null);
-  const [aba, setAba] = useState<"inicio" | "gestao_os" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades">("inicio");
+  const [aba, setAba] = useState<"inicio" | "gestao_os" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades" | "dispositivos">("inicio");
+  const [dispositivos, setDispositivos] = useState<DispositivoAcesso[]>([]);
+  const [carregandoDispositivos, setCarregandoDispositivos] = useState(false);
+  const [mensagemDispositivos, setMensagemDispositivos] = useState("");
   const [historicoBusca, setHistoricoBusca] = useState("");
   const [historicoStatus, setHistoricoStatus] = useState<"Todas" | Ordem["status"]>("Todas");
   const [historicoFrota, setHistoricoFrota] = useState("");
@@ -688,6 +693,39 @@ function PainelTeste() {
 
   useEffect(() => { void carregar(); }, []);
   useEffect(() => { if (aba === "usuarios" || modoGestao === "criar" || modoGestao === "colar" || modoGestao === "importar") void carregarUsuariosAdmin(); }, [aba, modoGestao]);
+  const carregarDispositivos = async () => {
+    if (perfilAtual !== "gestor_central") return;
+    setCarregandoDispositivos(true);
+    setMensagemDispositivos("");
+    const { data, error } = await (supabase as any).from("dispositivos_acesso")
+      .select("id,user_id,user_email,device_id,nome_dispositivo,user_agent,bloqueado,criado_em,ultimo_acesso_em,bloqueado_em")
+      .order("ultimo_acesso_em", { ascending: false });
+    if (error) {
+      setMensagemDispositivos("Não foi possível carregar os dispositivos: " + error.message);
+      setDispositivos([]);
+    } else {
+      setDispositivos((data ?? []) as DispositivoAcesso[]);
+    }
+    setCarregandoDispositivos(false);
+  };
+
+  const administrarDispositivo = async (dispositivo: DispositivoAcesso, bloqueado: boolean, nome?: string) => {
+    if (perfilAtual !== "gestor_central") return;
+    const { error } = await (supabase as any).rpc("administrar_dispositivo_acesso", {
+      p_dispositivo_id: dispositivo.id,
+      p_bloqueado: bloqueado,
+      p_nome_dispositivo: nome ?? null,
+    });
+    if (error) {
+      setMensagemDispositivos("Não foi possível atualizar o dispositivo: " + error.message);
+      return;
+    }
+    setMensagemDispositivos(bloqueado ? "Dispositivo bloqueado no ambiente de teste." : "Dispositivo desbloqueado no ambiente de teste.");
+    await carregarDispositivos();
+  };
+
+  useEffect(() => { if (aba === "dispositivos" && perfilAtual === "gestor_central") void carregarDispositivos(); }, [aba, perfilAtual]);
+
 
   const unidadesVisiveis = useMemo(
     () => perfilAtual === "admin_unidade"
@@ -844,6 +882,7 @@ function PainelTeste() {
             <button type="button" onClick={() => setAba("historico")} aria-current={aba === "historico" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "historico" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><FileSpreadsheet size={18}/>Histórico de OS</button>
             <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ShieldAlert size={18}/>Análise Técnica</button>
             {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Estoque de Peças</button>}
+            {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("dispositivos")} aria-current={aba === "dispositivos" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "dispositivos" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><MonitorSmartphone size={18}/>Dispositivos</button>}
             {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Gestão de Unidades</button>}
             {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Users size={18}/>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
           </nav>
@@ -852,7 +891,7 @@ function PainelTeste() {
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-10 border-b border-emerald-800/80 bg-[#002b25]/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">{({inicio:"Visão geral",gestao_os:"Gestão de OS",historico:"Histórico de OS",solicitacoes:"Solicitações",analise:"Análise Técnica",estoque:"Estoque de Peças",unidades:"Gestão de Unidades",usuarios:perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"} as Record<string,string>)[aba] || "Painel"}</div><div className="mt-1 text-xs text-emerald-100/55">Acompanhe a operação em um só lugar</div></div>
+              <div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">{({inicio:"Visão geral",gestao_os:"Gestão de OS",historico:"Histórico de OS",solicitacoes:"Solicitações",analise:"Análise Técnica",estoque:"Estoque de Peças",unidades:"Gestão de Unidades",dispositivos:"Dispositivos e acessos",usuarios:perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"} as Record<string,string>)[aba] || "Painel"}</div><div className="mt-1 text-xs text-emerald-100/55">Acompanhe a operação em um só lugar</div></div>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-xs text-emerald-100/75">Unidade
                   <select value={perfilAtual === "admin_unidade" ? (unidades.find(u => u.id === unidadeAtualId)?.nome ?? "") : filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="max-w-[180px] rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white">
@@ -1166,6 +1205,26 @@ function PainelTeste() {
             </article>)}
             {unidades.length===0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-sm text-emerald-100/60">Nenhuma unidade retornada pelo banco de teste.</div>}
           </div>
+        </section>}
+        {aba === "dispositivos" && perfilAtual === "gestor_central" && <section className="mt-8 space-y-5">
+          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Segurança de acesso</p><h1 className="mt-1 text-2xl font-extrabold">Dispositivos e acessos</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Identifique navegadores usados por cada conta e bloqueie ou libere um dispositivo. O bloqueio será aplicado no próximo acesso e também verificado periodicamente enquanto a sessão estiver aberta.</p></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4"><div className="text-sm text-emerald-100/80"><strong>{dispositivos.length}</strong> dispositivos registrados · <strong>{dispositivos.filter(d => !d.bloqueado && Date.now() - new Date(d.ultimo_acesso_em).getTime() < 120000).length}</strong> vistos nos últimos 2 minutos</div><button type="button" onClick={() => void carregarDispositivos()} disabled={carregandoDispositivos} className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold hover:bg-emerald-900 disabled:opacity-50">{carregandoDispositivos ? "Atualizando…" : "Atualizar lista"}</button></div>
+          {mensagemDispositivos && <div role="status" className="rounded-lg border border-emerald-700 bg-emerald-950/60 p-3 text-sm">{mensagemDispositivos}</div>}
+          <div className="grid gap-3">
+            {dispositivos.map(dispositivo => {
+              const online = Date.now() - new Date(dispositivo.ultimo_acesso_em).getTime() < 120000;
+              return <article key={dispositivo.id} className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3"><div className="rounded-xl bg-emerald-900 p-3 text-lime-200"><MonitorSmartphone size={22}/></div><div className="min-w-0"><h2 className="break-words text-lg font-bold">{dispositivo.nome_dispositivo}</h2><p className="mt-1 break-all text-sm text-emerald-100/80">{dispositivo.user_email || "E-mail não identificado"}</p><p className="mt-1 text-xs text-emerald-100/50">ID da conta: {dispositivo.user_id}</p></div></div>
+                  <span className={dispositivo.bloqueado ? "rounded-full bg-red-950 px-3 py-1 text-xs font-bold text-red-200" : online ? "rounded-full bg-lime-300/15 px-3 py-1 text-xs font-bold text-lime-200" : "rounded-full bg-slate-700 px-3 py-1 text-xs font-bold text-slate-200"}>{dispositivo.bloqueado ? "Bloqueado" : online ? "Visto agora" : "Offline"}</span>
+                </div>
+                <div className="mt-4 grid gap-2 text-xs text-emerald-100/70 sm:grid-cols-2"><p><strong>Último acesso:</strong> {new Date(dispositivo.ultimo_acesso_em).toLocaleString("pt-BR")}</p><p><strong>Registrado em:</strong> {new Date(dispositivo.criado_em).toLocaleString("pt-BR")}</p><p className="sm:col-span-2"><strong>Navegador/dispositivo:</strong> {dispositivo.user_agent || "Informação indisponível"}</p><p className="sm:col-span-2 break-all"><strong>Identificador deste navegador:</strong> {dispositivo.device_id}</p></div>
+                <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => { const nome = window.prompt("Nome para identificar este computador ou celular:", dispositivo.nome_dispositivo); if (nome?.trim()) void administrarDispositivo(dispositivo, dispositivo.bloqueado, nome.trim()); }} className="inline-flex items-center gap-2 rounded-lg border border-emerald-600 px-3 py-2 text-xs font-semibold hover:bg-emerald-900"><Pencil size={14}/>Renomear</button>{dispositivo.bloqueado ? <button type="button" onClick={() => { if (window.confirm("Desbloquear este dispositivo?")) void administrarDispositivo(dispositivo, false); }} className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-3 py-2 text-xs font-bold text-emerald-950 hover:bg-lime-200"><ShieldCheck size={14}/>Desbloquear acesso</button> : <button type="button" onClick={() => { if (window.confirm("Bloquear este dispositivo? O navegador será desconectado na próxima verificação de acesso.")) void administrarDispositivo(dispositivo, true); }} className="inline-flex items-center gap-2 rounded-lg border border-red-700 px-3 py-2 text-xs font-bold text-red-200 hover:bg-red-950"><ShieldX size={14}/>Bloquear acesso</button>}</div>
+              </article>;
+            })}
+            {dispositivos.length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center text-sm text-emerald-100/60">{carregandoDispositivos ? "Carregando dispositivos…" : "Nenhum dispositivo registrado ainda. Cada dispositivo aparecerá depois que o usuário entrar no ambiente de teste."}</div>}
+          </div>
+          <p className="text-xs text-emerald-100/55">Observação: o site identifica o navegador/dispositivo e seu identificador local; não consegue ler com segurança o nome real do computador. Se o usuário limpar os dados do navegador ou usar outro navegador, poderá aparecer como um novo dispositivo.</p>
         </section>}
         {aba === "usuarios" && (perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <section className="mt-8">
           <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "admin_unidade" ? "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas." : "Cadastro e gerenciamento de contas somente no banco de teste multiunidade."}</p></div>
