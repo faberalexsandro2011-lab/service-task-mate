@@ -361,7 +361,8 @@ function RequestForm({
     event.preventDefault();
     if (saving) return;
 
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const frota = String(form.get("frota") ?? "").trim();
     const localizacao = String(form.get("localizacao") ?? "").trim();
     const setor = String(form.get("setor") ?? "").trim();
@@ -394,7 +395,7 @@ function RequestForm({
 
       toast.success("Solicitação enviada ao gestor.");
       onOpenChange(false);
-      event.currentTarget.reset();
+      formElement.reset();
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
