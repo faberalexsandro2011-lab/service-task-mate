@@ -1177,7 +1177,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
+  const canStart = status === "pendente" && (actor.isManager || (!order.tecnico_id || isMine));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.isManager && status === "concluida" && !isClosed;
@@ -1190,7 +1190,9 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
     setBusy(true);
     const { data, error } = await supabase
       .from("ordens_servico")
-      .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
+      .update(actor.isManager
+        ? { status: "em_andamento", data_inicio: new Date().toISOString() }
+        : { status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
       .eq("id", order.id)
       .eq("status", "pendente")
       .select("id");
