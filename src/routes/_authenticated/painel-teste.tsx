@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users, LogOut, Trash2 } from "lucide-react";
 import { read, utils, writeFile } from "xlsx";
 import { MonitorSmartphone, ShieldCheck, ShieldX, Pencil } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
@@ -969,9 +969,9 @@ function PainelTeste() {
                   <YAxis allowDecimals={false} width={34} tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ backgroundColor: "#002b25", border: "1px solid #286052", borderRadius: 10, color: "#f0fdf4" }} labelStyle={{ color: "#d1fae5" }} />
                   <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 12 }} />
-                  <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]}><LabelList dataKey="pendentes" position="top" fill="#fef3c7" fontSize={11} fontWeight={700} /></Bar>
+                  <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]}><LabelList dataKey="andamento" position="top" fill="#e0f2fe" fontSize={11} fontWeight={700} /></Bar>
+                  <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]}><LabelList dataKey="concluidas" position="top" fill="#ecfccb" fontSize={11} fontWeight={700} /></Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
