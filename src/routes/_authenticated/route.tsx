@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOfflineRole, saveOfflineRole } from "@/lib/offline";
@@ -104,6 +104,21 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  const handleVoltar = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    const fallback = pathname.endsWith("/painel-teste") ? "/painel-teste"
+      : pathname.endsWith("/tecnico") ? "/tecnico"
+      : pathname.endsWith("/visualizacao") ? "/visualizacao"
+      : "/dashboard";
+    void navigate({ to: fallback });
+  };
+
   useEffect(() => {
     let checking = false;
     const timer = window.setInterval(async () => {
@@ -130,6 +145,17 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+        <button
+          type="button"
+          onClick={handleVoltar}
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Voltar para a tela anterior"
+        >
+          <span aria-hidden="true">←</span>
+          Voltar
+        </button>
+      </div>
       <main className="flex-1">
         <Outlet />
       </main>
