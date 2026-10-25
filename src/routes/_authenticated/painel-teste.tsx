@@ -791,7 +791,7 @@ function PainelTeste() {
     const situacaoLabel = rotuloSituacaoOS;
     const indicadorOk = !indicadorSelecionado
       || (indicadorSelecionado === "maisAntiga"
-        ? ordem.id === maisAntiga?.id
+        ? ordem.id === abertas.reduce<Ordem | null>((maisVelha, candidata) => !maisVelha || new Date(candidata.created_at).getTime() < new Date(maisVelha.created_at).getTime() ? candidata : maisVelha, null)?.id
         : (ordem.status === "pendente" || ordem.status === "em_andamento")
           && (indicadorSelecionado === "abertas"
             || (indicadorSelecionado === "acima48h" && idadeEmHoras(ordem.created_at) >= 48)
