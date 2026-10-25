@@ -949,6 +949,26 @@ function PainelTeste() {
             <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact/>
             <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact/>
           </div>
+          <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><h2 className="text-lg font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-xs text-emerald-100/60">Pendentes, em andamento e concluídas para as unidades disponíveis no seu perfil</p></div>
+              <button type="button" onClick={() => setAba("analise")} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Abrir análise técnica →</button>
+            </div>
+            <div className="mt-4 h-[280px] w-full" role="img" aria-label="Gráfico comparativo de ordens por situação e unidade">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={resumoConsolidadoUnidades.map(item => ({ unidade: item.unidade.nome, pendentes: item.pendentes, andamento: item.emAndamento, concluidas: item.concluidas }))} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1f5b4e" />
+                  <XAxis dataKey="unidade" tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#356b5e" }} />
+                  <YAxis allowDecimals={false} width={34} tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ backgroundColor: "#002b25", border: "1px solid #286052", borderRadius: 10, color: "#f0fdf4" }} labelStyle={{ color: "#d1fae5" }} />
+                  <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 12 }} />
+                  <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </article>
           <section>
             <div className="mb-3"><h2 className="text-xl font-extrabold">Analisar OS por unidade</h2><p className="mt-1 text-sm text-emerald-100/65">Selecione uma unidade para ver os totais e consultar as OS antigas e atuais.</p></div>
             <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">{unidadesVisiveis.map(unidade => {
