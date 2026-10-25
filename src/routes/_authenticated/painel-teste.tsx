@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Clock3, ClipboardList, RefreshCw, ShieldAlert, ClipboardPaste, Upload, Plus, FileSpreadsheet, CheckCircle2, Circle, PlayCircle, XCircle, Search, ListFilter, ArrowUpDown, ArrowUp, ArrowDown, Users, LogOut, Trash2 } from "lucide-react";
 import { read, utils, writeFile } from "xlsx";
 import { MonitorSmartphone, ShieldCheck, ShieldX, Pencil } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/painel-teste")({
@@ -94,6 +95,7 @@ function PainelTeste() {
   const [historicoTecnico, setHistoricoTecnico] = useState("");
   const [historicoDataInicial, setHistoricoDataInicial] = useState("");
   const [historicoDataFinal, setHistoricoDataFinal] = useState("");
+  const [periodoGrafico, setPeriodoGrafico] = useState<"7" | "14" | "30">("14");
   const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<{ chave: "unidade" | "os" | "frota" | "setor" | "descricao" | "localizacao" | "tecnico" | "classe" | "pecas" | "status" | "entrada" | "criado" | "inicio" | "conclusao" | "id"; direcao: "asc" | "desc" }>({ chave: "criado", direcao: "desc" });
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
@@ -1118,6 +1120,20 @@ function PainelTeste() {
         </section>}
         {aba === "analise" && <section className="mt-6 space-y-5">
           {(() => {
+            const diasPeriodo = Number(periodoGrafico);
+            const hojeGrafico = new Date();
+            hojeGrafico.setHours(0, 0, 0, 0);
+            const inicioGrafico = new Date(hojeGrafico);
+            inicioGrafico.setDate(inicioGrafico.getDate() - (diasPeriodo - 1));
+            const chavesDias: string[] = [];
+            for (let i = 0; i < diasPeriodo; i++) { const dia = new Date(inicioGrafico); dia.setDate(inicioGrafico.getDate() + i); chavesDias.push(`${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(dia.getDate()).padStart(2, "0")}`); }
+            const chaveDataLocal = (valor: string) => { const data = new Date(valor); return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`; };
+            const evolucaoDiaria = chavesDias.map(chave => {
+              const [ano, mes, dia] = chave.split("-").map(Number);
+              return { dia: new Date(ano, mes - 1, dia).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+                abertas: ordensVisiveis.filter(o => chaveDataLocal(o.created_at) === chave).length,
+                concluidas: ordensVisiveis.filter(o => o.concluida_em && chaveDataLocal(o.concluida_em) === chave).length };
+            });
             const total = ordensVisiveis.length;
             const concluidas = ordensVisiveis.filter(o => o.status === "concluida").length;
             const canceladas = ordensVisiveis.filter(o => o.status === "cancelada").length;
@@ -1147,12 +1163,34 @@ function PainelTeste() {
                 <article className="rounded-2xl border border-amber-700/40 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Em aberto</span><Clock3 size={18} className="text-amber-300"/></div><div className="mt-3 text-3xl font-extrabold text-amber-200">{pendentes+andamento}</div><div className="mt-1 text-xs text-emerald-100/55">{pendentes} pendentes · {andamento} em andamento</div></article>
                 <article className="rounded-2xl border border-sky-800/70 bg-[#003b32] p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-bold uppercase tracking-wide text-emerald-100/65">Registros com peças</span><Building2 size={18} className="text-sky-300"/></div><div className="mt-3 text-3xl font-extrabold text-sky-200">{pecas.length}</div><div className="mt-1 text-xs text-emerald-100/55">{fmt(pecas.length)}% das OS possuem peça descrita</div></article>
               </div>
+              <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h3 className="text-base font-extrabold">Evolução diária das OS</h3><p className="mt-1 text-xs text-emerald-100/60">Ordens cadastradas e concluídas por dia, conforme os registros disponíveis</p></div>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-emerald-100/75">Período
+                    <select aria-label="Período do gráfico de evolução" value={periodoGrafico} onChange={e => setPeriodoGrafico(e.target.value as "7" | "14" | "30")} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"><option value="7">7 dias</option><option value="14">14 dias</option><option value="30">30 dias</option></select>
+                  </label>
+                </div>
+                <div className="mt-4 h-[280px] w-full" role="img" aria-label={`Gráfico de OS abertas e concluídas nos últimos ${diasPeriodo} dias`}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={evolucaoDiaria} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1f5b4e" />
+                      <XAxis dataKey="dia" tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#356b5e" }} />
+                      <YAxis allowDecimals={false} width={34} tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: "#002b25", border: "1px solid #286052", borderRadius: 10, color: "#f0fdf4" }} labelStyle={{ color: "#d1fae5" }} />
+                      <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 12 }} />
+                      <Bar dataKey="abertas" name="OS cadastradas" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="concluidas" name="OS concluídas" fill="#bef264" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="mt-2 text-[11px] text-emerald-100/45">O gráfico considera a data de cadastro e a data de conclusão registrada; dias sem movimentação aparecem com zero.</p>
+              </article>
               <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
                 <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-base font-extrabold">Situação da carteira</h3><p className="mt-1 text-xs text-emerald-100/60">Distribuição por status de atendimento</p></div><span className="rounded-full border border-emerald-700 px-3 py-1 text-xs text-emerald-100/70">Total: {total}</span></div>
                   <div className="mt-5 grid gap-5 sm:grid-cols-[160px_1fr] sm:items-center">
                     <div className="relative mx-auto h-36 w-36 rounded-full" style={{background:total ? "conic-gradient(#bef264 0% "+fmt(concluidas)+"%, #38bdf8 "+fmt(concluidas)+"% "+(fmt(concluidas)+fmt(andamento))+"%, #fbbf24 "+(fmt(concluidas)+fmt(andamento))+"% "+(fmt(concluidas)+fmt(andamento)+fmt(pendentes))+"%, #64748b "+(fmt(concluidas)+fmt(andamento)+fmt(pendentes))+"% 100%)" : "#123b32"}}><div className="absolute inset-4 flex flex-col items-center justify-center rounded-full border border-emerald-800 bg-[#00352d]"><strong className="text-3xl">{total}</strong><span className="text-[10px] uppercase tracking-wide text-emerald-100/60">ordens</span></div></div>
-                    <div className="space-y-3">{[{label:"Concluídas",value:concluidas,color:"bg-lime-300"},{label:"Em andamento",value:andamento,color:"bg-sky-400"},{label:"Pendentes",value:pendentes,color:"bg-amber-300"},{label:"Canceladas",value:canceladas,color:"bg-slate-500"}].map(item=><div key={item.label} className="flex items-center gap-3"><span className={"h-2.5 w-2.5 shrink-0 rounded-sm "+item.color}/><span className="min-w-0 flex-1 text-sm text-emerald-100/80">{item.label}</span><strong className="text-sm tabular-nums">{item.value}</strong><span className="w-11 text-right text-xs text-emerald-100/55">{fmt(item.value)}%</span></div>)}</div>
+                    <div className="space-y-3">{[{label:"Concluídas",value:concluidas,color:"bg-lime-300",status:"concluida"},{label:"Em andamento",value:andamento,color:"bg-sky-400",status:"em_andamento"},{label:"Pendentes",value:pendentes,color:"bg-amber-300",status:"pendente"},{label:"Canceladas",value:canceladas,color:"bg-slate-500",status:"cancelada"}].map(item=><button type="button" key={item.label} onClick={()=>{setHistoricoStatus(item.status as "concluida" | "em_andamento" | "pendente" | "cancelada");setAba("historico");}} className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition hover:bg-emerald-900/60 focus:outline-none focus:ring-2 focus:ring-lime-300" title={`Abrir histórico: ${item.label}`}><span className={"h-2.5 w-2.5 shrink-0 rounded-sm "+item.color}/><span className="min-w-0 flex-1 text-sm text-emerald-100/80">{item.label}</span><strong className="text-sm tabular-nums">{item.value}</strong><span className="w-11 text-right text-xs text-emerald-100/55">{fmt(item.value)}%</span><span className="text-[10px] text-lime-300">Ver OS →</span></button>)}</div>
                   </div>
                 </article>
                 <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-5">
