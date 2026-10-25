@@ -1154,6 +1154,9 @@ function PainelTeste() {
                 abertas: ordensVisiveis.filter(o => chaveDataLocal(o.created_at) === chave).length,
                 concluidas: ordensVisiveis.filter(o => o.concluida_em && chaveDataLocal(o.concluida_em) === chave).length };
             });
+            const totalCadastradasPeriodo = evolucaoDiaria.reduce((soma, item) => soma + item.abertas, 0);
+            const totalConcluidasPeriodo = evolucaoDiaria.reduce((soma, item) => soma + item.concluidas, 0);
+            const saldoPeriodo = totalCadastradasPeriodo - totalConcluidasPeriodo;
             const total = ordensVisiveis.length;
             const concluidas = ordensVisiveis.filter(o => o.status === "concluida").length;
             const canceladas = ordensVisiveis.filter(o => o.status === "cancelada").length;
@@ -1190,7 +1193,12 @@ function PainelTeste() {
                     <select aria-label="Período do gráfico de evolução" value={periodoGrafico} onChange={e => setPeriodoGrafico(e.target.value as "7" | "14" | "30")} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"><option value="7">7 dias</option><option value="14">14 dias</option><option value="30">30 dias</option></select>
                   </label>
                 </div>
-                <div className="mt-4 h-[280px] w-full" role="img" aria-label={`Gráfico de OS abertas e concluídas nos últimos ${diasPeriodo} dias`}>
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-sky-700/60 bg-sky-950/30 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-sky-200/75">OS cadastradas no período</p><p className="mt-1 text-2xl font-extrabold text-sky-200">{totalCadastradasPeriodo}</p><p className="mt-1 text-[10px] text-emerald-100/50">Soma dos registros criados nos dias exibidos</p></div>
+                  <div className="rounded-xl border border-lime-700/60 bg-lime-950/20 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-lime-200/75">OS concluídas no período</p><p className="mt-1 text-2xl font-extrabold text-lime-200">{totalConcluidasPeriodo}</p><p className="mt-1 text-[10px] text-emerald-100/50">Soma das conclusões registradas nos dias exibidos</p></div>
+                  <div className="rounded-xl border border-emerald-700 bg-emerald-950/30 p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-emerald-100/70">Diferença entre entradas e conclusões</p><p className={`mt-1 text-2xl font-extrabold ${saldoPeriodo > 0 ? "text-amber-200" : saldoPeriodo < 0 ? "text-lime-200" : "text-emerald-100"}`}>{saldoPeriodo > 0 ? "+" : ""}{saldoPeriodo}</p><p className="mt-1 text-[10px] text-emerald-100/50">Indicador de fluxo, não o saldo total da carteira</p></div>
+                </div>
+                <div className="mt-4 h-[300px] w-full" role="img" aria-label={`Gráfico de OS cadastradas e concluídas nos últimos ${diasPeriodo} dias`}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={evolucaoDiaria} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1f5b4e" />
