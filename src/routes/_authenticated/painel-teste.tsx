@@ -949,6 +949,13 @@ function PainelTeste() {
             <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact/>
             <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact/>
           </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" aria-label="Resumo geral por situação">
+            <Metric icon={<ClipboardList/>} label="Total de OS" value={ordensVisiveis.length} accent="text-slate-100" compact/>
+            <Metric icon={<Circle/>} label="Pendentes" value={ordensVisiveis.filter(o => o.status === "pendente").length} accent="text-amber-300" compact/>
+            <Metric icon={<PlayCircle/>} label="Em andamento" value={ordensVisiveis.filter(o => o.status === "em_andamento").length} accent="text-sky-300" compact/>
+            <Metric icon={<Clock3/>} label="Fechar no PIMS" value={ordensVisiveis.filter(o => o.status === "concluida" && !o.fechada_em).length} accent="text-orange-200" compact/>
+            <Metric icon={<CheckCircle2/>} label="Fechadas" value={ordensVisiveis.filter(o => o.status === "concluida" && Boolean(o.fechada_em)).length} accent="text-lime-300" compact/>
+          </div>
           <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h2 className="text-lg font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-xs text-emerald-100/60">Pendentes, em andamento e concluídas para as unidades disponíveis no seu perfil</p></div>
