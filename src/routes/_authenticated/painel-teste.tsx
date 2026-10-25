@@ -94,6 +94,7 @@ function PainelTeste() {
   const [historicoTecnico, setHistoricoTecnico] = useState("");
   const [historicoDataInicial, setHistoricoDataInicial] = useState("");
   const [historicoDataFinal, setHistoricoDataFinal] = useState("");
+  const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<{ chave: "unidade" | "os" | "frota" | "setor" | "descricao" | "localizacao" | "tecnico" | "classe" | "pecas" | "status" | "entrada" | "criado" | "inicio" | "conclusao" | "id"; direcao: "asc" | "desc" }>({ chave: "criado", direcao: "desc" });
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [usuarioAtualId, setUsuarioAtualId] = useState<string | null>(null);
@@ -828,7 +829,31 @@ function PainelTeste() {
       && (!historicoTecnico || String(ordem.tecnico_nome ?? "") === historicoTecnico)
       && (!historicoDataInicial || data >= historicoDataInicial)
       && (!historicoDataFinal || data <= historicoDataFinal);
-  }).sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  }).sort((a, b) => {
+    const valorHistorico = (ordem: Ordem, chave: typeof ordenacaoHistorico.chave): string | number => {
+      if (chave === "unidade") return unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
+      if (chave === "os") return ordem.numero_os ?? "";
+      if (chave === "frota") return ordem.frota ?? "";
+      if (chave === "setor") return ordem.setor ?? "";
+      if (chave === "descricao") return ordem.descricao ?? "";
+      if (chave === "localizacao") return ordem.localizacao ?? "";
+      if (chave === "tecnico") return ordem.tecnico_nome ?? ordem.tecnico_email ?? "";
+      if (chave === "classe") return Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao ?? "";
+      if (chave === "pecas") return ordem.pecas_utilizadas ?? "";
+      if (chave === "status") return ({ pendente: "Pendente", em_andamento: "Em andamento", concluida: "Concluída", cancelada: "Cancelada" } as Record<string, string>)[ordem.status] ?? ordem.status;
+      if (chave === "entrada") return ordem.entrada ?? "";
+      if (chave === "criado") return ordem.created_at ? new Date(ordem.created_at).getTime() : 0;
+      if (chave === "inicio") return ordem.data_inicio ? new Date(ordem.data_inicio).getTime() : 0;
+      if (chave === "conclusao") return ordem.concluida_em ? new Date(ordem.concluida_em).getTime() : 0;
+      return ordem.id;
+    };
+    const av = valorHistorico(a, ordenacaoHistorico.chave);
+    const bv = valorHistorico(b, ordenacaoHistorico.chave);
+    const comparacao = typeof av === "number" && typeof bv === "number"
+      ? av - bv
+      : String(av).localeCompare(String(bv), "pt-BR", { numeric: true, sensitivity: "base" });
+    return ordenacaoHistorico.direcao === "asc" ? comparacao : -comparacao;
+  });
   const exportarHistoricoOS = () => {
     const linhas = ordensHistoricoFiltradas.map((ordem) => {
       const unidadeNome = unidades.find((u) => u.id === ordem.unidade_id)?.nome ?? "";
@@ -1081,7 +1106,9 @@ function PainelTeste() {
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><span className="font-bold text-lime-200">{ordensHistoricoFiltradas.length} OS encontradas</span><span className="text-xs text-emerald-100/60">A unidade selecionada no topo limita a consulta; “Todas” mostra o consolidado conforme sua permissão.</span></div>
           <div className="overflow-x-auto rounded-2xl border border-emerald-800">
             <table className="w-full min-w-[1500px] text-left text-xs">
-              <thead className="bg-emerald-950/80 text-emerald-100"><tr><th className="p-3">Unidade</th><th className="p-3">Nº OS</th><th className="p-3">Frota</th><th className="p-3">Setor</th><th className="p-3">Descrição detalhada</th><th className="p-3">Localização</th><th className="p-3">Técnico</th><th className="p-3">Classe manutenção</th><th className="p-3">Peças utilizadas</th><th className="p-3">Status</th><th className="p-3">Entrada informada</th><th className="p-3">Registro criado</th><th className="p-3">Início</th><th className="p-3">Conclusão</th><th className="p-3">ID do registro</th></tr></thead>
+              <thead className="bg-emerald-950/80 text-emerald-100"><tr>{([
+              ["unidade", "Unidade"], ["os", "Nº OS"], ["frota", "Frota"], ["setor", "Setor"], ["descricao", "Descrição detalhada"], ["localizacao", "Localização"], ["tecnico", "Técnico"], ["classe", "Classe manutenção"], ["pecas", "Peças utilizadas"], ["status", "Status"], ["entrada", "Entrada informada"], ["criado", "Registro criado"], ["inicio", "Início"], ["conclusao", "Conclusão"], ["id", "ID do registro"],
+            ] as [typeof ordenacaoHistorico.chave, string][]).map(([chave, titulo]) => <th key={chave} className="p-3"><button type="button" onClick={() => setOrdenacaoHistorico(atual => ({ chave, direcao: atual.chave === chave && atual.direcao === "asc" ? "desc" : "asc" }))} className="inline-flex items-center gap-1 whitespace-nowrap text-left hover:text-lime-200 focus:outline-none focus:ring-2 focus:ring-lime-300 rounded" title={`Classificar por ${titulo}`}>{titulo}{ordenacaoHistorico.chave === chave ? (ordenacaoHistorico.direcao === "asc" ? <ArrowUp size={13}/> : <ArrowDown size={13}/>) : <ArrowUpDown size={13} className="opacity-50"/>}</button></th>)}</tr></thead>
               <tbody>{ordensHistoricoFiltradas.map(ordem=><tr key={ordem.id} className="border-t border-emerald-900 align-top hover:bg-emerald-900/30"><td className="p-3 whitespace-nowrap">{unidades.find(u=>u.id===ordem.unidade_id)?.nome ?? "—"}</td><td className="p-3 font-bold whitespace-nowrap">{ordem.numero_os || "Sem número"}</td><td className="p-3 whitespace-nowrap">{ordem.frota || "—"}</td><td className="p-3">{ordem.setor || "—"}</td><td className="p-3 min-w-[260px] whitespace-pre-wrap">{ordem.descricao || "—"}</td><td className="p-3 min-w-[160px]">{ordem.localizacao || "—"}</td><td className="p-3 whitespace-nowrap">{ordem.tecnico_nome || ordem.tecnico_email || "—"}</td><td className="p-3 min-w-[150px]">{Array.isArray(ordem.classe_manutencao) ? ordem.classe_manutencao.join(", ") : ordem.classe_manutencao || "—"}</td><td className="p-3 min-w-[180px] whitespace-pre-wrap">{ordem.pecas_utilizadas || "—"}</td><td className="p-3 whitespace-nowrap">{({pendente:"Pendente",em_andamento:"Em andamento",concluida:"Concluída",cancelada:"Cancelada"} as Record<string,string>)[ordem.status] || ordem.status}</td><td className="p-3 whitespace-nowrap">{ordem.entrada ? String(ordem.entrada) : "—"}</td><td className="p-3 whitespace-nowrap">{ordem.created_at ? new Date(ordem.created_at).toLocaleString("pt-BR") : "—"}</td><td className="p-3 whitespace-nowrap">{ordem.data_inicio ? new Date(ordem.data_inicio).toLocaleString("pt-BR") : "—"}</td><td className="p-3 whitespace-nowrap">{ordem.concluida_em ? new Date(ordem.concluida_em).toLocaleString("pt-BR") : "—"}</td><td className="p-3 font-mono text-[10px]">{ordem.id}</td></tr>)}
                 {ordensHistoricoFiltradas.length===0 && <tr><td colSpan={15} className="p-8 text-center text-emerald-100/60">Nenhuma OS encontrada com os filtros selecionados.</td></tr>}
               </tbody>
