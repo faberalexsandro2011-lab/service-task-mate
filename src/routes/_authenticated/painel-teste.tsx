@@ -83,6 +83,7 @@ function PainelTeste() {
   const [erro, setErro] = useState("");
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [ordemSelecionada, setOrdemSelecionada] = useState<string | null>(null);
+  const [indicadorSelecionado, setIndicadorSelecionado] = useState<"abertas" | "acima48h" | "acima7d" | "maisAntiga" | null>(null);
   const [ordemDetalhes, setOrdemDetalhes] = useState<Ordem | null>(null);
   const [aba, setAba] = useState<"inicio" | "gestao_os" | "historico" | "solicitacoes" | "analise" | "usuarios" | "estoque" | "unidades" | "dispositivos">("inicio");
   const [dispositivos, setDispositivos] = useState<DispositivoAcesso[]>([]);
@@ -764,7 +765,11 @@ function PainelTeste() {
   const abertas = ordensVisiveis.filter((ordem) => ordem.status === "pendente" || ordem.status === "em_andamento");
   const acima48h = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 48);
   const acima7d = abertas.filter((ordem) => idadeEmHoras(ordem.created_at) >= 168);
-  const ordensPainelUnidade = ordemSelecionada ? ordensVisiveis.filter(ordem => ordem.unidade_id === ordemSelecionada) : [];
+  const ordensPainelUnidade = ordemSelecionada
+    ? ordensVisiveis.filter(ordem => ordem.unidade_id === ordemSelecionada)
+    : indicadorSelecionado
+      ? ordensVisiveis
+      : [];
   const statusResumo = [
     { status: "Todas" as const, label: "Todas as OS", total: ordensPainelUnidade.length, icon: ClipboardList, color: "text-slate-100", active: "border-slate-300 bg-slate-800/70" },
     { status: "pendente" as const, label: "Pendentes", total: ordensPainelUnidade.filter(o => o.status === "pendente").length, icon: Circle, color: "text-amber-300", active: "border-amber-400 bg-amber-950/60" },
@@ -784,7 +789,14 @@ function PainelTeste() {
     const corresponde = (valor: string | null | undefined, selecionados: string[]) => selecionados.length === 0 || selecionados.includes(valor?.trim() || "—");
     const idadeFaixa = (o: Ordem) => { const h = idadeEmHoras(o.created_at); return h < 24 ? "Até 24h" : h < 48 ? "24–48h" : h < 168 ? "2–7 dias" : h < 360 ? "7–15 dias" : "Mais de 15 dias"; };
     const situacaoLabel = rotuloSituacaoOS;
-    return statusOk && (!termo || texto.includes(termo))
+    const indicadorOk = !indicadorSelecionado
+      || (indicadorSelecionado === "maisAntiga"
+        ? ordem.id === maisAntiga?.id
+        : (ordem.status === "pendente" || ordem.status === "em_andamento")
+          && (indicadorSelecionado === "abertas"
+            || (indicadorSelecionado === "acima48h" && idadeEmHoras(ordem.created_at) >= 48)
+            || (indicadorSelecionado === "acima7d" && idadeEmHoras(ordem.created_at) >= 168)));
+    return statusOk && indicadorOk && (!termo || texto.includes(termo))
       && corresponde(situacaoLabel(ordem), filtrosColuna.situacao)
       && corresponde(ordem.numero_os, filtrosColuna.os)
       && corresponde(ordem.frota, filtrosColuna.frota)
@@ -944,10 +956,10 @@ function PainelTeste() {
             <p className="mt-2 text-[11px] text-emerald-100/45">Unidade em exibição: {filtro === "Todas" ? "Todas as unidades permitidas" : filtro}</p>
           </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Metric icon={<ClipboardList/>} label="OS abertas" value={abertas.length} accent="text-lime-300" compact/>
-            <Metric icon={<Clock3/>} label="Abertas há mais de 48h" value={acima48h.length} accent="text-amber-300" compact/>
-            <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact/>
-            <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact/>
+            <Metric icon={<ClipboardList/>} label="OS abertas" value={abertas.length} accent="text-lime-300" compact onClick={() => { setIndicadorSelecionado("abertas"); setOrdemSelecionada(null); setStatusFiltro("Todas"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}/>
+            <Metric icon={<Clock3/>} label="Abertas há mais de 48h" value={acima48h.length} accent="text-amber-300" compact onClick={() => { setIndicadorSelecionado("acima48h"); setOrdemSelecionada(null); setStatusFiltro("Todas"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}/>
+            <Metric icon={<ShieldAlert/>} label="Abertas há mais de 7 dias" value={acima7d.length} accent="text-rose-300" compact onClick={() => { setIndicadorSelecionado("acima7d"); setOrdemSelecionada(null); setStatusFiltro("Todas"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}/>
+            <Metric icon={<AlertTriangle/>} label="OS aberta mais antiga" value={maisAntiga ? formatarIdade(maisAntiga.created_at) : "—"} accent="text-sky-200" compact onClick={() => { if (!maisAntiga) return; setIndicadorSelecionado("maisAntiga"); setOrdemSelecionada(null); setStatusFiltro("Todas"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}/>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" aria-label="Resumo geral por situação">
             <Metric icon={<ClipboardList/>} label="Total de OS" value={ordensVisiveis.length} accent="text-slate-100" compact/>
@@ -998,8 +1010,8 @@ function PainelTeste() {
               </article>;
             })}</div>
           </section>
-          {ordemSelecionada && <section className="space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5" aria-label="Análise das ordens da unidade selecionada">
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-extrabold">OS da unidade: {unidades.find(u=>u.id===ordemSelecionada)?.nome||"Unidade"}</h2><p className="mt-1 text-sm text-emerald-100/65">Consulte ordens atuais e antigas, filtre por situação e pesquise por OS, frota ou técnico.</p></div><button type="button" onClick={()=>setOrdemSelecionada(null)} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold">Fechar análise</button></div>
+          {(ordemSelecionada || indicadorSelecionado) && <section className="space-y-4 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5" aria-label="Lista de ordens filtrada">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-extrabold">{indicadorSelecionado ? ({abertas:"Todas as OS abertas",acima48h:"OS abertas há mais de 48 horas",acima7d:"OS abertas há mais de 7 dias",maisAntiga:"OS aberta mais antiga"} as Record<string,string>)[indicadorSelecionado] : "OS da unidade: " + (unidades.find(u=>u.id===ordemSelecionada)?.nome||"Unidade")}</h2><p className="mt-1 text-sm text-emerald-100/65">Consulte as ordens correspondentes, filtre por situação e pesquise por OS, frota ou técnico.</p></div><button type="button" onClick={()=>{setOrdemSelecionada(null);setIndicadorSelecionado(null);}} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold">Fechar análise</button></div>
             {mensagemOS && <div role="status" className="rounded-lg border border-emerald-700 bg-emerald-950/40 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">{statusResumo.map(item=>{const Icon=item.icon;const selecionado=statusFiltro===item.status;return <button key={item.status} type="button" aria-pressed={selecionado} onClick={()=>setStatusFiltro(item.status)} className={"rounded-xl border p-3 text-left transition "+(selecionado?item.active:"border-emerald-800 bg-[#002b25] hover:border-emerald-500")}><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-emerald-100/75">{item.label}</span><Icon size={17} className={item.color}/></div><div className={"mt-2 text-2xl font-extrabold "+item.color}>{item.total}</div></button>})}</div>
             <div className="flex flex-col gap-3 sm:flex-row"><label className="relative flex min-w-0 flex-1 items-center"><Search size={16} className="pointer-events-none absolute left-3 text-emerald-100/50"/><input value={buscaOS} onChange={e=>setBuscaOS(e.target.value)} placeholder="Buscar OS, frota, setor, técnico ou descrição..." className="w-full rounded-xl border border-emerald-700 bg-emerald-950/70 py-2.5 pl-9 pr-3 text-sm text-white placeholder:text-emerald-100/40"/></label><span className="self-center text-xs text-emerald-100/60">{ordensFiltradasPainel.length} de {ordensPainelUnidade.length} OS</span></div>
@@ -1373,6 +1385,10 @@ function PainelTeste() {
   );
 }
 
-function Metric({ icon, label, value, accent, compact = false }: { icon: React.ReactNode; label: string; value: string | number; accent: string; compact?: boolean }) {
-  return <section className="min-w-0 rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-4 sm:p-5"><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100/70">{icon}{label}</div><div className={`mt-3 break-words font-extrabold ${accent} ${compact ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"}`}>{value}</div></section>;
+function Metric({ icon, label, value, accent, compact = false, onClick }: { icon: React.ReactNode; label: string; value: string | number; accent: string; compact?: boolean; onClick?: () => void }) {
+  const content = <><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100/70">{icon}{label}</div><div className={`mt-3 break-words font-extrabold ${accent} ${compact ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"}`}>{value}</div></>;
+  const classes = "min-w-0 rounded-2xl border border-emerald-800 bg-gradient-to-br from-[#003e34] to-[#002e28] p-4 sm:p-5";
+  return onClick
+    ? <button type="button" onClick={onClick} aria-label={`Abrir lista: ${label}`} className={classes + " w-full cursor-pointer text-left transition hover:border-lime-400 hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime-300"}>{content}<span className="mt-2 block text-[10px] font-semibold text-emerald-100/50">Clique para ver OS</span></button>
+    : <section className={classes}>{content}</section>;
 }
