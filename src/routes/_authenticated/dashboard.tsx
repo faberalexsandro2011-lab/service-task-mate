@@ -507,7 +507,7 @@ function Dashboard() {
     { value: "todas", label: "Todas", list: filtered },
     { value: "pendente", label: "Pendente", list: byStatus("pendente") },
     { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
-    ...(isManager ? [{ value: "aguardando_fechamento", label: "Aguardando ADM", list: waitingAdminClosure }] : []),
+    ...(isManager ? [{ value: "aguardando_fechamento", label: "Fechar no PIMS", list: waitingAdminClosure }] : []),
     { value: "concluida", label: isManager ? "Fechadas" : "Concluídas", list: isManager ? closedOrders : byStatus("concluida") },
     { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
   ];
