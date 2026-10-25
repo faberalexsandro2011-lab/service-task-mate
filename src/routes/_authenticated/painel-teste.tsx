@@ -958,7 +958,7 @@ function PainelTeste() {
           </div>
           <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h2 className="text-lg font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-xs text-emerald-100/60">Pendentes, em andamento e concluídas para as unidades disponíveis no seu perfil</p></div>
+              <div><h2 className="text-lg font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-xs text-emerald-100/60">Clique em uma barra para abrir a lista de OS daquela unidade e situação.</p></div>
               <button type="button" onClick={() => setAba("analise")} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Abrir análise técnica →</button>
             </div>
             <div className="mt-4 h-[280px] w-full" role="img" aria-label="Gráfico comparativo de ordens por situação e unidade">
@@ -969,9 +969,9 @@ function PainelTeste() {
                   <YAxis allowDecimals={false} width={34} tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ backgroundColor: "#002b25", border: "1px solid #286052", borderRadius: 10, color: "#f0fdf4" }} labelStyle={{ color: "#d1fae5" }} />
                   <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 12 }} />
-                  <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]}><LabelList dataKey="pendentes" position="top" fill="#fef3c7" fontSize={11} fontWeight={700} /></Bar>
-                  <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]}><LabelList dataKey="andamento" position="top" fill="#e0f2fe" fontSize={11} fontWeight={700} /></Bar>
-                  <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]}><LabelList dataKey="concluidas" position="top" fill="#ecfccb" fontSize={11} fontWeight={700} /></Bar>
+                  <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("pendente"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="pendentes" position="top" fill="#fef3c7" fontSize={11} fontWeight={700} /></Bar>
+                  <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("em_andamento"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="andamento" position="top" fill="#e0f2fe" fontSize={11} fontWeight={700} /></Bar>
+                  <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("concluida"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="concluidas" position="top" fill="#ecfccb" fontSize={11} fontWeight={700} /></Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
