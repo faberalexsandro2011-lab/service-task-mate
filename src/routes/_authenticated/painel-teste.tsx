@@ -597,7 +597,17 @@ function PainelTeste() {
 
   const executarAcaoUsuario = async (payload: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke("gerenciar-usuarios-teste", { body: payload });
-    if (error) throw new Error(error.message || "Falha ao comunicar com o serviço administrativo.");
+    if (error) {
+      let mensagem = error.message || "Falha ao comunicar com o serviço administrativo.";
+      try {
+        const contexto = (error as { context?: Response }).context;
+        if (contexto && typeof contexto.clone === "function") {
+          const detalhe = await contexto.clone().json();
+          if (typeof detalhe?.error === "string" && detalhe.error) mensagem = detalhe.error;
+        }
+      } catch { /* Mantém a mensagem padrão se a resposta não trouxer JSON. */ }
+      throw new Error(mensagem);
+    }
     if (!data?.ok) throw new Error(data?.error || "Não foi possível concluir a operação.");
     return data;
   };
@@ -727,7 +737,9 @@ function PainelTeste() {
       await carregarUsuariosAdmin();
       await carregar();
     } catch (error) {
-      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível excluir o usuário.");
+      const mensagem = error instanceof Error ? error.message : "Não foi possível excluir o usuário.";
+      await carregarUsuariosAdmin();
+      setErroUsuarios(mensagem);
     }
   };
 
