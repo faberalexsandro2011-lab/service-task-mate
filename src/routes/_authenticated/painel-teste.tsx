@@ -69,6 +69,10 @@ function PainelTeste() {
   const [filtroUnidadeUsuarios, setFiltroUnidadeUsuarios] = useState("todas");
   const [carregandoUsuarios, setCarregandoUsuarios] = useState(false);
   const [mensagemUsuarios, setMensagemUsuarios] = useState("");
+  const [usuarioSenhaEdicao, setUsuarioSenhaEdicao] = useState<string | null>(null);
+  const [senhaUsuarioNova, setSenhaUsuarioNova] = useState("");
+  const [confirmarSenhaUsuarioNova, setConfirmarSenhaUsuarioNova] = useState("");
+  const [salvandoSenhaUsuario, setSalvandoSenhaUsuario] = useState(false);
   const [nomeNovo, setNomeNovo] = useState("");
   const [emailNovo, setEmailNovo] = useState("");
   const [senhaNova, setSenhaNova] = useState("");
@@ -675,6 +679,33 @@ function PainelTeste() {
     }
   };
 
+  const salvarSenhaUsuario = async (usuario: UsuarioAdministrado) => {
+    if (emailUsuarioAtual !== "faber.alexsandro2011@gmail.com" || perfilAtual !== "gestor_central") {
+      setErroUsuarios("Somente o Gestor Geral principal pode redefinir senhas.");
+      return;
+    }
+    if (senhaUsuarioNova.length < 8 || senhaUsuarioNova.length > 128) {
+      setErroUsuarios("A nova senha deve ter entre 8 e 128 caracteres.");
+      return;
+    }
+    if (senhaUsuarioNova !== confirmarSenhaUsuarioNova) {
+      setErroUsuarios("As senhas não coincidem.");
+      return;
+    }
+    if (!window.confirm(`Redefinir a senha da conta ${usuario.email}? A senha atual não poderá ser recuperada.`)) return;
+    setSalvandoSenhaUsuario(true);
+    setErroUsuarios(""); setMensagemUsuarios("");
+    try {
+      await executarAcaoUsuario({ action: "update", user_id: usuario.user_id, password: senhaUsuarioNova });
+      setMensagemUsuarios(`Senha redefinida para ${usuario.email}. Anote e compartilhe a nova senha com segurança.`);
+      setUsuarioSenhaEdicao(null); setSenhaUsuarioNova(""); setConfirmarSenhaUsuarioNova("");
+    } catch (error) {
+      setErroUsuarios(error instanceof Error ? error.message : "Não foi possível redefinir a senha.");
+    } finally {
+      setSalvandoSenhaUsuario(false);
+    }
+  };
+
   const alternarAtivo = async (usuario: UsuarioAdministrado) => {
     setErroUsuarios(""); setMensagemUsuarios("");
     try {
@@ -1052,7 +1083,8 @@ function PainelTeste() {
                     <td className="p-3 text-right font-bold">{item.taxaConclusao}%</td>
                     <td className="p-3 text-right">{item.tecnicos}</td>
                     <td className="p-3 text-right">{formatarMediaExecucao(item.mediaExecucao)}</td>
-                  </tr>)}
+                    {usuarioSenhaEdicao === usuario.user_id && perfilAtual === "gestor_central" && <tr className="border-t border-amber-800 bg-amber-950/20"><td colSpan={4} className="p-4"><div className="grid gap-3 sm:grid-cols-3"><div className="sm:col-span-3"><strong>Redefinir senha: {usuario.email}</strong><p className="text-xs text-emerald-100/70">A senha atual não pode ser visualizada. Digite uma nova senha de pelo menos 8 caracteres.</p></div><label className="grid gap-1 text-sm">Nova senha<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={senhaUsuarioNova} onChange={e=>setSenhaUsuarioNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label><label className="grid gap-1 text-sm">Confirmar nova senha<input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={confirmarSenhaUsuarioNova} onChange={e=>setConfirmarSenhaUsuarioNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label><div className="flex items-end gap-2"><button type="button" disabled={salvandoSenhaUsuario} onClick={()=>void salvarSenhaUsuario(usuario)} className="rounded-lg bg-amber-300 px-3 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoSenhaUsuario ? "Salvando…" : "Confirmar senha"}</button><button type="button" onClick={()=>{setUsuarioSenhaEdicao(null);setSenhaUsuarioNova("");setConfirmarSenhaUsuarioNova("");}} className="rounded-lg border border-emerald-700 px-3 py-2 text-sm">Cancelar</button></div></div></td></tr>}
+              </tr>)}
                   {resumoConsolidadoUnidades.length === 0 && <tr><td colSpan={9} className="p-5 text-center text-emerald-100/60">Nenhuma unidade disponível para este perfil.</td></tr>}
                 </tbody>
               </table>
@@ -1390,7 +1422,7 @@ function PainelTeste() {
         </section>}
         {aba === "usuarios" && (perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <section className="mt-8">
           <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "admin_unidade" ? "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas." : "Cadastro e gerenciamento de contas somente no banco de teste multiunidade."}</p></div>
-          <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "admin_unidade" ? "O servidor vincula automaticamente cada técnico à sua própria unidade." : "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação."} Senhas nunca são exibidas.</p></div>
+          <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "admin_unidade" ? "O servidor vincula automaticamente cada técnico à sua própria unidade." : "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação."} Senhas existentes nunca são exibidas; somente a conta principal pode redefini-las.</p></div>
           {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
           {mensagemUsuarios && <div role="status" className="mb-4 rounded-xl border border-lime-700 bg-lime-950/30 p-3 text-sm text-lime-100">{mensagemUsuarios}</div>}
           {perfilAtual === "gestor_central" && <form onSubmit={salvarNomePerfil} className="mb-5 grid gap-3 rounded-2xl border border-lime-700/70 bg-lime-950/20 p-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><h3 className="font-bold">Nome do seu perfil</h3><p className="mt-1 text-xs text-emerald-100/70">Atualize somente o nome exibido da sua conta principal. E-mail, senha e permissões não serão alterados.</p><label className="mt-3 grid gap-1 text-sm">Nome completo<input required minLength={2} maxLength={120} value={nomePerfil} onChange={e=>setNomePerfil(e.target.value)} placeholder="Digite seu nome completo" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label></div><button type="submit" disabled={salvandoNomePerfil || nomePerfil.trim().length<2 || !usuarioAtualId} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNomePerfil ? "Salvando…" : "Salvar meu nome"}</button></form>}
@@ -1414,7 +1446,7 @@ function PainelTeste() {
                   {perfilAtual === "gestor_central" && usuario.perfil !== "gestor_central" && <div className="mt-2 flex flex-wrap gap-2"><select aria-label={`Perfil de ${usuario.email}`} defaultValue={usuario.perfil} id={`perfil-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM</option><option value="gestor">Gestor</option><option value="visualizador">Visualizador</option></select><select aria-label={`Unidade de ${usuario.email}`} defaultValue={unidades.find(u=>u.id===usuario.unidade_id)?.codigo || "vale_parana"} id={`unidade-${usuario.user_id}`} className="rounded border border-emerald-700 bg-emerald-950 px-2 py-1 text-xs text-white">{unidades.map(unidade=><option key={unidade.id} value={unidade.codigo} disabled={unidade.ativa === false}>{unidade.nome}{unidade.ativa === false ? " (inativa)" : ""}</option>)}</select><button type="button" onClick={()=>{const p=document.getElementById(`perfil-${usuario.user_id}`) as HTMLSelectElement|null;const u=document.getElementById(`unidade-${usuario.user_id}`) as HTMLSelectElement|null;if(p&&u)void atualizarUsuario(usuario,p.value as PerfilUsuario,u.value)}} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">Salvar</button></div>}
                 </td>
                 <td className="p-3"><span className={usuario.ativo ? "rounded-md bg-emerald-900 px-2 py-1 text-emerald-200" : "rounded-md bg-red-950 px-2 py-1 text-red-200"}>{usuario.ativo ? "Ativo" : "Inativo"}</span></td>
-                <td className="p-3">{perfilAtual === "gestor_central" && <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>void alternarAtivo(usuario)} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">{usuario.ativo ? "Desativar" : "Ativar"}</button><button type="button" onClick={()=>void excluirUsuario(usuario)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-200 hover:bg-red-950">Excluir</button></div>}</td>
+                <td className="p-3">{perfilAtual === "gestor_central" && <div className="flex flex-wrap gap-2"><button type="button" onClick={()=>{setUsuarioSenhaEdicao(usuario.user_id);setSenhaUsuarioNova("");setConfirmarSenhaUsuarioNova("");setErroUsuarios("");setMensagemUsuarios("");}} className="rounded border border-amber-600 px-2 py-1 text-xs text-amber-200 hover:bg-amber-950">Redefinir senha</button><button type="button" onClick={()=>void alternarAtivo(usuario)} className="rounded border border-emerald-600 px-2 py-1 text-xs hover:bg-emerald-900">{usuario.ativo ? "Desativar" : "Ativar"}</button><button type="button" onClick={()=>void excluirUsuario(usuario)} className="rounded border border-red-800 px-2 py-1 text-xs text-red-200 hover:bg-red-950">Excluir</button></div>}</td>
               </tr>)}
               {usuariosAdmin.filter(usuario => filtroUnidadeUsuarios === "todas" || (filtroUnidadeUsuarios === "sem_unidade" ? !usuario.unidade_id : usuario.unidade_id === filtroUnidadeUsuarios)).length===0 && <tr><td colSpan={4} className="p-5 text-center text-emerald-100/60">{carregandoUsuarios ? "Carregando usuários…" : "Nenhum usuário encontrado para esta unidade."}</td></tr>}</tbody>
             </table>
