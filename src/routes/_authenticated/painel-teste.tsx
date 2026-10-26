@@ -102,6 +102,7 @@ function PainelTeste() {
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
   const [usuarioAtualId, setUsuarioAtualId] = useState<string | null>(null);
+  const [emailUsuarioAtual, setEmailUsuarioAtual] = useState("");
   const [nomePerfil, setNomePerfil] = useState("");
   const [salvandoNomePerfil, setSalvandoNomePerfil] = useState(false);
   const [unidadeAtualId, setUnidadeAtualId] = useState<string | null>(null);
@@ -145,6 +146,7 @@ function PainelTeste() {
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
       setUsuarioAtualId(authData.user.id);
+      setEmailUsuarioAtual((authData.user.email ?? "").toLocaleLowerCase("pt-BR"));
       setNomePerfil(String(authData.user.user_metadata?.nome ?? ""));
       const { data: perfilData } = await db.from("usuarios_unidades").select("perfil,unidade_id").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle();
       const perfil = (perfilData?.perfil as PerfilUsuario | undefined) ?? null;
@@ -507,7 +509,7 @@ function PainelTeste() {
   };
 
   const excluirOS = async (ordem: Ordem) => {
-    if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") return;
+    if (perfilAtual !== "gestor_central" || emailUsuarioAtual !== "faber.alexsandro2011@gmail.com") return;
     if (!window.confirm("Excluir a OS " + (ordem.numero_os || ordem.frota || ordem.id) + " desta unidade? Esta ação não pode ser desfeita.")) return;
     // A exclusão é restringida ao registro da unidade e também validada pela RLS do banco de teste.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -520,7 +522,7 @@ function PainelTeste() {
   };
 
   const salvarEdicaoOS = async () => {
-    if (!edicaoOS || (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central")) return;
+    if (!edicaoOS || perfilAtual !== "gestor_central" || emailUsuarioAtual !== "faber.alexsandro2011@gmail.com") return;
     setSalvandoOS(true);
     setMensagemOS("");
     // A política RLS do banco de teste limita o UPDATE às OS da unidade do ADM.
@@ -1281,18 +1283,30 @@ function PainelTeste() {
               <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div><h3 className="text-base font-extrabold">Base técnica de ordens de serviço</h3><p className="mt-1 text-xs text-emerald-100/60">Estrutura equivalente à análise do aplicativo original, preenchida somente com os registros do ambiente de teste.</p></div>
+                  {edicaoOS && perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com" && <form onSubmit={e => { e.preventDefault(); void salvarEdicaoOS(); }} className="mt-4 grid gap-3 rounded-xl border border-lime-700 bg-emerald-950/70 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <h4 className="sm:col-span-2 lg:col-span-3 font-bold text-lime-200">Editar OS {edicaoOS.numero_os || "(sem número)"}</h4>
+                    <label className="grid gap-1">Nº OS<input value={edicaoOS.numero_os} onChange={e=>setEdicaoOS(v=>v?{...v,numero_os:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <label className="grid gap-1">Frota<input value={edicaoOS.frota} onChange={e=>setEdicaoOS(v=>v?{...v,frota:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <label className="grid gap-1">Setor<input value={edicaoOS.setor} onChange={e=>setEdicaoOS(v=>v?{...v,setor:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <label className="grid gap-1">Técnico<input value={edicaoOS.tecnico_nome} onChange={e=>setEdicaoOS(v=>v?{...v,tecnico_nome:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <label className="grid gap-1">Status<select value={edicaoOS.status} onChange={e=>setEdicaoOS(v=>v?{...v,status:e.target.value as Ordem["status"]}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"><option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída / Fechar no PIMS</option><option value="cancelada">Cancelada</option></select></label>
+                    <label className="grid gap-1 sm:col-span-2 lg:col-span-3">Descrição<input value={edicaoOS.descricao} onChange={e=>setEdicaoOS(v=>v?{...v,descricao:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <label className="grid gap-1 sm:col-span-2 lg:col-span-3">Peças utilizadas<input value={edicaoOS.pecas_utilizadas} onChange={e=>setEdicaoOS(v=>v?{...v,pecas_utilizadas:e.target.value}:v)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2"/></label>
+                    <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><button type="submit" disabled={salvandoOS} className="rounded-lg bg-lime-400 px-4 py-2 font-bold text-emerald-950 disabled:opacity-50">{salvandoOS?"Salvando...":"Salvar alterações"}</button><button type="button" onClick={()=>setEdicaoOS(null)} className="rounded-lg border border-emerald-700 px-4 py-2">Cancelar</button></div>
+                  </form>}
                   <label className="grid gap-1 text-xs text-emerald-100/70">Pesquisar na base
                     <input value={buscaBaseTecnica} onChange={e=>setBuscaBaseTecnica(e.target.value)} placeholder="OS, frota, setor, técnico, classe ou peça..." className="w-full min-w-64 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white placeholder:text-emerald-100/35"/>
                   </label>
                 </div>
                 <div className="mt-4 overflow-x-auto rounded-xl border border-emerald-800">
                   <table className="min-w-[1500px] w-full text-left text-xs">
-                    <thead className="sticky top-0 bg-emerald-950 text-emerald-100/80"><tr>{["Unidade","Nº OS","Frota","Setor","Localização","Descrição do serviço","Classe de manutenção","Técnico","E-mail do técnico","Peças utilizadas","Status","Entrada","Início","Conclusão","Fechamento PIMS"].map(c=><th key={c} className="whitespace-nowrap px-3 py-3 font-bold">{c}</th>)}</tr></thead>
+                    <thead className="sticky top-0 bg-emerald-950 text-emerald-100/80"><tr>{["Unidade","Nº OS","Frota","Setor","Localização","Descrição do serviço","Classe de manutenção","Técnico","E-mail do técnico","Peças utilizadas","Status","Entrada","Início","Conclusão","Fechamento PIMS",...(perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com" ? ["Ações"] : [])].map(c=><th key={c} className="whitespace-nowrap px-3 py-3 font-bold">{c}</th>)}</tr></thead>
                     <tbody>{ordensVisiveis.filter(o => [o.numero_os,o.frota,o.setor,o.localizacao,o.descricao,o.classe_manutencao,o.tecnico_nome,o.tecnico_email,o.pecas_utilizadas,o.status,unidades.find(u=>u.id===o.unidade_id)?.nome].flatMap(v=>Array.isArray(v)?v:[v]).filter(Boolean).some(v=>String(v).toLocaleLowerCase("pt-BR").includes(buscaBaseTecnica.trim().toLocaleLowerCase("pt-BR")))).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).map(o=><tr key={o.id} className="border-t border-emerald-900 align-top hover:bg-emerald-900/30">
                       <td className="whitespace-nowrap px-3 py-3">{unidades.find(u=>u.id===o.unidade_id)?.nome || "—"}</td>
                       <td className="px-3 py-3 font-bold text-lime-200">{o.numero_os || "Sem número"}</td><td className="px-3 py-3">{o.frota || "—"}</td><td className="px-3 py-3">{o.setor || "—"}</td><td className="px-3 py-3">{o.localizacao || "—"}</td><td className="max-w-64 whitespace-normal px-3 py-3">{o.descricao || "—"}</td>
                       <td className="px-3 py-3">{Array.isArray(o.classe_manutencao)?o.classe_manutencao.join(", "):o.classe_manutencao || "Não informada"}</td><td className="px-3 py-3">{o.tecnico_nome || "—"}</td><td className="px-3 py-3">{o.tecnico_email || "—"}</td><td className="max-w-56 whitespace-normal px-3 py-3">{o.pecas_utilizadas || "—"}</td>
                       <td className="whitespace-nowrap px-3 py-3">{o.status==="concluida"?(o.fechada_em?"Fechada no PIMS":"Fechar no PIMS"):o.status==="em_andamento"?"Em andamento":o.status==="cancelada"?"Cancelada":"Pendente"}</td><td className="whitespace-nowrap px-3 py-3">{o.entrada || "—"}</td><td className="whitespace-nowrap px-3 py-3">{o.data_inicio?new Date(o.data_inicio).toLocaleString("pt-BR"):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.concluida_em?new Date(o.concluida_em).toLocaleString("pt-BR"):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.fechada_em?new Date(o.fechada_em).toLocaleString("pt-BR"):"—"}</td>
+                      {perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com" && <td className="whitespace-nowrap px-3 py-3"><div className="flex gap-2"><button type="button" onClick={()=>setEdicaoOS({id:o.id,numero_os:o.numero_os||"",frota:o.frota||"",descricao:o.descricao||"",setor:o.setor||"",tecnico_nome:o.tecnico_nome||"",status:o.status,pecas_utilizadas:o.pecas_utilizadas||""})} className="rounded-lg border border-lime-600 px-3 py-1.5 font-bold text-lime-200">Editar</button><button type="button" onClick={()=>void excluirOS(o)} className="rounded-lg border border-red-700 px-3 py-1.5 font-bold text-red-300">Excluir</button></div></td>}
                     </tr>)}
                     </tbody>
                   </table>
