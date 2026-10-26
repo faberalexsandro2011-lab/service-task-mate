@@ -97,6 +97,7 @@ function PainelTeste() {
   const [historicoDataInicial, setHistoricoDataInicial] = useState("");
   const [historicoDataFinal, setHistoricoDataFinal] = useState("");
   const [periodoGrafico, setPeriodoGrafico] = useState<"7" | "14" | "30">("14");
+  const [buscaBaseTecnica, setBuscaBaseTecnica] = useState("");
   const [ordenacaoHistorico, setOrdenacaoHistorico] = useState<{ chave: "unidade" | "os" | "frota" | "setor" | "descricao" | "localizacao" | "tecnico" | "classe" | "pecas" | "status" | "entrada" | "criado" | "inicio" | "conclusao" | "id"; direcao: "asc" | "desc" }>({ chave: "criado", direcao: "desc" });
   const [solicitacaoEmEdicao, setSolicitacaoEmEdicao] = useState<{ id: string; numero_os: string; frota: string; localizacao: string; descricao: string; setor: string; tecnico_nome: string } | null>(null);
   const [perfilAtual, setPerfilAtual] = useState<PerfilUsuario | null>(null);
@@ -1277,6 +1278,27 @@ function PainelTeste() {
                   </div>
                 </article>
               </div>
+              <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h3 className="text-base font-extrabold">Base técnica de ordens de serviço</h3><p className="mt-1 text-xs text-emerald-100/60">Estrutura equivalente à análise do aplicativo original, preenchida somente com os registros do ambiente de teste.</p></div>
+                  <label className="grid gap-1 text-xs text-emerald-100/70">Pesquisar na base
+                    <input value={buscaBaseTecnica} onChange={e=>setBuscaBaseTecnica(e.target.value)} placeholder="OS, frota, setor, técnico, classe ou peça..." className="w-full min-w-64 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white placeholder:text-emerald-100/35"/>
+                  </label>
+                </div>
+                <div className="mt-4 overflow-x-auto rounded-xl border border-emerald-800">
+                  <table className="min-w-[1500px] w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-emerald-950 text-emerald-100/80"><tr>{["Unidade","Nº OS","Frota","Setor","Localização","Descrição do serviço","Classe de manutenção","Técnico","E-mail do técnico","Peças utilizadas","Status","Entrada","Início","Conclusão","Fechamento PIMS"].map(c=><th key={c} className="whitespace-nowrap px-3 py-3 font-bold">{c}</th>)}</tr></thead>
+                    <tbody>{ordensVisiveis.filter(o => [o.numero_os,o.frota,o.setor,o.localizacao,o.descricao,o.classe_manutencao,o.tecnico_nome,o.tecnico_email,o.pecas_utilizadas,o.status,unidades.find(u=>u.id===o.unidade_id)?.nome].flatMap(v=>Array.isArray(v)?v:[v]).filter(Boolean).some(v=>String(v).toLocaleLowerCase("pt-BR").includes(buscaBaseTecnica.trim().toLocaleLowerCase("pt-BR")))).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")).map(o=><tr key={o.id} className="border-t border-emerald-900 align-top hover:bg-emerald-900/30">
+                      <td className="whitespace-nowrap px-3 py-3">{unidades.find(u=>u.id===o.unidade_id)?.nome || "—"}</td>
+                      <td className="px-3 py-3 font-bold text-lime-200">{o.numero_os || "Sem número"}</td><td className="px-3 py-3">{o.frota || "—"}</td><td className="px-3 py-3">{o.setor || "—"}</td><td className="px-3 py-3">{o.localizacao || "—"}</td><td className="max-w-64 whitespace-normal px-3 py-3">{o.descricao || "—"}</td>
+                      <td className="px-3 py-3">{Array.isArray(o.classe_manutencao)?o.classe_manutencao.join(", "):o.classe_manutencao || "Não informada"}</td><td className="px-3 py-3">{o.tecnico_nome || "—"}</td><td className="px-3 py-3">{o.tecnico_email || "—"}</td><td className="max-w-56 whitespace-normal px-3 py-3">{o.pecas_utilizadas || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-3">{o.status==="concluida"?(o.fechada_em?"Fechada no PIMS":"Fechar no PIMS"):o.status==="em_andamento"?"Em andamento":o.status==="cancelada"?"Cancelada":"Pendente"}</td><td className="whitespace-nowrap px-3 py-3">{o.entrada || "—"}</td><td className="whitespace-nowrap px-3 py-3">{o.data_inicio?new Date(o.data_inicio).toLocaleString("pt-BR"):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.concluida_em?new Date(o.concluida_em).toLocaleString("pt-BR"):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.fechada_em?new Date(o.fechada_em).toLocaleString("pt-BR"):"—"}</td>
+                    </tr>)}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-[11px] text-emerald-100/50">A tabela respeita o filtro de unidade atual. Os campos sem informação permanecem em branco; nenhum dado do aplicativo oficial foi importado.</p>
+              </article>
               <p className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-xs leading-5 text-emerald-100/50">Nota de leitura: os gráficos usam os registros de OS atualmente carregados no ambiente de teste. A taxa de conclusão exclui as OS canceladas do denominador. Não são estimados custos, horas de trabalho ou economia, pois esses dados não estão disponíveis neste painel.</p>
             </>;
           })()}
