@@ -185,11 +185,21 @@ Deno.serve(async (req: Request) => {
     if (!isPrimary) return json({ ok: false, error: "Somente o administrador principal pode excluir usuários." }, 403);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return json({ ok: false, error: "Usuário inválido." }, 400);
     if (userId === actor.id) return json({ ok: false, error: "Não é permitido excluir sua própria conta." }, 400);
-    const { data: target } = await admin.from("usuarios_unidades").select("perfil").eq("user_id", userId).maybeSingle();
-    if (target?.perfil === "gestor_central" && !isPrimary) return json({ ok: false, error: "Somente o administrador principal pode excluir Gestores Gerais." }, 403);
-    const { error } = await admin.auth.admin.deleteUser(userId);
-    if (error) return json({ ok: false, error: "Não foi possível excluir o usuário." }, 500);
-    return json({ ok: true });
+    const { data: target, error: targetError } = await admin.from("usuarios_unidades").select("perfil").eq("user_id", userId).maybeSingle();
+    if (targetError) return json({ ok: false, error: "Não foi possível verificar o cadastro do usuário." }, 500);
+    if (!target) return json({ ok: false, error: "Este usuário não está mais cadastrado. Atualize a lista e tente novamente." }, 404);
+    if (target.perfil === "gestor_central" && !isPrimary) return json({ ok: false, error: "Somente o administrador principal pode excluir Gestores Gerais." }, 403);
+    try {
+      const { data: authTarget, error: authLookupError } = await admin.auth.admin.getUserById(userId);
+      if (authLookupError || !authTarget.user) {
+        return json({ ok: false, error: "A conta de autenticação não foi encontrada. Atualize a lista; nenhum usuário foi excluído." }, 404);
+      }
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) return json({ ok: false, error: "Não foi possível excluir o usuário. Atualize a lista e tente novamente." }, 500);
+      return json({ ok: true });
+    } catch {
+      return json({ ok: false, error: "O Supabase não conseguiu concluir a exclusão. Atualize a lista; verifique o usuário antes de tentar novamente." }, 500);
+    }
   }
 
   return json({ ok: false, error: "Ação inválida." }, 400);
