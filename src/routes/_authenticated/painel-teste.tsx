@@ -50,6 +50,11 @@ const faixas = [
 
 function formatarDataBR(valor: string | Date | null | undefined, incluirHora = false) {
   if (!valor) return "—";
+  if (typeof valor === "string") {
+    const texto = valor.trim();
+    const isoData = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoData) return `${isoData[3]}/${isoData[2]}/${isoData[1]}`;
+  }
   const data = valor instanceof Date ? valor : new Date(valor);
   if (Number.isNaN(data.getTime())) {
     const texto = String(valor).trim();
