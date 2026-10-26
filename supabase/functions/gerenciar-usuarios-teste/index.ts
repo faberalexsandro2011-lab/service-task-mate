@@ -143,6 +143,7 @@ Deno.serve(async (req: Request) => {
     if (userId === actor.id && (ativo === false || (perfil && perfil !== "gestor_central"))) return json({ ok: false, error: "Não é permitido remover seu próprio acesso de Gestor Geral." }, 400);
     if (nome !== undefined && (!nome || nome.length > 120)) return json({ ok: false, error: "Nome inválido." }, 400);
     if (password && (password.length < 8 || password.length > 128)) return json({ ok: false, error: "A senha deve ter entre 8 e 128 caracteres." }, 400);
+    if (password && (!isPrimary || !gestorCentralAtivo)) return json({ ok: false, error: "Somente o Gestor Geral principal pode redefinir senhas." }, 403);
     if (perfil && !["admin_unidade", "tecnico", "visualizador", "gestor", "gestor_central"].includes(perfil)) return json({ ok: false, error: "Perfil inválido." }, 400);
     if (perfil === "gestor_central" && !isPrimary) return json({ ok: false, error: "Somente o administrador principal pode conceder o perfil Gestor Geral." }, 403);
     if (perfil === "gestor" && !isPrimary) return json({ ok: false, error: "Somente a conta principal pode conceder o perfil Gestor." }, 403);
