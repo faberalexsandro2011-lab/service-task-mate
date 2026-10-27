@@ -546,7 +546,15 @@ function PainelTeste() {
   };
 
   const salvarEdicaoOS = async () => {
-    if (!edicaoOS || perfilAtual !== "gestor_central" || emailUsuarioAtual !== "faber.alexsandro2011@gmail.com") return;
+    if (!edicaoOS) return;
+    const ordemOriginal = ordens.find(o => o.id === edicaoOS.id);
+    const podeEditar = (perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com")
+      || (perfilAtual === "admin_unidade" && ordemOriginal?.unidade_id === unidadeAtualId);
+    if (!ordemOriginal || !podeEditar) {
+      setMensagemOS("Você só pode editar OS da sua própria unidade. As demais unidades ficam disponíveis apenas para consulta.");
+      setEdicaoOS(null);
+      return;
+    }
     setSalvandoOS(true);
     setMensagemOS("");
     // A política RLS do banco de teste limita o UPDATE às OS da unidade do ADM.
@@ -805,14 +813,12 @@ function PainelTeste() {
 
 
   const unidadesVisiveis = useMemo(
-    () => perfilAtual === "admin_unidade"
-      ? unidades.filter((unidade) => unidade.id === unidadeAtualId)
-      : filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
-    [filtro, unidades, perfilAtual, unidadeAtualId],
+    () => filtro === "Todas" ? unidades : unidades.filter((unidade) => unidade.nome === filtro),
+    [filtro, unidades],
   );
   useEffect(() => { if ((perfilAtual === "gestor" || perfilAtual === "gestor_central") && !formUnidadeCentral && unidades.length) setFormUnidadeCentral(unidades[0].id); }, [perfilAtual, formUnidadeCentral, unidades]);
   useEffect(() => { const ativas = unidades.filter((unidade) => unidade.ativa !== false); if (perfilAtual === "gestor_central" && ativas.length && !ativas.some((unidade) => unidade.codigo === unidadeNova)) setUnidadeNova(ativas[0].codigo); }, [perfilAtual, unidades, unidadeNova]);
-  useEffect(() => { if (perfilAtual === "admin_unidade" && unidadeAtualId) { const propria = unidades.find(u => u.id === unidadeAtualId); if (propria && filtro !== propria.nome) setFiltro(propria.nome); } }, [perfilAtual, unidadeAtualId, unidades, filtro]);
+
   const idsVisiveis = new Set(unidadesVisiveis.map((unidade) => unidade.id));
   const ordensVisiveis = ordens.filter((ordem) => idsVisiveis.has(ordem.unidade_id)).sort((a, b) => (a.sequencia ?? Number.MAX_SAFE_INTEGER) - (b.sequencia ?? Number.MAX_SAFE_INTEGER) || a.created_at.localeCompare(b.created_at));
   const resumoConsolidadoUnidades = unidadesVisiveis.map((unidade) => {
@@ -996,8 +1002,8 @@ function PainelTeste() {
               <div className="min-w-0"><div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">{({inicio:"Visão geral",gestao_os:"Gestão de OS",historico:"Histórico de OS",solicitacoes:"Solicitações",analise:"Análise Técnica",estoque:"Estoque de Peças",unidades:"Gestão de Unidades",dispositivos:"Dispositivos e acessos",usuarios:perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"} as Record<string,string>)[aba] || "Painel"}</div><div className="mt-1 text-xs text-emerald-100/55">Acompanhe a operação em um só lugar</div></div>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-xs text-emerald-100/75">Unidade
-                  <select value={perfilAtual === "admin_unidade" ? (unidades.find(u => u.id === unidadeAtualId)?.nome ?? "") : filtro} onChange={(e) => setFiltro(e.target.value)} disabled={perfilAtual === "admin_unidade"} className="max-w-[180px] rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white">
-                    {perfilAtual !== "admin_unidade" && <option>Todas</option>}{(perfilAtual === "admin_unidade" ? unidades.filter(u => u.id === unidadeAtualId) : unidades).map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
+                  <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-[180px] rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white">
+                    <option>Todas</option>{unidades.map((unidade) => <option key={unidade.id}>{unidade.nome}</option>)}
                   </select>
                 </label>
                 <button type="button" onClick={() => void carregar()} disabled={carregando} aria-label="Atualizar painel" title="Atualizar painel" className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-900 disabled:opacity-50"><RefreshCw size={14} className={carregando ? "animate-spin" : ""}/><span className="hidden sm:inline">Atualizar</span></button>
@@ -1382,7 +1388,7 @@ function PainelTeste() {
                       <td className="px-3 py-3 font-bold text-lime-200">{o.numero_os || "Sem número"}</td><td className="px-3 py-3">{o.frota || "—"}</td><td className="px-3 py-3">{o.setor || "—"}</td><td className="px-3 py-3">{o.localizacao || "—"}</td><td className="max-w-64 whitespace-normal px-3 py-3">{o.descricao || "—"}</td>
                       <td className="px-3 py-3">{Array.isArray(o.classe_manutencao)?o.classe_manutencao.join(", "):o.classe_manutencao || "Não informada"}</td><td className="px-3 py-3">{o.tecnico_nome || "—"}</td><td className="px-3 py-3">{o.tecnico_email || "—"}</td><td className="max-w-56 whitespace-normal px-3 py-3">{o.pecas_utilizadas || "—"}</td>
                       <td className="whitespace-nowrap px-3 py-3">{o.status==="concluida"?(o.fechada_em?"Fechada no PIMS":"Fechar no PIMS"):o.status==="em_andamento"?"Em andamento":o.status==="cancelada"?"Cancelada":"Pendente"}</td><td className="whitespace-nowrap px-3 py-3">{o.entrada ? formatarDataBR(o.entrada, true) : "—"}</td><td className="whitespace-nowrap px-3 py-3">{o.data_inicio?formatarDataBR(o.data_inicio, true):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.concluida_em?formatarDataBR(o.concluida_em, true):"—"}</td><td className="whitespace-nowrap px-3 py-3">{o.fechada_em?formatarDataBR(o.fechada_em, true):"—"}</td>
-                      {perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com" && <td className="whitespace-nowrap px-3 py-3"><div className="flex gap-2"><button type="button" onClick={()=>setEdicaoOS({id:o.id,numero_os:o.numero_os||"",frota:o.frota||"",descricao:o.descricao||"",setor:o.setor||"",tecnico_nome:o.tecnico_nome||"",status:o.status,pecas_utilizadas:o.pecas_utilizadas||""})} className="rounded-lg border border-lime-600 px-3 py-1.5 font-bold text-lime-200">Editar</button><button type="button" onClick={()=>void excluirOS(o)} className="rounded-lg border border-red-700 px-3 py-1.5 font-bold text-red-300">Excluir</button></div></td>}
+                      {((perfilAtual === "gestor_central" && emailUsuarioAtual === "faber.alexsandro2011@gmail.com") || (perfilAtual === "admin_unidade" && o.unidade_id === unidadeAtualId)) && <td className="whitespace-nowrap px-3 py-3"><div className="flex gap-2"><button type="button" onClick={()=>setEdicaoOS({id:o.id,numero_os:o.numero_os||"",frota:o.frota||"",descricao:o.descricao||"",setor:o.setor||"",tecnico_nome:o.tecnico_nome||"",status:o.status,pecas_utilizadas:o.pecas_utilizadas||""})} className="rounded-lg border border-lime-600 px-3 py-1.5 font-bold text-lime-200">Editar</button>{perfilAtual === "gestor_central" && <button type="button" onClick={()=>void excluirOS(o)} className="rounded-lg border border-red-700 px-3 py-1.5 font-bold text-red-300">Excluir</button>}</div></td>}
                     </tr>)}
                     </tbody>
                   </table>
