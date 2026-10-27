@@ -145,17 +145,19 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
-        <button
-          type="button"
-          onClick={handleVoltar}
-          className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Voltar para a tela anterior"
-        >
-          <span aria-hidden="true">←</span>
-          Voltar
-        </button>
-      </div>
+      {!["/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
+        <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+          <button
+            type="button"
+            onClick={handleVoltar}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Voltar para a tela anterior"
+          >
+            <span aria-hidden="true">←</span>
+            Voltar
+          </button>
+        </div>
+      )}
       <main className="flex-1">
         <Outlet />
       </main>
