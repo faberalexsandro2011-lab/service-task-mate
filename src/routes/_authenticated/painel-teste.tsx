@@ -1041,19 +1041,19 @@ function PainelTeste() {
             <Metric icon={<Clock3/>} label="Fechar no PIMS" value={ordensVisiveis.filter(o => o.status === "concluida" && !o.fechada_em).length} accent="text-orange-200" compact/>
             <Metric icon={<CheckCircle2/>} label="Fechadas" value={ordensVisiveis.filter(o => o.status === "concluida" && Boolean(o.fechada_em)).length} accent="text-lime-300" compact/>
           </div>
-          <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><h2 className="text-lg font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-xs text-emerald-100/60">Clique em uma barra para abrir a lista de OS daquela unidade e situação.</p></div>
-              <button type="button" onClick={() => setAba("analise")} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-bold text-lime-200 transition hover:bg-emerald-900">Abrir análise técnica →</button>
+          <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h2 className="text-base font-extrabold">Comparativo visual por unidade</h2><p className="mt-1 text-[11px] text-emerald-100/60">Clique em uma barra para abrir a lista de OS daquela unidade e situação.</p></div>
+              <button type="button" onClick={() => setAba("analise")} className="rounded-lg border border-emerald-700 px-2.5 py-1.5 text-[11px] font-bold text-lime-200 transition hover:bg-emerald-900">Abrir análise técnica →</button>
             </div>
-            <div className="mt-4 h-[280px] w-full" role="img" aria-label="Gráfico comparativo de ordens por situação e unidade">
+            <div className="mt-2 h-[180px] w-full sm:h-[210px]" role="img" aria-label="Gráfico comparativo de ordens por situação e unidade">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={resumoConsolidadoUnidades.map(item => ({ unidade: item.unidade.nome, pendentes: item.pendentes, andamento: item.emAndamento, concluidas: item.concluidas }))} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f5b4e" />
                   <XAxis dataKey="unidade" tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={{ stroke: "#356b5e" }} />
                   <YAxis allowDecimals={false} width={34} tick={{ fill: "#b7d5ca", fontSize: 11 }} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={{ backgroundColor: "#002b25", border: "1px solid #286052", borderRadius: 10, color: "#f0fdf4" }} labelStyle={{ color: "#d1fae5" }} />
-                  <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 12 }} />
+                  <Legend wrapperStyle={{ color: "#d1fae5", fontSize: 10, paddingTop: 0 }} />
                   <Bar dataKey="pendentes" name="Pendentes" fill="#fbbf24" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("pendente"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="pendentes" position="top" fill="#fef3c7" fontSize={11} fontWeight={700} /></Bar>
                   <Bar dataKey="andamento" name="Em andamento" fill="#38bdf8" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("em_andamento"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="andamento" position="top" fill="#e0f2fe" fontSize={11} fontWeight={700} /></Bar>
                   <Bar dataKey="concluidas" name="Concluídas" fill="#bef264" radius={[4, 4, 0, 0]} cursor="pointer" onClick={(data) => { const nome = data?.payload?.unidade; const unidade = unidadesVisiveis.find((u) => u.nome === nome); if (!unidade) return; setOrdemSelecionada(unidade.id); setStatusFiltro("concluida"); setBuscaOS(""); setFiltrosColuna({situacao:[],os:[],frota:[],setor:[],tecnico:[],descricao:[],entrada:[],idade:[],localizacao:[]}); }}><LabelList dataKey="concluidas" position="top" fill="#ecfccb" fontSize={11} fontWeight={700} /></Bar>
