@@ -471,7 +471,7 @@ function PainelTeste() {
         const payload = {numero_os:l.numero_os,frota:l.frota,entrada:l.entrada||null,descricao:l.descricao||null,localizacao:l.localizacao||null,setor:l.setor||null,sequencia:l.sequencia,tecnico_id:tecnico?.user_id??null,tecnico_email:tecnico?.email??l.tecnico_email??null,tecnico_nome:tecnico?.nome??l.tecnico_nome??l.tecnico_original??null,criado_por_email:authData.user?.email??null,status:"pendente"};
         const {data:existing,error:lookupError}=await db.from("ordens_servico").select("id").eq("unidade_id",unidadeId).eq("numero_os",l.numero_os).order("created_at",{ascending:true}).limit(1).maybeSingle();
         if(lookupError) throw lookupError;
-        if(existing){const {error}=await db.from("ordens_servico").update(payload).eq("id",existing.id).eq("unidade_id",unidadeId);if(error)throw error;atualizadas++;}
+        if(existing){throw new Error("Importação cancelada para proteger a OS existente " + l.numero_os + ". Nenhum registro existente foi alterado.");}
         else {const {error}=await db.from("ordens_servico").insert({...payload,unidade_id:unidadeId});if(error)throw error;criadas++;}
       }
       setMensagemOS("Importação concluída: " + criadas + " nova(s) e " + atualizadas + " atualizada(s) nesta unidade.");
