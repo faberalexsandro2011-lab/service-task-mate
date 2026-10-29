@@ -14,7 +14,7 @@ type PerfilUsuario = "admin_unidade" | "tecnico" | "gestor" | "gestor_central" |
 type UsuarioUnidade = { user_id: string; unidade_id: string | null; perfil: PerfilUsuario; ativo: boolean };
 type UsuarioAdministrado = UsuarioUnidade & { email: string; nome: string; created_at?: string };
 type DispositivoAcesso = { id: string; user_id: string; user_email: string | null; device_id: string; nome_dispositivo: string; user_agent: string | null; bloqueado: boolean; criado_em: string; ultimo_acesso_em: string; bloqueado_em: string | null };
-type LinhaImportacao = { numero_os: string; frota: string; entrada: string; descricao: string; localizacao: string; setor: string; sequencia: number | null; tecnico_email: string; tecnico_nome: string; tecnico_original: string; tecnico_valido: boolean; valid: boolean };
+type LinhaImportacao = { numero_os: string; frota: string; entrada: string; data_inicio: string; concluida_em: string; descricao: string; localizacao: string; setor: string; pecas_utilizadas: string; status: "pendente" | "em_andamento" | "concluida"; sequencia: number | null; tecnico_email: string; tecnico_nome: string; tecnico_original: string; tecnico_valido: boolean; valid: boolean };
 type Ordem = {
   id: string;
   unidade_id: string;
@@ -411,7 +411,11 @@ function PainelTeste() {
       setor: ["setor", "frente", "departamento", "area"],
       numero_os: ["o_s", "os", "numero_os", "numero_da_os", "n_os", "no_os", "num_os", "ordem_de_servico"],
       frota: ["frota", "viatura", "veiculo", "matricula", "prefixo", "equipamento"],
-      entrada: ["entrada", "data_entrada", "data_hora_entrada", "data"],
+      entrada: ["entrada", "data_entrada", "data_hora_entrada", "data", "aberta", "data_abertura", "abertura"],
+      data_inicio: ["inicio", "data_inicio", "inicio_servico", "data_inicio_servico"],
+      concluida_em: ["fim", "data_fim", "conclusao", "conclusao_em", "data_conclusao", "fim_servico"],
+      pecas_utilizadas: ["pecas", "pecas_trocadas", "pecas_utilizadas", "pecas_substituidas"],
+      status: ["status", "situacao", "estado"],
       descricao: ["descricao_o_s", "descricao_os", "descricao", "problema", "servico", "observacao"],
       localizacao: ["localizacao", "local", "endereco", "fazenda"],
       tecnico: ["tecnico", "nome_tecnico", "tecnico_nome", "responsavel", "mecanico", "tecnico_email", "email_tecnico"],
@@ -419,7 +423,7 @@ function PainelTeste() {
     const canonical = (v: unknown) => { const h = norm(v); for (const [key, names] of Object.entries(aliases)) if (names.includes(h)) return key; if (/(^|_)(tecnico|mecanico|responsavel)(_|$)/.test(h) || h.startsWith("nome_do_tecnico") || h.startsWith("tecnico_")) return "tecnico"; if (h.startsWith("descricao_") || h.endsWith("_descricao")) return "descricao"; if (h.startsWith("localizacao_") || h.endsWith("_localizacao")) return "localizacao"; return h; };
     const headerIndex = rows.findIndex(r => { const hs = r.map(canonical); return hs.includes("numero_os") && hs.includes("frota") && (hs.includes("tecnico") || hs.includes("descricao") || hs.includes("entrada")); });
     const headerOriginal = headerIndex >= 0 ? rows[headerIndex] : [];
-    const header = headerIndex >= 0 ? headerOriginal.map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "descricao", "localizacao", "tecnico"];
+    const header = headerIndex >= 0 ? headerOriginal.map(canonical) : ["sequencia", "setor", "numero_os", "frota", "entrada", "data_inicio", "concluida_em", "descricao", "localizacao", "pecas_utilizadas", "status", "tecnico"];
     const data = headerIndex >= 0 ? rows.slice(headerIndex + 1) : rows;
     const get = (row: unknown[], key: string) => {
       // Para Técnico, prioriza a coluna cujo cabeçalho é literalmente "Técnico".
@@ -435,9 +439,21 @@ function PainelTeste() {
       const frota = get(row, "frota").trim();
       const tecnicoRaw = get(row, "tecnico").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
       const matched = tecnicoRaw ? usuariosDisponiveis.find(u => u.ativo && u.perfil === "tecnico" && u.unidade_id === unidadeId && (norm(u.email) === norm(tecnicoRaw) || normNome(u.nome) === normNome(tecnicoRaw))) : undefined;
-      let entrada = get(row, "entrada");
-      if (/^\d{1,2}\/\d{1,2}\/\d{4}(\s+\d{1,2}:\d{2})?$/.test(entrada)) { const parts = entrada.split(/\s+/); const d = parts[0].split("/"); entrada = d[2] + "-" + d[1].padStart(2,"0") + "-" + d[0].padStart(2,"0") + " " + (parts[1] || "00:00"); }
-      return { numero_os: numero, frota, entrada, descricao: get(row, "descricao"), localizacao: get(row, "localizacao"), setor: get(row, "setor"), sequencia: Number.isFinite(seqParsed) && seqRaw !== "" ? seqParsed : rowIndex + 1, tecnico_email: matched?.email ?? "", tecnico_nome: matched?.nome ?? tecnicoRaw, tecnico_original: tecnicoRaw, tecnico_valido: Boolean(tecnicoRaw && matched), valid: Boolean(numero && frota && tecnicoRaw && matched) };
+      const parseData = (raw: string) => {
+        const value = raw.trim();
+        if (!value) return "";
+        const br = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+        if (br) return br[3] + "-" + br[2].padStart(2,"0") + "-" + br[1].padStart(2,"0") + (br[4] ? " " + br[4].padStart(2,"0") + ":" + br[5] + (br[6] ? ":" + br[6] : "") : "");
+        const iso = value.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2})?))?/);
+        if (iso) return iso[1] + (iso[2] ? " " + iso[2] : "");
+        return value;
+      };
+      const entrada = parseData(get(row, "entrada"));
+      const data_inicio = parseData(get(row, "data_inicio"));
+      const concluida_em = parseData(get(row, "concluida_em"));
+      const statusRaw = norm(get(row, "status"));
+      const status: LinhaImportacao["status"] = /^(finalizada|finalizado|concluida|concluido|fechada|fechado|encerrada|encerrado)$/.test(statusRaw) ? "concluida" : /^(em_andamento|andamento|iniciada|iniciado)$/.test(statusRaw) ? "em_andamento" : "pendente";
+      return { numero_os: numero, frota, entrada, data_inicio, concluida_em, descricao: get(row, "descricao"), localizacao: get(row, "localizacao"), setor: get(row, "setor"), pecas_utilizadas: get(row, "pecas_utilizadas"), status, sequencia: Number.isFinite(seqParsed) && seqRaw !== "" ? seqParsed : rowIndex + 1, tecnico_email: matched?.email ?? "", tecnico_nome: matched?.nome ?? tecnicoRaw, tecnico_original: tecnicoRaw, tecnico_valido: Boolean(tecnicoRaw && matched), valid: Boolean(numero && frota && tecnicoRaw && matched) };
     });
     // A sequência é a posição de exibição. Ordena pela coluna Seq e corrige repetições para garantir 1, 2, 3… sem duplicar a posição.
     parsed.sort((a, b) => (a.sequencia ?? Number.MAX_SAFE_INTEGER) - (b.sequencia ?? Number.MAX_SAFE_INTEGER));
