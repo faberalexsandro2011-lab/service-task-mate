@@ -1174,6 +1174,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
@@ -1185,6 +1187,58 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
   const priority = actor.isManager && isPriorityOrder(order);
+
+  async function saveOrderEdits(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!isPrimaryAdmin) return;
+    const form = new FormData(event.currentTarget);
+    const value = (name: string) => String(form.get(name) ?? "").trim();
+    const dateValue = (name: string) => {
+      const raw = value(name);
+      return raw ? new Date(raw).toISOString() : null;
+    };
+    const numericValue = value("edit_valor_total");
+    const payload = {
+      numero_os: value("edit_numero_os"),
+      frota: value("edit_frota"),
+      setor: value("edit_setor") || null,
+      localizacao: value("edit_localizacao") || null,
+      tecnico_nome: value("edit_tecnico_nome") || null,
+      tecnico_email: value("edit_tecnico_email") || null,
+      descricao: value("edit_descricao") || null,
+      classe_manutencao: value("edit_classe_manutencao") || null,
+      status: value("edit_status"),
+      data_inicio: dateValue("edit_data_inicio"),
+      concluida_em: dateValue("edit_concluida_em"),
+      notas_fecho: value("edit_notas_fecho") || null,
+      pecas_utilizadas: value("edit_pecas_utilizadas") || null,
+      valor_total: numericValue ? Number(numericValue) : null,
+    };
+    if (!payload.numero_os || !payload.frota) {
+      toast.error("Número da OS e frota são obrigatórios.");
+      return;
+    }
+    if (numericValue && !Number.isFinite(payload.valor_total)) {
+      toast.error("Informe um valor total válido.");
+      return;
+    }
+    setEditSaving(true);
+    const { error } = await supabase.from("ordens_servico").update(payload).eq("id", order.id);
+    setEditSaving(false);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível salvar as alterações da OS."));
+      return;
+    }
+    try {
+      await logHistory(order.id, actor, "edicao_administrativa", "Dados da OS editados pelo Gestor Principal.");
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar edição administrativa:", historyError);
+    }
+    toast.success("Todas as informações editáveis da OS foram atualizadas.");
+    setEditOpen(false);
+    setDetailsOpen(false);
+    await onChanged();
+  }
 
   async function start() {
     setBusy(true);
@@ -1404,6 +1458,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <StatusBadge status={status} />
             </div>
           </DialogHeader>
+          {isPrimaryAdmin && <div className="mb-1 flex flex-wrap gap-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setEditOpen(true)}>
+              <Pencil /> Editar todas as informações
+            </Button>
+          </div>}
           <div className="mb-1 flex flex-wrap gap-2">
             <Button className="w-full sm:w-auto" onClick={() => { void shareOrderAsImage(order).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível compartilhar a imagem da OS."); }); }}>
               <Share2 /> Enviar print pelo WhatsApp
@@ -1448,6 +1507,40 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               {canDelete && <Button variant="destructive" disabled={busy} onClick={() => void deleteOrder()}><Trash2 /> Excluir OS</Button>}
             </div>}
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar todas as informações — OS {order.numero_os}</DialogTitle>
+            <DialogDescription>Somente o Gestor Principal pode alterar estes dados. As alterações serão registradas no histórico.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveOrderEdits} className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1"><Label htmlFor="edit_numero_os">Número da OS *</Label><Input id="edit_numero_os" name="edit_numero_os" defaultValue={order.numero_os} required /></div>
+              <div className="space-y-1"><Label htmlFor="edit_frota">Frota *</Label><Input id="edit_frota" name="edit_frota" defaultValue={order.frota} required /></div>
+              <div className="space-y-1"><Label htmlFor="edit_setor">Setor</Label><Input id="edit_setor" name="edit_setor" defaultValue={order.setor ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_localizacao">Localização</Label><Input id="edit_localizacao" name="edit_localizacao" defaultValue={order.localizacao ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_tecnico_nome">Técnico responsável</Label><Input id="edit_tecnico_nome" name="edit_tecnico_nome" defaultValue={order.tecnico_nome ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_tecnico_email">E-mail do técnico</Label><Input id="edit_tecnico_email" name="edit_tecnico_email" type="email" defaultValue={order.tecnico_email ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_classe_manutencao">Classificação</Label><Input id="edit_classe_manutencao" name="edit_classe_manutencao" defaultValue={order.classe_manutencao ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_status">Status</Label>
+                <select id="edit_status" name="edit_status" defaultValue={order.status} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Finalizada</option><option value="cancelada">Cancelada</option>
+                </select>
+              </div>
+              <div className="space-y-1"><Label htmlFor="edit_data_inicio">Data de início</Label><Input id="edit_data_inicio" name="edit_data_inicio" type="datetime-local" defaultValue={order.data_inicio ? new Date(order.data_inicio).toISOString().slice(0,16) : ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_concluida_em">Data de conclusão</Label><Input id="edit_concluida_em" name="edit_concluida_em" type="datetime-local" defaultValue={order.concluida_em ? new Date(order.concluida_em).toISOString().slice(0,16) : ""} /></div>
+              <div className="space-y-1 sm:col-span-2"><Label htmlFor="edit_valor_total">Valor total</Label><Input id="edit_valor_total" name="edit_valor_total" type="number" min="0" step="0.01" defaultValue={order.valor_total ?? ""} /></div>
+            </div>
+            <div className="space-y-1"><Label htmlFor="edit_descricao">Descrição do serviço</Label><Textarea id="edit_descricao" name="edit_descricao" rows={3} defaultValue={order.descricao ?? ""} /></div>
+            <div className="space-y-1"><Label htmlFor="edit_notas_fecho">Serviço realizado / notas de fechamento</Label><Textarea id="edit_notas_fecho" name="edit_notas_fecho" rows={3} defaultValue={order.notas_fecho ?? ""} /></div>
+            <div className="space-y-1"><Label htmlFor="edit_pecas_utilizadas">Peças utilizadas (registro)</Label><Textarea id="edit_pecas_utilizadas" name="edit_pecas_utilizadas" rows={3} defaultValue={order.pecas_utilizadas ?? ""} /></div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={editSaving}>{editSaving ? "Salvando..." : "Salvar todas as alterações"}</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
       <FinishDialog open={finishOpen} onOpenChange={setFinishOpen} order={order} actor={actor} onDone={onChanged} />
