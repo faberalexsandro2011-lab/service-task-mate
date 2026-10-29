@@ -354,13 +354,23 @@ function Dashboard() {
     // Ordenação opcional por Frota, Setor ou Técnico. O modo padrão preserva a prioridade atual.
     if (sortOrdersBy !== "padrao") {
       const [field, direction] = sortOrdersBy.split("-");
+      const multiplier = direction === "za" ? -1 : 1;
+      if (field === "data") {
+        return matches.sort((a, b) => {
+          const aDate = getOrderOpenedAt(a)?.getTime() ?? null;
+          const bDate = getOrderOpenedAt(b)?.getTime() ?? null;
+          if (aDate === null) return bDate === null ? 0 : 1;
+          if (bDate === null) return -1;
+          return (aDate - bDate) * multiplier;
+        });
+      }
       const valueFor = (order: Ordem) => {
         if (field === "frota") return String(order.frota ?? "");
         if (field === "setor") return String(order.setor ?? "");
         if (field === "tecnico") return String(order.tecnico_nome || order.tecnico_email || "Fila geral");
+        if (field === "status") return STATUS_LABEL[order.status as Status] ?? String(order.status ?? "");
         return "";
       };
-      const multiplier = direction === "za" ? -1 : 1;
       return matches.sort((a, b) => valueFor(a).localeCompare(valueFor(b), "pt-BR", { numeric: true, sensitivity: "base" }) * multiplier);
     }
 
@@ -900,8 +910,8 @@ function Dashboard() {
                   </div>
                   {isManager && t.list.length > 0 && (
                     <div className="mb-2 flex flex-wrap items-center gap-2 lg:hidden">
-                      {(["frota", "setor", "tecnico"] as const).map((field) => {
-                        const labels = { frota: "Frota", setor: "Setor", tecnico: "Técnico" };
+                      {(["frota", "setor", "tecnico", "status", "data"] as const).map((field) => {
+                        const labels = { frota: "Frota", setor: "Setor", tecnico: "Técnico", status: "Status", data: "Datas" };
                         const active = sortOrdersBy.startsWith(field + "-");
                         const direction = active ? (sortOrdersBy.endsWith("-za") ? "za" : "az") : null;
                         return (
@@ -914,10 +924,10 @@ function Dashboard() {
                             <PopoverContent align="start" className="w-52 p-1">
                               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Classificar por {labels[field]}</div>
                               <button type="button" onClick={() => setSortOrdersBy(field + "-az")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
-                                <span className="mr-2 w-5 text-center">↑</span> Classificar de A a Z
+                                <span className="mr-2 w-5 text-center">↑</span> {field === "data" ? "Mais antiga primeiro" : "Classificar de A a Z"}
                               </button>
                               <button type="button" onClick={() => setSortOrdersBy(field + "-za")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
-                                <span className="mr-2 w-5 text-center">↓</span> Classificar de Z a A
+                                <span className="mr-2 w-5 text-center">↓</span> {field === "data" ? "Mais recente primeiro" : "Classificar de Z a A"}
                               </button>
                               <button type="button" onClick={() => setSortOrdersBy("padrao")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
                                 <span className="mr-2 w-5 text-center">↺</span> Limpar classificação
@@ -932,8 +942,8 @@ function Dashboard() {
                     <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
-                      {(["frota", "setor", "localizacao", "tecnico"] as const).map((field) => {
-                        const labels = { frota: "Frota", setor: "Setor", localizacao: "Localização", tecnico: "Técnico" };
+                      {(["frota", "setor", "localizacao", "tecnico", "status", "data"] as const).map((field) => {
+                        const labels = { frota: "Frota", setor: "Setor", localizacao: "Localização", tecnico: "Técnico", status: "Status", data: "Datas" };
                         const sortable = field !== "localizacao";
                         const active = sortOrdersBy.startsWith(field + "-");
                         const direction = active ? sortOrdersBy.endsWith("-za") ? "za" : "az" : null;
@@ -956,10 +966,10 @@ function Dashboard() {
                                 <PopoverContent align="start" className="w-52 p-1">
                                   <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Classificar por {labels[field]}</div>
                                   <button type="button" onClick={() => setSortOrdersBy(field + "-az")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
-                                    <span className="mr-2 w-5 text-center">↑</span> Classificar de A a Z
+                                    <span className="mr-2 w-5 text-center">↑</span> {field === "data" ? "Mais antiga primeiro" : "Classificar de A a Z"}
                                   </button>
                                   <button type="button" onClick={() => setSortOrdersBy(field + "-za")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
-                                    <span className="mr-2 w-5 text-center">↓</span> Classificar de Z a A
+                                    <span className="mr-2 w-5 text-center">↓</span> {field === "data" ? "Mais recente primeiro" : "Classificar de Z a A"}
                                   </button>
                                   <button type="button" onClick={() => setSortOrdersBy("padrao")} className="flex w-full items-center rounded-sm px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
                                     <span className="mr-2 w-5 text-center">↺</span> Limpar classificação
