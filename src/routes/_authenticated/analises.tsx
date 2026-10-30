@@ -121,7 +121,7 @@ function TechnicalAnalysis() {
     queryFn: getAnalysisData,
     staleTime: 30_000,
   });
-  const canEditBase = query.data?.role === "gestor_central";
+  const canEditBase = query.data?.user.email?.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
 
   function beginEdit(order: Ordem) {
     setEditingOrderId(order.id);
