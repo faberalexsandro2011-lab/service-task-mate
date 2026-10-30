@@ -929,7 +929,7 @@ function Dashboard() {
                     </div>
                   )}
                   {isManager && t.list.length > 0 && (
-                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
+                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_150px_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
                       {(["frota", "setor", "localizacao", "tecnico"] as const).map((field) => {
@@ -1188,6 +1188,26 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const priorityAgeDays = getOrderAgeInDays(order);
   const priority = actor.isManager && isPriorityOrder(order);
 
+  async function updateMaintenanceClass(value: string) {
+    if (!isPrimaryAdmin || value === String(order.classe_manutencao ?? "")) return;
+    setBusy(true);
+    const { error } = await supabase.from("ordens_servico").update({
+      classe_manutencao: value || null,
+    }).eq("id", order.id);
+    setBusy(false);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível atualizar a classe de manutenção."));
+      return;
+    }
+    try {
+      await logHistory(order.id, actor, "edicao_administrativa", "Classe de manutenção alterada para " + (value || "não informada") + ".");
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar alteração da classe:", historyError);
+    }
+    toast.success("Classe de manutenção atualizada na OS.");
+    await onChanged();
+  }
+
   async function saveOrderEdits(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isPrimaryAdmin) return;
@@ -1206,7 +1226,6 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       tecnico_nome: value("edit_tecnico_nome") || null,
       tecnico_email: value("edit_tecnico_email") || null,
       descricao: value("edit_descricao") || null,
-      classe_manutencao: value("edit_classe_manutencao") || null,
       status: value("edit_status"),
       data_inicio: dateValue("edit_data_inicio"),
       concluida_em: dateValue("edit_concluida_em"),
@@ -1406,6 +1425,32 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           )}
 
           {actor.isManager && (
+            <div className="min-w-[150px] max-w-[190px]" onClick={(event) => event.stopPropagation()}>
+              <span className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">Classe</span>
+              {isPrimaryAdmin ? (
+                <select
+                  aria-label={"Editar classe de manutenção da OS " + order.numero_os}
+                  value={order.classe_manutencao ?? ""}
+                  disabled={busy}
+                  onChange={(event) => void updateMaintenanceClass(event.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="">Não informada</option>
+                  <option value="GPS">GPS</option>
+                  <option value="SOLINFTEC">SOLINFTEC</option>
+                  <option value="RÁDIO">RÁDIO</option>
+                  <option value="RASTREADOR">RASTREADOR</option>
+                  <option value="AUTM. IRR">AUTM. IRR</option>
+                  <option value="AUTM. PLANT">AUTM. PLANT</option>
+                  <option value="STARLINK/CONCENT.">STARLINK/CONCENT.</option>
+                </select>
+              ) : (
+                <p className="break-words text-xs font-medium">{order.classe_manutencao || "Não informada"}</p>
+              )}
+            </div>
+          )}
+
+          {actor.isManager && (
             <div className="min-w-[130px] max-w-[220px]">
               <p className="break-words text-sm font-medium">{order.localizacao?.trim() || "Não informada"}</p>
             </div>
@@ -1523,7 +1568,6 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <div className="space-y-1"><Label htmlFor="edit_localizacao">Localização</Label><Input id="edit_localizacao" name="edit_localizacao" defaultValue={order.localizacao ?? ""} /></div>
               <div className="space-y-1"><Label htmlFor="edit_tecnico_nome">Técnico responsável</Label><Input id="edit_tecnico_nome" name="edit_tecnico_nome" defaultValue={order.tecnico_nome ?? ""} /></div>
               <div className="space-y-1"><Label htmlFor="edit_tecnico_email">E-mail do técnico</Label><Input id="edit_tecnico_email" name="edit_tecnico_email" type="email" defaultValue={order.tecnico_email ?? ""} /></div>
-              <div className="space-y-1"><Label htmlFor="edit_classe_manutencao">Classificação</Label><Input id="edit_classe_manutencao" name="edit_classe_manutencao" defaultValue={order.classe_manutencao ?? ""} /></div>
               <div className="space-y-1"><Label htmlFor="edit_status">Status</Label>
                 <select id="edit_status" name="edit_status" defaultValue={order.status} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                   <option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Finalizada</option><option value="cancelada">Cancelada</option>
