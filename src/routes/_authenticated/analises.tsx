@@ -98,7 +98,7 @@ async function getAnalysisData() {
 
   if (error) throw error;
 
-  return { user: authData.user, orders: orders ?? [] };
+  return { user: authData.user, role, orders: orders ?? [] };
 }
 
 function TechnicalAnalysis() {
@@ -121,7 +121,7 @@ function TechnicalAnalysis() {
     queryFn: getAnalysisData,
     staleTime: 30_000,
   });
-  const canEditBase = query.data?.user.email?.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
+  const canEditBase = query.data?.role === "gestor_central";
 
   function beginEdit(order: Ordem) {
     setEditingOrderId(order.id);
@@ -764,8 +764,8 @@ function TechnicalAnalysis() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><ClipboardList className="size-4 text-primary" /><h2 className="font-bold">Base técnica · todas as OS</h2></div>
-                <p className="mt-1 text-xs text-muted-foreground">{orders.length} registros exibidos · dados persistidos na base oficial do Central OS.</p>
-                {canEditBase && <p className="mt-1 text-xs font-medium text-primary">Edição habilitada para o gestor Faber; os indicadores serão recalculados após salvar.</p>}
+                <p className="mt-1 text-xs text-muted-foreground">{orders.length} registros exibidos · dados persistidos na base do ambiente atual.</p>
+                {canEditBase && <p className="mt-1 text-xs font-medium text-primary">Edição direta na linha: clique em Editar, altere os campos aqui mesmo e salve nesta mesma linha.</p>}
               </div>
               <span className="text-xs font-medium text-muted-foreground">{periodLabel(period)}</span>
             </div>
@@ -786,7 +786,7 @@ function TechnicalAnalysis() {
                     <td className="px-3 py-3">{isEditing ? editInput("setor","Setor") : order.setor || "—"}</td>
                     <td className="px-3 py-3">{isEditing ? editInput("localizacao","Localização") : order.localizacao || "—"}</td>
                     <td className="max-w-[320px] px-3 py-3">{isEditing ? <textarea value={editDraft?.descricao ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, descricao: event.target.value } : current)} placeholder="Descrição do serviço" className="min-h-20 w-56 rounded-md border bg-background p-2 text-xs" /> : <><div className="max-w-[260px] whitespace-normal font-medium">{order.descricao || "Sem descrição"}</div><div className="mt-1 text-[11px] text-muted-foreground">{serviceCategory(order)}</div></>}</td>
-                    <td className="px-3 py-3">{isEditing ? editInput("classe_manutencao","Classe de manutenção") : order.classe_manutencao || "—"}</td>
+                    <td className="px-3 py-3">{isEditing ? <select value={editDraft?.classe_manutencao ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, classe_manutencao: event.target.value } : current)} className="h-8 min-w-36 rounded-md border bg-background px-2 text-xs"><option value="">Sem classe</option>{MAINTENANCE_CLASSES.map((item) => <option key={item} value={item}>{item}</option>)}</select> : order.classe_manutencao || "—"}</td>
                     <td className="px-3 py-3">{isEditing ? <textarea value={editDraft?.pecas_utilizadas ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, pecas_utilizadas: event.target.value } : current)} placeholder="Peças utilizadas (uma por linha)" className="min-h-20 w-48 rounded-md border bg-background p-2 text-xs" /> : partCount ? partCount + " lançada(s)" : "—"}</td>
                     <td className="px-3 py-3">{isEditing ? <div className="grid gap-1.5">{editInput("tecnico_nome","Nome do técnico")}{editInput("tecnico_email","E-mail do técnico")}</div> : order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{formatDate(order.created_at)}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.data_inicio ? formatDate(order.data_inicio) : "Não iniciado"}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.concluida_em ? formatDate(order.concluida_em) : "Em andamento"}</td><td className="px-3 py-3"><StatusBadge status={order.status} /></td>
