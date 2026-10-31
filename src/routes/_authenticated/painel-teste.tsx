@@ -784,6 +784,44 @@ function PainelTeste() {
   };
 
   useEffect(() => { void carregar(); }, []);
+
+  // Atualiza somente as OS em segundo plano, sem recarregar usuários e estoque.
+  // O Realtime entrega a mudança imediatamente; a consulta periódica é o fallback.
+  useEffect(() => {
+    let ativo = true;
+    const atualizarOrdens = async () => {
+      const { data, error } = await (supabase as any)
+        .from("ordens_servico")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (!ativo || error || !data) return;
+      setOrdens(data as Ordem[]);
+      setAtualizadoEm(new Date());
+    };
+
+    const channel = supabase
+      .channel("painel-teste-ordens-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
+        void atualizarOrdens();
+      })
+      .subscribe();
+
+    const intervalo = window.setInterval(() => {
+      if (navigator.onLine) void atualizarOrdens();
+    }, 5000);
+
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void atualizarOrdens();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+
+    return () => {
+      ativo = false;
+      window.clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      void supabase.removeChannel(channel);
+    };
+  }, []);
   useEffect(() => { if (aba === "usuarios" || modoGestao === "criar" || modoGestao === "colar" || modoGestao === "importar") void carregarUsuariosAdmin(); }, [aba, modoGestao]);
   const carregarDispositivos = async () => {
     if (perfilAtual !== "gestor_central") return;
