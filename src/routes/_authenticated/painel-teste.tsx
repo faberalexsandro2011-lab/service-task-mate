@@ -1317,7 +1317,7 @@ function PainelTeste() {
             const validas = Math.max(total - canceladas, 0);
             const taxaConclusao = validas ? Math.round(concluidas / validas * 100) : 0;
             const setores = Object.entries(ordensVisiveis.reduce<Record<string, number>>((acc, o) => { const k = o.setor?.trim() || "Sem setor"; acc[k] = (acc[k] || 0) + 1; return acc; }, {})).sort((a,b)=>b[1]-a[1]).slice(0,8);
-            const setorAtivo = setorAnaliseSelecionado && setores.some(([nome]) => nome === setorAnaliseSelecionado) ? setorAnaliseSelecionado : (setores[0]?.[0] || "");
+            const setorAtivo = setorAnaliseSelecionado && setores.some(([nome]) => nome === setorAnaliseSelecionado) ? setorAnaliseSelecionado : "";
             const ordensDoSetor = ordensVisiveis.filter(o => (o.setor?.trim() || "Sem setor") === setorAtivo).sort((a,b) => (b.created_at || "").localeCompare(a.created_at || ""));
             const tecnicosDoSetor = Object.entries(ordensDoSetor.reduce<Record<string, number>>((acc,o) => { const nome = o.tecnico_nome?.trim() || "Sem técnico"; acc[nome] = (acc[nome] || 0) + 1; return acc; }, {})).sort((a,b)=>b[1]-a[1]);
             const frotasDoSetor = new Set(ordensDoSetor.map(o => o.frota?.trim()).filter(Boolean)).size;
