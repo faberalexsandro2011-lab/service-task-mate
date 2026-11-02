@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
+const ADMIN_AUTH_CALLBACK = "https://service-task-mate-git-feature-comercial-mult-5d6bdb-alexsandro5.vercel.app/admin-auth";
 
 function createControlAuthClient() {
   const env = import.meta.env as Record<string, string | undefined>;
@@ -134,7 +135,7 @@ function AdminAuthCallback() {
       const { error } = await client.auth.signInWithOtp({
         email: ADMIN_EMAIL,
         options: {
-          emailRedirectTo: `${window.location.origin}/admin-auth`,
+          emailRedirectTo: ADMIN_AUTH_CALLBACK,
           shouldCreateUser: false,
         },
       });
