@@ -111,19 +111,31 @@ function AdminAuthCallback() {
   }, [client]);
 
   async function requestActivationLink() {
-    if (!client) return;
+    if (!client) {
+      setMessage("Conexão do projeto isolado indisponível neste carregamento. Atualize a página; nenhuma conta foi alterada.");
+      return;
+    }
+
     setBusy(true);
-    const { error } = await client.auth.signInWithOtp({
-      email: ADMIN_EMAIL,
-      options: {
-        emailRedirectTo: `${window.location.origin}/admin-auth`,
-        shouldCreateUser: false,
-      },
-    });
-    setBusy(false);
-    setMessage(error
-      ? "Não foi possível enviar o link. Confira a configuração de e-mail do projeto isolado."
-      : "Link de ativação enviado. Abra o e-mail mais recente e use o link uma única vez.");
+    setMessage("Solicitando link de ativação...");
+    try {
+      const { error } = await client.auth.signInWithOtp({
+        email: ADMIN_EMAIL,
+        options: {
+          emailRedirectTo: `${window.location.origin}/admin-auth`,
+          shouldCreateUser: false,
+        },
+      });
+
+      setMessage(error
+        ? `Falha ao solicitar o link: ${error.message}`
+        : "Solicitação concluída. Verifique a caixa de entrada e o spam do e-mail autorizado.");
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "erro inesperado";
+      setMessage(`Não foi possível concluir a solicitação: ${detail}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function savePassword(event: React.FormEvent<HTMLFormElement>) {
@@ -178,6 +190,7 @@ function AdminAuthCallback() {
             <Button type="button" disabled={busy} onClick={requestActivationLink} className="w-full">
               {busy ? "Enviando..." : "Enviar link de ativação"}
             </Button>
+            <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{message}</p>
             <p className="text-xs text-muted-foreground">O link será enviado somente para a identidade administrativa autorizada e retornará a esta página.</p>
           </div>
         )}
