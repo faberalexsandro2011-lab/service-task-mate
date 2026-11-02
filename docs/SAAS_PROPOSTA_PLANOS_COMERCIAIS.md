@@ -18,7 +18,7 @@ Propor uma estrutura simples de planos para validar o modelo comercial. Os limit
 | Gestão de OS | Sim | Sim | Sim |
 | Histórico e relatórios | Básico | Completo | Completo |
 | Análise técnica | Básica | Completa | Completa |
-| Estoque e materiais | Opcional / avaliar | Sim | Sim |
+| Estoque e materiais | Sim | Sim | Sim |
 | Importação de planilhas | Sim | Sim | Sim |
 | Exportação de relatórios | Básica | Completa | Completa |
 | Suporte | Horário comercial, padrão | Prioritário | Contratual |
