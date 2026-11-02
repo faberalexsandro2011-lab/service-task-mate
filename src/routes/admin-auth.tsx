@@ -60,10 +60,10 @@ function AdminAuthCallback() {
 
       let authError: Error | null = null;
 
-      if (tokenHash && (type === "invite" || type === "recovery" || type === "email")) {
+      if (tokenHash && (type === "invite" || type === "recovery" || type === "email" || type === "magiclink")) {
         const { error } = await client.auth.verifyOtp({
           token_hash: tokenHash,
-          type: type as "invite" | "recovery" | "email",
+          type: type as "invite" | "recovery" | "email" | "magiclink",
         });
         authError = error;
       } else if (code) {
@@ -110,6 +110,22 @@ function AdminAuthCallback() {
     };
   }, [client]);
 
+  async function requestActivationLink() {
+    if (!client) return;
+    setBusy(true);
+    const { error } = await client.auth.signInWithOtp({
+      email: ADMIN_EMAIL,
+      options: {
+        emailRedirectTo: `${window.location.origin}/admin-auth`,
+        shouldCreateUser: false,
+      },
+    });
+    setBusy(false);
+    setMessage(error
+      ? "Não foi possível enviar o link. Confira a configuração de e-mail do projeto isolado."
+      : "Link de ativação enviado. Abra o e-mail mais recente e use o link uma única vez.");
+  }
+
   async function savePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!client) return;
@@ -155,8 +171,14 @@ function AdminAuthCallback() {
         )}
 
         {status === "error" && (
-          <div role="alert" className="mt-6 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            {message}
+          <div className="mt-6 grid gap-3">
+            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {message}
+            </div>
+            <Button type="button" disabled={busy} onClick={requestActivationLink} className="w-full">
+              {busy ? "Enviando..." : "Enviar link de ativação"}
+            </Button>
+            <p className="text-xs text-muted-foreground">O link será enviado somente para a identidade administrativa autorizada e retornará a esta página.</p>
           </div>
         )}
 
