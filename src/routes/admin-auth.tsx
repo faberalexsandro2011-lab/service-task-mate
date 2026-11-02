@@ -57,10 +57,22 @@ function AdminAuthCallback() {
       const tokenHash = url.searchParams.get("token_hash");
       const type = url.searchParams.get("type");
       const code = url.searchParams.get("code");
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      const hashType = hashParams.get("type");
 
       let authError: Error | null = null;
 
-      if (tokenHash && (type === "invite" || type === "recovery" || type === "email" || type === "magiclink")) {
+      // Supabase magic links may return credentials in the URL fragment.
+      // This client disables automatic URL detection, so restore that session explicitly.
+      if (accessToken && refreshToken && (!hashType || hashType === "magiclink" || hashType === "invite")) {
+        const { error } = await client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        authError = error;
+      } else if (tokenHash && (type === "invite" || type === "recovery" || type === "email" || type === "magiclink")) {
         const { error } = await client.auth.verifyOtp({
           token_hash: tokenHash,
           type: type as "invite" | "recovery" | "email" | "magiclink",
