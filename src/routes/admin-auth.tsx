@@ -278,7 +278,7 @@ function AdminAuthCallback() {
 
   async function verifyExistingMfa(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!client || !factorId || !challengeId || !/^\\d{6,8}$/.test(mfaCode)) {
+    if (!client || !factorId || !challengeId || !/^\d{6,8}$/.test(mfaCode)) {
       setMessage("Informe o código numérico do autenticador.");
       return;
     }
