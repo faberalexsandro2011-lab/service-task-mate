@@ -37,7 +37,7 @@ export const Route = createFileRoute("/admin-auth")({
 
 function AdminAuthCallback() {
   const client = useMemo(() => createControlAuthClient(), []);
-  const [status, setStatus] = useState<"loading" | "ready" | "error" | "saved" | "mfa-setup" | "mfa-enabled">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "saved" | "mfa-setup" | "mfa-verify" | "mfa-enabled">("loading");
   const [message, setMessage] = useState("Validando o convite...");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -114,11 +114,33 @@ function AdminAuthCallback() {
         return;
       }
 
+      const { data: factorData, error: factorError } = await client.auth.mfa.listFactors();
+      if (factorError) {
+        if (active) { setStatus("error"); setMessage("Não foi possível consultar a configuração do autenticador. Tente novamente."); }
+        return;
+      }
+
+      const verifiedFactor = factorData.totp?.find((factor) => factor.status === "verified");
       if (active) {
         setEmail(userEmail);
-        setStatus("ready");
-        setMessage("Convite validado. Defina uma senha forte para concluir a ativação.");
         window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      if (verifiedFactor) {
+        const challenge = await client.auth.mfa.challenge({ factorId: verifiedFactor.id });
+        if (challenge.error) {
+          if (active) { setStatus("error"); setMessage("Existe um autenticador cadastrado, mas não foi possível iniciar a verificação. Tente novamente."); }
+          return;
+        }
+        if (active) {
+          setFactorId(verifiedFactor.id);
+          setChallengeId(challenge.data.id);
+          setStatus("mfa-verify");
+          setMessage("A conta já possui autenticador. Informe o código atual para concluir a ativação.");
+        }
+      } else if (active) {
+        setStatus("mfa-setup");
+        setMessage("A senha já está definida. Continue configurando o autenticador; não é necessário definir outra senha.");
       }
     }
 
@@ -199,6 +221,26 @@ function AdminAuthCallback() {
     setMessage("Escaneie o QR Code e informe o código atual do autenticador.");
   }
 
+  async function verifyExistingMfa(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!client || !factorId || !challengeId || !/^\\d{6,8}$/.test(mfaCode)) {
+      setMessage("Informe o código numérico do autenticador.");
+      return;
+    }
+    setBusy(true);
+    const result = await client.auth.mfa.verify({ factorId, challengeId, code: mfaCode });
+    const assurance = result.error ? null : await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    setBusy(false);
+    if (result.error || assurance?.data.currentLevel !== "aal2") {
+      setMfaCode("");
+      setMessage("Código inválido ou expirado. Confira o aplicativo e tente novamente.");
+      return;
+    }
+    setMfaCode("");
+    setStatus("mfa-enabled");
+    setMessage("Autenticador verificado. A sessão atingiu o nível de segurança AAL2.");
+  }
+
   async function verifyMfa(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!client || !factorId || !challengeId) return;
@@ -266,6 +308,16 @@ function AdminAuthCallback() {
             <p className="font-medium">Senha cadastrada com sucesso.</p>
             <p className="mt-1 text-muted-foreground">{message}</p>
           </div>
+        )}
+
+        {status === "mfa-verify" && (
+          <form onSubmit={verifyExistingMfa} className="mt-6 grid gap-3">
+            <p className="text-sm text-muted-foreground">A conta já possui um autenticador TOTP verificado. Use o aplicativo autenticador existente.</p>
+            <Label htmlFor="existing-mfa-code">Código de verificação</Label>
+            <Input id="existing-mfa-code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} placeholder="000000" required value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/[^0-9]/g, ""))} />
+            <Button type="submit" disabled={busy} className="w-full">{busy ? "Verificando..." : "Verificar autenticador"}</Button>
+            <p role="status" className="text-sm text-muted-foreground">{message}</p>
+          </form>
         )}
 
         {status === "mfa-setup" && (
