@@ -16,6 +16,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+type Plano = {
+  id: string;
+  codigo: string;
+  nome: string;
+  descricao: string | null;
+  limite_usuarios: number | null;
+  limite_unidades: number | null;
+  recursos: Record<string, boolean>;
+  ativo: boolean;
+};
+
 type Empresa = {
   id: string;
   nome_legal: string;
@@ -72,6 +83,19 @@ function SaasAdminHome() {
   const [slug, setSlug] = useState("");
   const [documentoFiscal, setDocumentoFiscal] = useState("");
   const [emailAdministrativo, setEmailAdministrativo] = useState("");
+  const [planos, setPlanos] = useState<Plano[]>([]);
+  const [planosLoading, setPlanosLoading] = useState(true);
+  const [planosError, setPlanosError] = useState("");
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [planError, setPlanError] = useState("");
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [planCodigo, setPlanCodigo] = useState("");
+  const [planNome, setPlanNome] = useState("");
+  const [planDescricao, setPlanDescricao] = useState("");
+  const [planUsuarios, setPlanUsuarios] = useState("10");
+  const [planUnidades, setPlanUnidades] = useState("1");
+  const [planAtivo, setPlanAtivo] = useState(true);
 
   const client = useMemo(() => createSaasAuthClient(), []);
 
@@ -197,7 +221,7 @@ function SaasAdminHome() {
 
   const modules = [
     { label: "Empresas", detail: "Cadastro e situação das empresas clientes", icon: Building2, active: true },
-    { label: "Planos", detail: "Recursos e limites de cada plano", icon: Layers3, active: false },
+    { label: "Planos", detail: "Recursos e limites de cada plano", icon: Layers3, active: true },
     { label: "Assinaturas", detail: "Vigência, vencimentos e situação comercial", icon: CreditCard, active: false },
     { label: "Instâncias", detail: "Ambientes e conexões isoladas por empresa", icon: Users, active: false },
   ];
@@ -241,6 +265,90 @@ function SaasAdminHome() {
             </article>
           ))}
         </div>
+
+        <section id="planos" className="mt-8 rounded-xl border bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
+            <div>
+              <h2 className="text-xl font-semibold">Planos comerciais</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Defina os limites de usuários e unidades. Campo em branco significa sem limite definido.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void loadPlanos()} disabled={planosLoading}>
+                <RefreshCw className={`mr-2 size-4 ${planosLoading ? "animate-spin" : ""}`} /> Atualizar
+              </Button>
+              <Button onClick={() => { resetPlanForm(); setShowPlanForm((v) => !v); }}>
+                {showPlanForm ? <X className="mr-2 size-4" /> : <Plus className="mr-2 size-4" />}
+                {showPlanForm ? "Cancelar" : "Novo plano"}
+              </Button>
+            </div>
+          </div>
+          <div className="p-5">
+            {showPlanForm && (
+              <form onSubmit={savePlan} className="mb-5 rounded-lg border p-4">
+                <h3 className="font-semibold">{editingPlanId ? "Editar plano" : "Cadastrar plano"}</h3>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-1 text-sm">Código único
+                    <Input required maxLength={40} pattern="[a-z0-9-]+" value={planCodigo} onChange={(e) => setPlanCodigo(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))} placeholder="essencial" />
+                  </label>
+                  <label className="grid gap-1 text-sm">Nome do plano
+                    <Input required maxLength={100} value={planNome} onChange={(e) => setPlanNome(e.target.value)} placeholder="Essencial" />
+                  </label>
+                  <label className="grid gap-1 text-sm sm:col-span-2">Descrição
+                    <Input maxLength={500} value={planDescricao} onChange={(e) => setPlanDescricao(e.target.value)} />
+                  </label>
+                  <label className="grid gap-1 text-sm">Limite de usuários
+                    <Input type="number" min="0" value={planUsuarios} onChange={(e) => setPlanUsuarios(e.target.value)} placeholder="Sem limite definido" />
+                  </label>
+                  <label className="grid gap-1 text-sm">Limite de unidades
+                    <Input type="number" min="0" value={planUnidades} onChange={(e) => setPlanUnidades(e.target.value)} placeholder="Sem limite definido" />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <input type="checkbox" checked={planAtivo} onChange={(e) => setPlanAtivo(e.target.checked)} />
+                    Plano ativo para novas contratações
+                  </label>
+                </div>
+                {planError && <p role="alert" className="mt-3 text-sm text-destructive">{planError}</p>}
+                <div className="mt-4 flex justify-end">
+                  <Button type="submit" disabled={savingPlan}>{savingPlan ? "Salvando..." : "Salvar plano"}</Button>
+                </div>
+              </form>
+            )}
+            {planosError ? (
+              <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">{planosError}</p>
+            ) : planosLoading ? (
+              <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Carregando planos com validação MFA…</p>
+            ) : planos.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center">
+                <Layers3 className="mx-auto size-8 text-muted-foreground" />
+                <p className="mt-3 font-medium">Nenhum plano cadastrado</p>
+                <p className="mt-1 text-sm text-muted-foreground">Cadastre o primeiro plano para estruturar as opções comerciais.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground"><tr>
+                    <th className="px-4 py-3 font-medium">Plano</th>
+                    <th className="px-4 py-3 font-medium">Código</th>
+                    <th className="px-4 py-3 font-medium">Usuários</th>
+                    <th className="px-4 py-3 font-medium">Unidades</th>
+                    <th className="px-4 py-3 font-medium">Situação</th>
+                    <th className="px-4 py-3 font-medium">Ação</th>
+                  </tr></thead>
+                  <tbody className="divide-y">{planos.map((plan) => (
+                    <tr key={plan.id}>
+                      <td className="px-4 py-3"><p className="font-medium">{plan.nome}</p><p className="text-xs text-muted-foreground">{plan.descricao || "—"}</p></td>
+                      <td className="px-4 py-3 font-mono text-xs">{plan.codigo}</td>
+                      <td className="px-4 py-3">{plan.limite_usuarios ?? "—"}</td>
+                      <td className="px-4 py-3">{plan.limite_unidades ?? "—"}</td>
+                      <td className="px-4 py-3">{plan.ativo ? "Ativo" : "Inativo"}</td>
+                      <td className="px-4 py-3"><Button size="sm" variant="outline" onClick={() => editPlan(plan)}>Editar</Button></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
 
         <section className="mt-8 rounded-xl border bg-card">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
