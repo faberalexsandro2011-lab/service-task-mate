@@ -42,6 +42,8 @@ function AdminAuthCallback() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [resumePassword, setResumePassword] = useState("");
+  const [showResumeLogin, setShowResumeLogin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [factorId, setFactorId] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -90,14 +92,20 @@ function AdminAuthCallback() {
       } else {
         const { data } = await client.auth.getSession();
         if (!data.session) {
-          authError = new Error("O link não contém um código de convite válido ou expirou.");
+          if (active) {
+            setStatus("error");
+            setShowResumeLogin(true);
+            setMessage("A sessão de ativação não está aberta. Entre com a senha já cadastrada para continuar, sem solicitar outro convite.");
+          }
+          return;
         }
       }
 
       if (authError) {
         if (active) {
           setStatus("error");
-          setMessage("Não foi possível validar o convite. Solicite um novo convite ao administrador da plataforma.");
+          setShowResumeLogin(true);
+          setMessage("Não foi possível validar a sessão do convite. Você pode retomar com a senha já cadastrada, sem redefini-la.");
         }
         return;
       }
@@ -149,6 +157,53 @@ function AdminAuthCallback() {
       active = false;
     };
   }, [client]);
+
+  async function resumeActivation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!client) return;
+
+    setBusy(true);
+    setMessage("Validando a conta administrativa...");
+    const result = await client.auth.signInWithPassword({
+      email: ADMIN_EMAIL,
+      password: resumePassword,
+    });
+
+    if (result.error || result.data.user?.email?.toLowerCase() !== ADMIN_EMAIL) {
+      await client.auth.signOut();
+      setBusy(false);
+      setMessage("Não foi possível entrar com a senha cadastrada. Confira os dados e tente novamente.");
+      return;
+    }
+
+    setResumePassword("");
+    setEmail(ADMIN_EMAIL);
+    const { data: factors, error: factorError } = await client.auth.mfa.listFactors();
+    if (factorError) {
+      setBusy(false);
+      setMessage("A conta foi autenticada, mas não foi possível consultar o autenticador. Tente novamente.");
+      return;
+    }
+
+    const verifiedFactor = factors.totp?.find((factor) => factor.status === "verified");
+    if (verifiedFactor) {
+      const challenge = await client.auth.mfa.challenge({ factorId: verifiedFactor.id });
+      setBusy(false);
+      if (challenge.error) {
+        setMessage("Não foi possível iniciar a verificação do autenticador existente.");
+        return;
+      }
+      setFactorId(verifiedFactor.id);
+      setChallengeId(challenge.data.id);
+      setStatus("mfa-verify");
+      setMessage("Informe o código do autenticador já cadastrado.");
+      return;
+    }
+
+    setBusy(false);
+    setStatus("mfa-setup");
+    setMessage("Senha validada. Configure agora o aplicativo autenticador; sua senha não será alterada.");
+  }
 
   async function requestActivationLink() {
     if (!client) {
@@ -275,11 +330,18 @@ function AdminAuthCallback() {
             <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               {message}
             </div>
-            <Button type="button" disabled={busy} onClick={requestActivationLink} className="w-full">
+            {showResumeLogin && (
+              <form onSubmit={resumeActivation} className="grid gap-3 rounded-md border p-3">
+                <Label htmlFor="resume-admin-password">Senha já cadastrada</Label>
+                <Input id="resume-admin-password" type="password" autoComplete="current-password" required value={resumePassword} onChange={(event) => setResumePassword(event.target.value)} />
+                <Button type="submit" disabled={busy} className="w-full">{busy ? "Validando..." : "Continuar ativação"}</Button>
+              </form>
+            )}
+            <Button type="button" variant="outline" disabled={busy} onClick={requestActivationLink} className="w-full">
               {busy ? "Enviando..." : "Enviar link de ativação"}
             </Button>
             <p role="status" aria-live="polite" className="text-sm text-muted-foreground">{message}</p>
-            <p className="text-xs text-muted-foreground">O link será enviado somente para a identidade administrativa autorizada e retornará a esta página.</p>
+            <p className="text-xs text-muted-foreground">A retomada usa a senha já cadastrada e não cria outra conta nem redefine a senha.</p>
           </div>
         )}
 
