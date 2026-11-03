@@ -37,12 +37,17 @@ export const Route = createFileRoute("/admin-auth")({
 
 function AdminAuthCallback() {
   const client = useMemo(() => createControlAuthClient(), []);
-  const [status, setStatus] = useState<"loading" | "ready" | "error" | "saved">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "error" | "saved" | "mfa-setup" | "mfa-enabled">("loading");
   const [message, setMessage] = useState("Validando o convite...");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [factorId, setFactorId] = useState("");
+  const [challengeId, setChallengeId] = useState("");
+  const [qrCode, setQrCode] = useState("");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -175,15 +180,43 @@ function AdminAuthCallback() {
 
     setPassword("");
     setConfirmPassword("");
-    setStatus("saved");
-    setMessage("Senha definida. O próximo passo será ativar e exigir o MFA do administrador.");
+    setStatus("mfa-setup");
+    setMessage("Senha definida. Configure agora o aplicativo autenticador.");
+  }
+
+  async function enrollMfa() {
+    if (!client) return;
+    setBusy(true);
+    const result = await client.auth.mfa.enroll({ factorType: "totp", friendlyName: "Central OS SaaS - Administrador" });
+    if (result.error) { setBusy(false); setMessage("Não foi possível preparar o autenticador. Tente novamente."); return; }
+    setFactorId(result.data.id);
+    setQrCode(result.data.totp.qr_code);
+    setTotpSecret(result.data.totp.secret);
+    const challenge = await client.auth.mfa.challenge({ factorId: result.data.id });
+    setBusy(false);
+    if (challenge.error) { setMessage("Não foi possível iniciar a verificação do autenticador."); return; }
+    setChallengeId(challenge.data.id);
+    setMessage("Escaneie o QR Code e informe o código atual do autenticador.");
+  }
+
+  async function verifyMfa(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!client || !factorId || !challengeId) return;
+    if (!/^\d{6,8}$/.test(mfaCode)) { setMessage("Informe o código numérico do autenticador."); return; }
+    setBusy(true);
+    const result = await client.auth.mfa.verify({ factorId, challengeId, code: mfaCode });
+    const assurance = result.error ? null : await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    setBusy(false);
+    if (result.error || assurance?.data.currentLevel !== "aal2") { setMessage("Não foi possível confirmar o MFA. Confira o código e tente novamente."); return; }
+    setMfaCode(""); setQrCode(""); setTotpSecret(""); setStatus("mfa-enabled");
+    setMessage("MFA ativado e verificado nesta sessão.");
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <section className="w-full max-w-md rounded-xl border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          {status === "saved" ? <ShieldCheck className="size-6" /> : <KeyRound className="size-6" />}
+          {status === "saved" || status === "mfa-enabled" ? <ShieldCheck className="size-6" /> : <KeyRound className="size-6" />}
         </div>
         <p className="text-sm font-semibold text-primary">Central OS · Administração SaaS</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight">Ativação do administrador</h1>
@@ -232,6 +265,36 @@ function AdminAuthCallback() {
           <div className="mt-6 rounded-md border bg-muted/40 p-4 text-sm">
             <p className="font-medium">Senha cadastrada com sucesso.</p>
             <p className="mt-1 text-muted-foreground">{message}</p>
+          </div>
+        )}
+
+        {status === "mfa-setup" && (
+          <div className="mt-6 grid gap-4">
+            <p className="text-sm text-muted-foreground">Abra o Google Authenticator, Microsoft Authenticator ou outro app TOTP.</p>
+            {!qrCode ? (
+              <Button type="button" disabled={busy} onClick={enrollMfa} className="w-full">{busy ? "Preparando..." : "Gerar QR Code do autenticador"}</Button>
+            ) : (
+              <>
+                <div className="grid justify-items-center gap-3 rounded-md border p-4">
+                  <img src={"data:image/svg+xml;charset=utf-8," + encodeURIComponent(qrCode)} alt="QR Code do autenticador" className="h-52 w-52" />
+                  <div className="w-full grid gap-1"><Label htmlFor="totp-secret">Chave manual (mantenha em segredo)</Label><Input id="totp-secret" value={totpSecret} readOnly /></div>
+                </div>
+                <form onSubmit={verifyMfa} className="grid gap-3">
+                  <Label htmlFor="mfa-code">Código de verificação</Label>
+                  <Input id="mfa-code" inputMode="numeric" autoComplete="one-time-code" maxLength={8} placeholder="000000" required value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/[^0-9]/g, ""))} />
+                  <Button type="submit" disabled={busy} className="w-full">{busy ? "Verificando..." : "Confirmar e ativar MFA"}</Button>
+                </form>
+              </>
+            )}
+            <p role="status" className="text-sm text-muted-foreground">{message}</p>
+          </div>
+        )}
+
+        {status === "mfa-enabled" && (
+          <div className="mt-6 rounded-md border bg-muted/40 p-4 text-sm">
+            <p className="font-medium">MFA ativado e verificado.</p>
+            <p className="mt-1 text-muted-foreground">{message}</p>
+            <p className="mt-3 text-xs text-muted-foreground">A exigência de MFA em todos os acessos ainda depende da integração do desafio no fluxo de login do painel.</p>
           </div>
         )}
 
