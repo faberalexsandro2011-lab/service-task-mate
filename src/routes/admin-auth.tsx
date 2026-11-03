@@ -390,7 +390,7 @@ function AdminAuthCallback() {
             ) : (
               <>
                 <div className="grid justify-items-center gap-3 rounded-md border p-4">
-                  <img src={"data:image/svg+xml;charset=utf-8," + encodeURIComponent(qrCode)} alt="QR Code do autenticador" className="h-52 w-52" />
+                  <img src={qrCode} alt="QR Code do autenticador" className="h-52 w-52" />
                   <div className="w-full grid gap-1"><Label htmlFor="totp-secret">Chave manual (mantenha em segredo)</Label><Input id="totp-secret" value={totpSecret} readOnly /></div>
                 </div>
                 <form onSubmit={verifyMfa} className="grid gap-3">
