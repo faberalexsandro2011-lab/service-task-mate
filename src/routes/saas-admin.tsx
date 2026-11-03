@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -9,16 +9,34 @@ import {
   Users,
   Layers3,
   CreditCard,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+type Empresa = {
+  id: string;
+  nome_legal: string;
+  nome_exibicao: string;
+  slug: string;
+  documento_fiscal: string | null;
+  email_administrativo: string;
+  status: "ativa" | "suspensa" | "encerrada" | "provisionando";
+  created_at: string;
+};
 
 function createSaasAuthClient() {
   const env = import.meta.env as Record<string, string | undefined>;
   const url = env.VITE_SAAS_CONTROL_SUPABASE_URL;
   const key = env.VITE_SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return null;
-  return createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
+  return createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+    },
+  });
 }
 
 export const Route = createFileRoute("/saas-admin")({
@@ -32,19 +50,88 @@ export const Route = createFileRoute("/saas-admin")({
       throw redirect({ to: "/admin-login" });
     }
     const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (assurance.error || assurance.data.currentLevel !== "aal2") throw redirect({ to: "/admin-login" });
+    if (assurance.error || assurance.data.currentLevel !== "aal2") {
+      throw redirect({ to: "/admin-login" });
+    }
   },
   component: SaasAdminHome,
 });
 
 function SaasAdminHome() {
   const [search, setSearch] = useState("");
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+
   const client = useMemo(() => createSaasAuthClient(), []);
+
+  const loadEmpresas = useCallback(async () => {
+    if (!client) {
+      setLoadError("Configuração do banco de controle não encontrada neste ambiente.");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setLoadError("");
+
+    const { data: userData, error: userError } = await client.auth.getUser();
+    if (userError || userData.user?.email?.toLowerCase() !== "faber.alexsandro2011@gmail.com") {
+      setLoadError("Sessão administrativa inválida. Entre novamente.");
+      setEmpresas([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: assurance, error: assuranceError } =
+      await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (assuranceError || assurance.currentLevel !== "aal2") {
+      setLoadError("A verificação MFA (AAL2) é necessária para consultar as empresas.");
+      setEmpresas([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await client
+      .from("empresas")
+      .select("id,nome_legal,nome_exibicao,slug,documento_fiscal,email_administrativo,status,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setLoadError(
+        error.code === "42501"
+          ? "Acesso negado pelas políticas de segurança do banco."
+          : `Não foi possível carregar as empresas: ${error.message}`,
+      );
+      setEmpresas([]);
+    } else {
+      setEmpresas((data ?? []) as Empresa[]);
+    }
+    setLoading(false);
+  }, [client]);
+
+  useEffect(() => {
+    void loadEmpresas();
+  }, [loadEmpresas]);
 
   async function signOut() {
     await client?.auth.signOut();
     window.location.assign("/admin-login");
   }
+
+  const filteredEmpresas = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return empresas;
+    return empresas.filter((empresa) =>
+      [
+        empresa.nome_exibicao,
+        empresa.nome_legal,
+        empresa.slug,
+        empresa.documento_fiscal ?? "",
+        empresa.email_administrativo,
+      ].some((value) => value.toLocaleLowerCase("pt-BR").includes(term)),
+    );
+  }, [empresas, search]);
 
   const modules = [
     { label: "Empresas", detail: "Cadastro e situação das empresas clientes", icon: Building2, active: true },
@@ -52,6 +139,13 @@ function SaasAdminHome() {
     { label: "Assinaturas", detail: "Vigência, vencimentos e situação comercial", icon: CreditCard, active: false },
     { label: "Instâncias", detail: "Ambientes e conexões isoladas por empresa", icon: Users, active: false },
   ];
+
+  const statusLabels: Record<Empresa["status"], string> = {
+    ativa: "Ativa",
+    suspensa: "Suspensa",
+    encerrada: "Encerrada",
+    provisionando: "Provisionando",
+  };
 
   return (
     <main className="min-h-screen bg-background p-4 sm:p-8">
@@ -78,7 +172,7 @@ function SaasAdminHome() {
             <article key={label} className={`rounded-xl border bg-card p-4 ${active ? "border-primary/40" : "opacity-65"}`}>
               <div className="flex items-center justify-between">
                 <Icon className="size-5 text-primary" />
-                {active ? <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Em preparação</span> : <span className="text-xs text-muted-foreground">Etapa futura</span>}
+                {active ? <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">Conectado</span> : <span className="text-xs text-muted-foreground">Etapa futura</span>}
               </div>
               <h2 className="mt-3 font-semibold">{label}</h2>
               <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
@@ -90,34 +184,83 @@ function SaasAdminHome() {
           <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
             <div>
               <h2 className="text-xl font-semibold">Empresas</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Cadastro, consulta e controle de situação das empresas clientes.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Consulta protegida das empresas cadastradas no banco de controle SaaS.</p>
             </div>
-            <Button disabled title="Aguardando liberação segura do banco de controle">
-              <Building2 className="mr-2 size-4" /> Nova empresa
+            <Button variant="outline" onClick={() => void loadEmpresas()} disabled={loading}>
+              <RefreshCw className={`mr-2 size-4 ${loading ? "animate-spin" : ""}`} />
+              Atualizar
             </Button>
           </div>
 
           <div className="p-5">
             <label className="relative block max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nome, CNPJ ou identificador" className="pl-9" disabled />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por nome, CNPJ ou identificador"
+                className="pl-9"
+              />
             </label>
 
-            <div className="mt-5 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-              <CircleAlert className="mt-0.5 size-5 shrink-0 text-amber-600" />
-              <div>
-                <p className="font-medium">Acesso ao banco ainda bloqueado por segurança</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  A tabela de empresas já existe no projeto SaaS descartável, mas as políticas de acesso administrativo ainda não foram aplicadas. Por isso, consulta e cadastro permanecem desativados. Nenhuma empresa real ou dado operacional foi carregado.
-                </p>
+            {loadError ? (
+              <div className="mt-5 flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <CircleAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
+                <div>
+                  <p className="font-medium">Não foi possível consultar o banco</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
+                </div>
               </div>
-            </div>
-
-            <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
-              <Building2 className="mx-auto size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">Nenhuma empresa carregada</p>
-              <p className="mt-1 text-sm text-muted-foreground">A listagem será habilitada após a validação das permissões no banco de controle.</p>
-            </div>
+            ) : loading ? (
+              <div className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Carregando empresas com validação MFA…
+              </div>
+            ) : empresas.length === 0 ? (
+              <div className="mt-5 rounded-lg border border-dashed p-8 text-center">
+                <Building2 className="mx-auto size-8 text-muted-foreground" />
+                <p className="mt-3 font-medium">Nenhuma empresa cadastrada</p>
+                <p className="mt-1 text-sm text-muted-foreground">O banco de controle está conectado e ainda não possui empresas.</p>
+              </div>
+            ) : filteredEmpresas.length === 0 ? (
+              <div className="mt-5 rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Nenhuma empresa corresponde à busca.
+              </div>
+            ) : (
+              <div className="mt-5 overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Empresa</th>
+                      <th className="px-4 py-3 font-medium">Identificador</th>
+                      <th className="px-4 py-3 font-medium">Documento</th>
+                      <th className="px-4 py-3 font-medium">E-mail administrativo</th>
+                      <th className="px-4 py-3 font-medium">Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredEmpresas.map((empresa) => (
+                      <tr key={empresa.id}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{empresa.nome_exibicao}</p>
+                          <p className="text-xs text-muted-foreground">{empresa.nome_legal}</p>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs">{empresa.slug}</td>
+                        <td className="px-4 py-3">{empresa.documento_fiscal || "—"}</td>
+                        <td className="px-4 py-3">{empresa.email_administrativo}</td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{statusLabels[empresa.status]}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!loading && !loadError && empresas.length > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Exibindo {filteredEmpresas.length} de {empresas.length} empresa(s).
+              </p>
+            )}
           </div>
         </section>
       </div>
