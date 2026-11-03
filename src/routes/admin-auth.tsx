@@ -264,7 +264,7 @@ function AdminAuthCallback() {
   async function enrollMfa() {
     if (!client) return;
     setBusy(true);
-    const result = await client.auth.mfa.enroll({ factorType: "totp", friendlyName: "Central OS SaaS - Administrador" });
+    const result = await client.auth.mfa.enroll({ factorType: "totp", friendlyName: `Central OS SaaS - Administrador ${Date.now()}` });
     if (result.error) { setBusy(false); setMessage("Não foi possível preparar o autenticador. Tente novamente."); return; }
     setFactorId(result.data.id);
     setQrCode(result.data.totp.qr_code);
