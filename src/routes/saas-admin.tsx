@@ -220,12 +220,6 @@ function SaasAdminHome() {
     setLoading(false);
   }, [client]);
 
-  useEffect(() => {
-    void loadEmpresas();
-    void loadPlanos();
-    void loadAssinaturas();
-  }, [loadEmpresas, loadPlanos, loadAssinaturas]);
-
   async function createEmpresa(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!client || saving) return;
@@ -293,6 +287,12 @@ function SaasAdminHome() {
     else setAssinaturas((data ?? []) as unknown as Assinatura[]);
     setAssinaturasLoading(false);
   }, [client]);
+
+  useEffect(() => {
+    void loadEmpresas();
+    void loadPlanos();
+    void loadAssinaturas();
+  }, [loadEmpresas, loadPlanos, loadAssinaturas]);
 
   function resetAssinaturaForm() {
     setEditingAssinaturaId(null); setAssinaturaEmpresa(""); setAssinaturaPlano("");
