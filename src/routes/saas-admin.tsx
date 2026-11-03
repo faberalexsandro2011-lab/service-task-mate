@@ -10,6 +10,8 @@ import {
   Layers3,
   CreditCard,
   RefreshCw,
+  Plus,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +64,14 @@ function SaasAdminHome() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState("");
+  const [nomeLegal, setNomeLegal] = useState("");
+  const [nomeExibicao, setNomeExibicao] = useState("");
+  const [slug, setSlug] = useState("");
+  const [documentoFiscal, setDocumentoFiscal] = useState("");
+  const [emailAdministrativo, setEmailAdministrativo] = useState("");
 
   const client = useMemo(() => createSaasAuthClient(), []);
 
@@ -113,6 +123,58 @@ function SaasAdminHome() {
   useEffect(() => {
     void loadEmpresas();
   }, [loadEmpresas]);
+
+  async function createEmpresa(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!client || saving) return;
+    setSaving(true);
+    setCreateError("");
+
+    const { data: userData, error: userError } = await client.auth.getUser();
+    const { data: assurance, error: assuranceError } =
+      await client.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (
+      userError ||
+      userData.user?.email?.toLowerCase() !== "faber.alexsandro2011@gmail.com" ||
+      assuranceError ||
+      assurance.currentLevel !== "aal2"
+    ) {
+      setCreateError("Sessão administrativa inválida ou MFA AAL2 ausente. Entre novamente.");
+      setSaving(false);
+      return;
+    }
+
+    const normalizedSlug = slug.trim().toLowerCase();
+    const { error } = await client.from("empresas").insert({
+      nome_legal: nomeLegal.trim(),
+      nome_exibicao: nomeExibicao.trim(),
+      slug: normalizedSlug,
+      documento_fiscal: documentoFiscal.trim() || null,
+      email_administrativo: emailAdministrativo.trim().toLowerCase(),
+      status: "provisionando",
+    });
+
+    if (error) {
+      setCreateError(
+        error.code === "23505"
+          ? "Esse identificador já está em uso. Escolha outro."
+          : error.code === "42501"
+            ? "O banco recusou o cadastro pelas políticas de segurança."
+            : `Não foi possível cadastrar: ${error.message}`,
+      );
+      setSaving(false);
+      return;
+    }
+
+    setNomeLegal("");
+    setNomeExibicao("");
+    setSlug("");
+    setDocumentoFiscal("");
+    setEmailAdministrativo("");
+    setShowCreate(false);
+    setSaving(false);
+    await loadEmpresas();
+  }
 
   async function signOut() {
     await client?.auth.signOut();
@@ -186,10 +248,16 @@ function SaasAdminHome() {
               <h2 className="text-xl font-semibold">Empresas</h2>
               <p className="mt-1 text-sm text-muted-foreground">Consulta protegida das empresas cadastradas no banco de controle SaaS.</p>
             </div>
-            <Button variant="outline" onClick={() => void loadEmpresas()} disabled={loading}>
-              <RefreshCw className={`mr-2 size-4 ${loading ? "animate-spin" : ""}`} />
-              Atualizar
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void loadEmpresas()} disabled={loading}>
+                <RefreshCw className={`mr-2 size-4 ${loading ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+              <Button onClick={() => { setShowCreate((value) => !value); setCreateError(""); }}>
+                {showCreate ? <X className="mr-2 size-4" /> : <Plus className="mr-2 size-4" />}
+                {showCreate ? "Cancelar" : "Nova empresa"}
+              </Button>
+            </div>
           </div>
 
           <div className="p-5">
@@ -202,6 +270,51 @@ function SaasAdminHome() {
                 className="pl-9"
               />
             </label>
+
+            {showCreate && (
+              <form onSubmit={createEmpresa} className="mt-5 rounded-lg border p-4">
+                <h3 className="font-semibold">Cadastrar empresa</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  O cadastro cria somente o registro comercial, com situação “Provisionando”. Não cria usuários nem provisiona uma instância.
+                </p>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-1 text-sm">
+                    Razão social
+                    <Input required maxLength={180} value={nomeLegal} onChange={(event) => setNomeLegal(event.target.value)} />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Nome de exibição
+                    <Input required maxLength={120} value={nomeExibicao} onChange={(event) => setNomeExibicao(event.target.value)} />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    Identificador (slug)
+                    <Input
+                      required
+                      maxLength={60}
+                      pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                      title="Use letras minúsculas, números e hífens."
+                      value={slug}
+                      onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-"))}
+                      placeholder="ex.: empresa-exemplo"
+                    />
+                  </label>
+                  <label className="grid gap-1 text-sm">
+                    CNPJ / documento fiscal (opcional)
+                    <Input maxLength={30} value={documentoFiscal} onChange={(event) => setDocumentoFiscal(event.target.value)} />
+                  </label>
+                  <label className="grid gap-1 text-sm sm:col-span-2">
+                    E-mail administrativo
+                    <Input required type="email" maxLength={254} value={emailAdministrativo} onChange={(event) => setEmailAdministrativo(event.target.value)} />
+                  </label>
+                </div>
+                {createError && <p role="alert" className="mt-3 text-sm text-destructive">{createError}</p>}
+                <div className="mt-4 flex justify-end">
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Salvando..." : "Cadastrar empresa"}
+                  </Button>
+                </div>
+              </form>
+            )}
 
             {loadError ? (
               <div className="mt-5 flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
