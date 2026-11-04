@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listTenantProvisioningEvents, requestTenantProvisioning } from "@/lib/saas-provisioning.functions";
+import { listTenantProvisioningEvents, requestTenantProvisioning, reviewTenantProvisioning } from "@/lib/saas-provisioning.functions";
 
 type Plano = {
   id: string;
@@ -105,6 +105,8 @@ function SaasAdminHome() {
   const [provisioningEvents, setProvisioningEvents] = useState<ProvisioningEvent[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
   const [queueError, setQueueError] = useState("");
+  const [reviewingEventId, setReviewingEventId] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState("");
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -409,6 +411,31 @@ function SaasAdminHome() {
     await loadProvisioningQueue();
   }
 
+  async function reviewProvisioning(eventId: string, decision: "aprovar" | "rejeitar") {
+    if (!client || reviewingEventId) return;
+    const confirmation = decision === "aprovar"
+      ? "Confirma validar esta solicitação? Isso NÃO cria projeto Supabase."
+      : "Confirma rejeitar esta solicitação? A decisão ficará registrada na auditoria.";
+    if (!window.confirm(confirmation)) return;
+    setReviewingEventId(eventId);
+    setReviewMessage("");
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (sessionError || !accessToken) {
+      setReviewMessage("Sessão administrativa não encontrada. Entre novamente.");
+      setReviewingEventId(null);
+      return;
+    }
+    try {
+      const result = await reviewTenantProvisioning({ data: { eventId, decision, accessToken } });
+      setReviewMessage(result.ok ? result.message : result.error);
+    } catch {
+      setReviewMessage("Não foi possível registrar a análise. Atualize a fila e confira a situação.");
+    }
+    setReviewingEventId(null);
+    await loadProvisioningQueue();
+  }
+
   async function signOut() {
     await client?.auth.signOut();
     window.location.assign("/admin-login");
@@ -488,6 +515,7 @@ function SaasAdminHome() {
             </Button>
           </div>
           <div className="p-5">
+            {reviewMessage && <p role="status" className="mb-4 rounded-lg border p-3 text-sm">{reviewMessage}</p>}
             {queueError ? (
               <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">{queueError}</p>
             ) : queueLoading ? (
@@ -505,6 +533,7 @@ function SaasAdminHome() {
                       <th className="px-4 py-3 font-medium">Tentativas</th>
                       <th className="px-4 py-3 font-medium">Iniciada em</th>
                       <th className="px-4 py-3 font-medium">Detalhes</th>
+                      <th className="px-4 py-3 font-medium">Análise</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -519,6 +548,18 @@ function SaasAdminHome() {
                         <td className="px-4 py-3 tabular-nums">{event.tentativa}</td>
                         <td className="px-4 py-3">{new Date(event.iniciado_em).toLocaleString("pt-BR")}</td>
                         <td className="px-4 py-3">{event.mensagem_segura || "—"}</td>
+                        <td className="px-4 py-3">
+                          {event.tipo === "solicitacao_manual_assistida" && event.status === "iniciado" ? (
+                            <div className="flex gap-2">
+                              <Button size="sm" disabled={Boolean(reviewingEventId)} onClick={() => void reviewProvisioning(event.id, "aprovar")}>
+                                {reviewingEventId === event.id ? "Analisando..." : "Aprovar"}
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={Boolean(reviewingEventId)} onClick={() => void reviewProvisioning(event.id, "rejeitar")}>
+                                Rejeitar
+                              </Button>
+                            </div>
+                          ) : <span className="text-xs text-muted-foreground">Analisada</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
