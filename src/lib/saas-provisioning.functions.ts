@@ -235,3 +235,51 @@ export const reviewTenantProvisioning = createServerFn({ method: "POST" })
 
     return { ok: true as const, status: nextStatus, message };
   });
+
+
+export const checkTenantProvisioningReadiness = createServerFn({ method: "POST" })
+  .inputValidator((value) => z.object({ eventId: z.string().uuid(), accessToken: z.string().min(20) }).parse(value))
+  .handler(async ({ data }) => {
+    const token = data.accessToken;
+    if (token.split(".").length !== 3) return { ok: false as const, error: "Sessão administrativa ausente. Entre novamente." };
+    const url = process.env.SAAS_CONTROL_SUPABASE_URL ?? process.env.VITE_SAAS_CONTROL_SUPABASE_URL;
+    const publishableKey = process.env.SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY;
+    const secretKey = process.env.SAAS_CONTROL_SUPABASE_SECRET_KEY;
+    if (!url || !publishableKey || !secretKey) return { ok: false as const, error: "Credenciais seguras do servidor não configuradas." };
+
+    const authClient = createClient(url, publishableKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: authData, error: authError } = await authClient.auth.getClaims(token);
+    const claims = authData?.claims as Record<string, unknown> | undefined;
+    if (authError || claims?.email !== PLATFORM_ADMIN_EMAIL || claims?.aal !== "aal2" || typeof claims.sub !== "string") {
+      return { ok: false as const, error: "Acesso negado. Administrador com MFA AAL2 é obrigatório." };
+    }
+
+    const admin = createClient(url, secretKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+    const { data: event, error: eventError } = await admin.from("eventos_provisionamento")
+      .select("id,empresa_id,tipo,status").eq("id", data.eventId).maybeSingle();
+    if (eventError || !event || event.tipo !== "solicitacao_manual_assistida" || event.status !== "aprovado") {
+      return { ok: false as const, error: "A verificação exige uma solicitação aprovada e ainda válida." };
+    }
+
+    const { data: empresa, error: empresaError } = await admin.from("empresas")
+      .select("id,status").eq("id", event.empresa_id).maybeSingle();
+    const { data: assinatura, error: assinaturaError } = await admin.from("assinaturas")
+      .select("id,status,plano:planos(ativo)").eq("empresa_id", event.empresa_id)
+      .in("status", ["trial", "ativa"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const commercialOk = !empresaError && !!empresa && empresa.status !== "suspensa" && empresa.status !== "encerrada"
+      && !assinaturaError && !!assinatura && (assinatura.plano as { ativo?: boolean } | null)?.ativo === true;
+
+    const checks = [
+      { key: "solicitacao", label: "Solicitação aprovada", passed: true, detail: "Aprovação administrativa encontrada na fila." },
+      { key: "comercial", label: "Empresa e assinatura", passed: commercialOk, detail: commercialOk ? "Empresa elegível e plano ativo encontrados." : "Empresa ou assinatura precisa de revisão." },
+      { key: "credenciais", label: "Credenciais técnicas de controle", passed: Boolean(url && publishableKey && secretKey), detail: "Credenciais do banco de controle disponíveis no servidor." },
+      { key: "custos", label: "Custos e capacidade", passed: false, detail: "Pendente de consulta atualizada de preços, região, limites e faturamento." },
+      { key: "tenant-secrets", label: "Credencial de criação de projetos", passed: false, detail: "Não configurada; deverá ser adicionada como segredo server-side após aprovação específica." },
+      { key: "isolamento", label: "Schema, RLS e isolamento", passed: false, detail: "Pendente de revisão técnica e testes negativos entre empresas." },
+      { key: "autorizacao-final", label: "Autorização final de criação", passed: false, detail: "Exige confirmação humana separada com custo, região e recursos apresentados." },
+    ];
+    return { ok: true as const, ready: false as const, checks, message: "Verificação concluída. Existem etapas pendentes; nenhuma instância foi criada." };
+  });
