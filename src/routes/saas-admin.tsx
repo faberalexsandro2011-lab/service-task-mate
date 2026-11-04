@@ -604,6 +604,7 @@ function SaasAdminHome() {
           </div>
 
           <div className="p-5">
+            {provisioningMessage && <p role="status" className="mb-4 rounded-lg border p-3 text-sm">{provisioningMessage}</p>}
             <label className="relative block max-w-md">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -691,6 +692,7 @@ function SaasAdminHome() {
                       <th className="px-4 py-3 font-medium">Documento</th>
                       <th className="px-4 py-3 font-medium">E-mail administrativo</th>
                       <th className="px-4 py-3 font-medium">Situação</th>
+                      <th className="px-4 py-3 font-medium">Provisionamento</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -705,6 +707,11 @@ function SaasAdminHome() {
                         <td className="px-4 py-3">{empresa.email_administrativo}</td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{statusLabels[empresa.status]}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button size="sm" variant="outline" disabled={Boolean(provisioningId) || empresa.status === "suspensa" || empresa.status === "encerrada"} onClick={() => void requestProvisioning(empresa.id)}>
+                            {provisioningId === empresa.id ? "Registrando..." : "Solicitar implantação"}
+                          </Button>
                         </td>
                       </tr>
                     ))}
