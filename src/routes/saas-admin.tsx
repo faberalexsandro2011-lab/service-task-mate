@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listTenantProvisioningEvents, requestTenantProvisioning, reviewTenantProvisioning } from "@/lib/saas-provisioning.functions";
+import { checkTenantProvisioningReadiness, listTenantProvisioningEvents, requestTenantProvisioning, reviewTenantProvisioning } from "@/lib/saas-provisioning.functions";
 
 type Plano = {
   id: string;
@@ -107,6 +107,8 @@ function SaasAdminHome() {
   const [queueError, setQueueError] = useState("");
   const [reviewingEventId, setReviewingEventId] = useState<string | null>(null);
   const [reviewMessage, setReviewMessage] = useState("");
+  const [readinessByEvent, setReadinessByEvent] = useState<Record<string, { checks: { key: string; label: string; passed: boolean; detail: string }[]; message: string }>>({});
+  const [checkingReadinessId, setCheckingReadinessId] = useState<string | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -436,6 +438,26 @@ function SaasAdminHome() {
     await loadProvisioningQueue();
   }
 
+  async function checkReadiness(eventId: string) {
+    if (!client || checkingReadinessId) return;
+    setCheckingReadinessId(eventId);
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (sessionError || !accessToken) {
+      setReviewMessage("Sessão administrativa não encontrada. Entre novamente.");
+      setCheckingReadinessId(null);
+      return;
+    }
+    try {
+      const result = await checkTenantProvisioningReadiness({ data: { eventId, accessToken } });
+      if (result.ok) setReadinessByEvent((current) => ({ ...current, [eventId]: { checks: result.checks, message: result.message } }));
+      else setReviewMessage(result.error);
+    } catch {
+      setReviewMessage("Não foi possível verificar a preparação. Nenhuma criação foi iniciada.");
+    }
+    setCheckingReadinessId(null);
+  }
+
   async function signOut() {
     await client?.auth.signOut();
     window.location.assign("/admin-login");
@@ -558,9 +580,32 @@ function SaasAdminHome() {
                                 Rejeitar
                               </Button>
                             </div>
+                          ) : event.tipo === "solicitacao_manual_assistida" && event.status === "aprovado" ? (
+                            <div className="flex flex-col gap-2">
+                              <span className="text-xs text-muted-foreground">Aprovada</span>
+                              <Button size="sm" variant="outline" disabled={Boolean(checkingReadinessId)} onClick={() => void checkReadiness(event.id)}>
+                                {checkingReadinessId === event.id ? "Verificando..." : "Verificar preparação"}
+                              </Button>
+                            </div>
                           ) : <span className="text-xs text-muted-foreground">Analisada</span>}
                         </td>
                       </tr>
+                      {readinessByEvent[event.id] && (
+                        <tr key={event.id + "-readiness"}>
+                          <td colSpan={7} className="bg-muted/20 px-4 py-4">
+                            <p className="mb-3 font-medium">Verificação de prontidão — {readinessByEvent[event.id].message}</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {readinessByEvent[event.id].checks.map((check) => (
+                                <div key={check.key} className="rounded-md border bg-card p-3">
+                                  <p className="text-sm font-medium">{check.passed ? "✓" : "○"} {check.label}</p>
+                                  <p className="mt-1 text-xs text-muted-foreground">{check.detail}</p>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="mt-3 text-xs font-medium text-muted-foreground">Modo somente leitura. Nenhum projeto ou instância foi criado.</p>
+                          </td>
+                        </tr>
+                      )}
                     ))}
                   </tbody>
                 </table>
