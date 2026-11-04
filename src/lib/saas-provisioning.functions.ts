@@ -104,3 +104,46 @@ export const requestTenantProvisioning = createServerFn({ method: "POST" })
       message: "Solicitação registrada. Nenhum projeto Supabase foi criado.",
     };
   });
+
+
+export const listTenantProvisioningEvents = createServerFn({ method: "POST" })
+  .inputValidator((value) => z.object({ accessToken: z.string().min(20) }).parse(value))
+  .handler(async ({ data }) => {
+    const token = data.accessToken;
+    if (token.split(".").length !== 3) {
+      return { ok: false as const, error: "Sessão administrativa ausente. Entre novamente." };
+    }
+
+    const url = process.env.SAAS_CONTROL_SUPABASE_URL ?? process.env.VITE_SAAS_CONTROL_SUPABASE_URL;
+    const publishableKey = process.env.SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY;
+    const secretKey = process.env.SAAS_CONTROL_SUPABASE_SECRET_KEY;
+    if (!url || !publishableKey || !secretKey) {
+      return { ok: false as const, error: "Credenciais seguras do servidor não configuradas." };
+    }
+
+    const authClient = createClient(url, publishableKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: authData, error: authError } = await authClient.auth.getClaims(token);
+    const claims = authData?.claims as Record<string, unknown> | undefined;
+    if (authError || claims?.email !== PLATFORM_ADMIN_EMAIL || claims?.aal !== "aal2" || typeof claims.sub !== "string") {
+      return { ok: false as const, error: "Acesso negado. Administrador com MFA AAL2 é obrigatório." };
+    }
+
+    const admin = createClient(url, secretKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: events, error } = await admin
+      .from("eventos_provisionamento")
+      .select("id,empresa_id,tipo,status,tentativa,mensagem_segura,iniciado_em,finalizado_em,empresa:empresas(nome_exibicao,slug)")
+      .order("iniciado_em", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error("[SaaS provisioning] Queue read failed:", error.code);
+      return { ok: false as const, error: "Não foi possível consultar a fila de implantação." };
+    }
+
+    return { ok: true as const, events: events ?? [] };
+  });
