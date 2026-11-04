@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { requestTenantProvisioning } from "@/lib/saas-provisioning.functions";
 
 type Plano = {
   id: string;
@@ -87,6 +88,8 @@ export const Route = createFileRoute("/saas-admin")({
 
 function SaasAdminHome() {
   const [search, setSearch] = useState("");
+  const [provisioningId, setProvisioningId] = useState<string | null>(null);
+  const [provisioningMessage, setProvisioningMessage] = useState("");
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -336,6 +339,30 @@ function SaasAdminHome() {
       setSavingAssinatura(false); return;
     }
     resetAssinaturaForm(); setShowAssinaturaForm(false); setSavingAssinatura(false); await loadAssinaturas();
+  }
+
+  async function requestProvisioning(empresaId: string) {
+    if (!client || provisioningId) return;
+    setProvisioningId(empresaId);
+    setProvisioningMessage("");
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (sessionError || !accessToken) {
+      setProvisioningMessage("Sessão administrativa não encontrada. Entre novamente.");
+      setProvisioningId(null);
+      return;
+    }
+    try {
+      const result = await requestTenantProvisioning({ data: { empresaId, accessToken } });
+      if (!result.ok) {
+        setProvisioningMessage(result.error);
+      } else {
+        setProvisioningMessage(result.message);
+      }
+    } catch {
+      setProvisioningMessage("Não foi possível enviar a solicitação. Verifique a sessão e tente novamente.");
+    }
+    setProvisioningId(null);
   }
 
   async function signOut() {
