@@ -147,3 +147,91 @@ export const listTenantProvisioningEvents = createServerFn({ method: "POST" })
 
     return { ok: true as const, events: events ?? [] };
   });
+
+
+export const reviewTenantProvisioning = createServerFn({ method: "POST" })
+  .inputValidator((value) => z.object({
+    eventId: z.string().uuid(),
+    decision: z.enum(["aprovar", "rejeitar"]),
+    accessToken: z.string().min(20),
+  }).parse(value))
+  .handler(async ({ data }) => {
+    const token = data.accessToken;
+    if (token.split(".").length !== 3) {
+      return { ok: false as const, error: "Sessão administrativa ausente. Entre novamente." };
+    }
+
+    const url = process.env.SAAS_CONTROL_SUPABASE_URL ?? process.env.VITE_SAAS_CONTROL_SUPABASE_URL;
+    const publishableKey = process.env.SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SAAS_CONTROL_SUPABASE_PUBLISHABLE_KEY;
+    const secretKey = process.env.SAAS_CONTROL_SUPABASE_SECRET_KEY;
+    if (!url || !publishableKey || !secretKey) {
+      return { ok: false as const, error: "Credenciais seguras do servidor não configuradas." };
+    }
+
+    const authClient = createClient(url, publishableKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: authData, error: authError } = await authClient.auth.getClaims(token);
+    const claims = authData?.claims as Record<string, unknown> | undefined;
+    if (authError || claims?.email !== PLATFORM_ADMIN_EMAIL || claims?.aal !== "aal2" || typeof claims.sub !== "string") {
+      return { ok: false as const, error: "Acesso negado. Administrador com MFA AAL2 é obrigatório." };
+    }
+
+    const admin = createClient(url, secretKey, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+    const { data: event, error: eventError } = await admin
+      .from("eventos_provisionamento")
+      .select("id,empresa_id,tipo,status")
+      .eq("id", data.eventId)
+      .maybeSingle();
+    if (eventError || !event) return { ok: false as const, error: "Solicitação não encontrada." };
+    if (event.tipo !== "solicitacao_manual_assistida" || event.status !== "iniciado") {
+      return { ok: false as const, error: "Esta solicitação já foi analisada ou não pode ser analisada por este fluxo." };
+    }
+
+    if (data.decision === "aprovar") {
+      const { data: empresa, error: empresaError } = await admin
+        .from("empresas").select("status").eq("id", event.empresa_id).maybeSingle();
+      const { data: assinatura, error: assinaturaError } = await admin
+        .from("assinaturas").select("id,plano:planos(ativo)")
+        .eq("empresa_id", event.empresa_id).in("status", ["trial", "ativa"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (empresaError || !empresa || empresa.status === "suspensa" || empresa.status === "encerrada") {
+        return { ok: false as const, error: "Empresa suspensa, encerrada ou indisponível. Aprovação bloqueada." };
+      }
+      if (assinaturaError || !assinatura || (assinatura.plano as { ativo?: boolean } | null)?.ativo !== true) {
+        return { ok: false as const, error: "Aprovação exige assinatura de teste ou ativa vinculada a um plano ativo." };
+      }
+    }
+
+    const nextStatus = data.decision === "aprovar" ? "aprovado" : "rejeitado";
+    const message = data.decision === "aprovar"
+      ? "Solicitação validada pelo administrador. Nenhum projeto foi criado."
+      : "Solicitação rejeitada pelo administrador. Nenhum projeto foi criado.";
+    const { data: updated, error: updateError } = await admin
+      .from("eventos_provisionamento")
+      .update({ status: nextStatus, mensagem_segura: message, finalizado_em: new Date().toISOString() })
+      .eq("id", data.eventId).eq("status", "iniciado")
+      .select("id,status").maybeSingle();
+    if (updateError || !updated) {
+      console.error("[SaaS provisioning] Review update failed:", updateError?.code);
+      return { ok: false as const, error: "Não foi possível concluir a análise. Atualize a fila e tente novamente." };
+    }
+
+    const { error: auditError } = await admin.from("auditoria_plataforma").insert({
+      ator_id: claims.sub,
+      acao: data.decision === "aprovar" ? "aprovar_solicitacao_provisionamento" : "rejeitar_solicitacao_provisionamento",
+      entidade_tipo: "evento_provisionamento",
+      entidade_id: data.eventId,
+      resultado: "sucesso",
+      metadados_minimos: { empresa_id: event.empresa_id, status: nextStatus, projeto_criado: false },
+    });
+    if (auditError) {
+      console.error("[SaaS provisioning] Review audit failed:", auditError.code);
+      return { ok: false as const, error: "A análise foi registrada, mas a auditoria apresentou falha. Verifique a fila antes de qualquer nova ação." };
+    }
+
+    return { ok: true as const, status: nextStatus, message };
+  });
