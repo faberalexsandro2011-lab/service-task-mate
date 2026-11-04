@@ -1,16 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 const PLATFORM_ADMIN_EMAIL = "faber.alexsandro2011@gmail.com";
 
 export const requestTenantProvisioning = createServerFn({ method: "POST" })
-  .inputValidator((value) => z.object({ empresaId: z.string().uuid() }).parse(value))
+  .inputValidator((value) => z.object({ empresaId: z.string().uuid(), accessToken: z.string().min(20) }).parse(value))
   .handler(async ({ data }) => {
-    const request = getRequest();
-    const authorization = request.headers.get("authorization") ?? "";
-    const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+    const token = data.accessToken;
     if (!token || token.split(".").length !== 3) {
       return { ok: false as const, error: "Sessão administrativa ausente. Entre novamente." };
     }
