@@ -607,6 +607,7 @@ function SaasAdminHome() {
                           </td>
                         </tr>
                       )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
