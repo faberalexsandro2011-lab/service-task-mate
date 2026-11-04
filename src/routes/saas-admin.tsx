@@ -560,7 +560,7 @@ function SaasAdminHome() {
                   </thead>
                   <tbody className="divide-y">
                     {provisioningEvents.map((event) => (
-                      <>
+                      <React.Fragment key={event.id}>
                       <tr key={event.id}>
                         <td className="px-4 py-3">
                           <p className="font-medium">{event.empresa?.nome_exibicao ?? "Empresa não identificada"}</p>
