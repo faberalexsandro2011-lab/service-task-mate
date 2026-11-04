@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { requestTenantProvisioning } from "@/lib/saas-provisioning.functions";
+import { listTenantProvisioningEvents, requestTenantProvisioning } from "@/lib/saas-provisioning.functions";
 
 type Plano = {
   id: string;
@@ -39,6 +39,18 @@ type Empresa = {
   created_at: string;
 };
 
+
+type ProvisioningEvent = {
+  id: string;
+  empresa_id: string;
+  tipo: string;
+  status: string;
+  tentativa: number;
+  mensagem_segura: string | null;
+  iniciado_em: string;
+  finalizado_em: string | null;
+  empresa?: { nome_exibicao: string; slug: string } | null;
+};
 
 type Assinatura = {
   id: string;
@@ -90,6 +102,9 @@ function SaasAdminHome() {
   const [search, setSearch] = useState("");
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
   const [provisioningMessage, setProvisioningMessage] = useState("");
+  const [provisioningEvents, setProvisioningEvents] = useState<ProvisioningEvent[]>([]);
+  const [queueLoading, setQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState("");
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -130,6 +145,33 @@ function SaasAdminHome() {
 
 
   const client = useMemo(() => createSaasAuthClient(), []);
+
+  const loadProvisioningQueue = useCallback(async () => {
+    if (!client) { setQueueError("Banco de controle não configurado."); setQueueLoading(false); return; }
+    setQueueLoading(true);
+    setQueueError("");
+    const { data, error } = await client.auth.getSession();
+    const accessToken = data.session?.access_token;
+    if (error || !accessToken) {
+      setQueueError("Sessão administrativa não encontrada. Entre novamente.");
+      setQueueLoading(false);
+      return;
+    }
+    try {
+      const result = await listTenantProvisioningEvents({ data: { accessToken } });
+      if (!result.ok) {
+        setQueueError(result.error);
+        setProvisioningEvents([]);
+      } else {
+        setProvisioningEvents(result.events as ProvisioningEvent[]);
+      }
+    } catch {
+      setQueueError("Não foi possível carregar o acompanhamento das implantações.");
+      setProvisioningEvents([]);
+    }
+    setQueueLoading(false);
+  }, [client]);
+
 
 
   const loadPlanos = useCallback(async () => {
@@ -295,7 +337,8 @@ function SaasAdminHome() {
     void loadEmpresas();
     void loadPlanos();
     void loadAssinaturas();
-  }, [loadEmpresas, loadPlanos, loadAssinaturas]);
+    void loadProvisioningQueue();
+  }, [loadEmpresas, loadPlanos, loadAssinaturas, loadProvisioningQueue]);
 
   function resetAssinaturaForm() {
     setEditingAssinaturaId(null); setAssinaturaEmpresa(""); setAssinaturaPlano("");
@@ -363,6 +406,7 @@ function SaasAdminHome() {
       setProvisioningMessage("Não foi possível enviar a solicitação. Verifique a sessão e tente novamente.");
     }
     setProvisioningId(null);
+    await loadProvisioningQueue();
   }
 
   async function signOut() {
@@ -431,6 +475,59 @@ function SaasAdminHome() {
           ))}
         </div>
 
+
+
+        <section id="fila-implantacao" className="mt-8 rounded-xl border bg-card">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
+            <div>
+              <h2 className="text-xl font-semibold">Fila de implantação</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Acompanhe solicitações registradas. Nesta etapa, nenhum projeto Supabase é criado automaticamente.</p>
+            </div>
+            <Button variant="outline" onClick={() => void loadProvisioningQueue()} disabled={queueLoading}>
+              <RefreshCw className={`mr-2 size-4 ${queueLoading ? "animate-spin" : ""}`} /> Atualizar fila
+            </Button>
+          </div>
+          <div className="p-5">
+            {queueError ? (
+              <p role="alert" className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">{queueError}</p>
+            ) : queueLoading ? (
+              <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Carregando solicitações...</p>
+            ) : provisioningEvents.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Nenhuma solicitação registrada.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Empresa</th>
+                      <th className="px-4 py-3 font-medium">Etapa</th>
+                      <th className="px-4 py-3 font-medium">Situação</th>
+                      <th className="px-4 py-3 font-medium">Tentativas</th>
+                      <th className="px-4 py-3 font-medium">Iniciada em</th>
+                      <th className="px-4 py-3 font-medium">Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {provisioningEvents.map((event) => (
+                      <tr key={event.id}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{event.empresa?.nome_exibicao ?? "Empresa não identificada"}</p>
+                          <p className="text-xs text-muted-foreground">{event.empresa?.slug ?? event.empresa_id}</p>
+                        </td>
+                        <td className="px-4 py-3">{event.tipo === "solicitacao_manual_assistida" ? "Solicitação assistida" : event.tipo}</td>
+                        <td className="px-4 py-3"><span className="rounded-full bg-muted px-2 py-1 text-xs font-medium">{event.status}</span></td>
+                        <td className="px-4 py-3 tabular-nums">{event.tentativa}</td>
+                        <td className="px-4 py-3">{new Date(event.iniciado_em).toLocaleString("pt-BR")}</td>
+                        <td className="px-4 py-3">{event.mensagem_segura || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">Exibindo até 50 eventos mais recentes. A criação de instâncias permanece desativada.</p>
+          </div>
+        </section>
 
         <section id="assinaturas" className="mt-8 rounded-xl border bg-card">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
