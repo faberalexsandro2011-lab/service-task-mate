@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { getOfflineActor, getOfflineOrders, getOfflineQueue, makeOfflineId, queueOfflineAction, removeOfflineAction, saveOfflineOrders } from "@/lib/offline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,8 +53,58 @@ export const Route = createFileRoute("/_authenticated/solicitacoes")({
 });
 
 async function getPageData() {
+  if (!navigator.onLine) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) throw new Error("Sessão indisponível neste aparelho. Conecte-se para entrar novamente.");
+    const actor = await getOfflineActor<{ id: string; email: string; name: string }>();
+    if (!actor || actor.id !== user.id) throw new Error("Identificação offline não encontrada. Abra a área do técnico enquanto estiver conectado.");
+    const cached = await getOfflineOrders<Ordem>();
+    const queued = (await getOfflineQueue())
+      .filter((action) => action.type === "create_request" && action.actorId === user.id)
+      .map((action) => action.payload as Ordem);
+    const requests = new Map<string, Ordem>();
+    for (const item of cached.filter((item) => item.tecnico_id === user.id && (item.solicitacao_os || item.solicitacao_status === "regularizada"))) requests.set(item.id, item);
+    for (const item of queued) requests.set(item.id, item);
+    return {
+      user,
+      email: actor.email,
+      isManager: false,
+      requests: [...requests.values()].sort((a, b) => String(b.solicitada_em || b.created_at).localeCompare(String(a.solicitada_em || a.created_at))),
+      history: [],
+      technicians: [],
+      me: { id: actor.id, nome: actor.name, email: actor.email },
+    };
+  }
+
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
+
+  // Envia solicitações criadas offline antes de consultar a caixa de entrada.
+  // O ID local permanece igual no banco, evitando duplicidade em caso de resposta perdida.
+  const queuedRequests = (await getOfflineQueue()).filter((action) => action.type === "create_request");
+  for (const action of queuedRequests) {
+    if (action.type !== "create_request") continue;
+    const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
+    if (!error) {
+      await removeOfflineAction(action.id);
+      continue;
+    }
+    if (error.code === "23505") {
+      const { data: existing, error: lookupError } = await supabase
+        .from("ordens_servico")
+        .select("id")
+        .eq("id", String(action.payload.id))
+        .eq("tecnico_id", action.actorId)
+        .maybeSingle();
+      if (!lookupError && existing) {
+        await removeOfflineAction(action.id);
+        continue;
+      }
+    }
+    console.warn("[Solicitações] Solicitação offline ainda não sincronizada:", error);
+    break;
+  }
 
   const { data: manager, error: managerError } = await supabase.rpc("has_role", {
     _user_id: authData.user.id,
@@ -136,6 +187,10 @@ function SolicitacoesPage() {
   });
 
   useEffect(() => {
+    const handleOnline = () => {
+      void queryClient.invalidateQueries({ queryKey: ["solicitacoes-os"] });
+    };
+    window.addEventListener("online", handleOnline);
     const channel = supabase
       .channel("solicitacoes_os_live")
       .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
@@ -144,6 +199,7 @@ function SolicitacoesPage() {
       .subscribe();
 
     return () => {
+      window.removeEventListener("online", handleOnline);
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
@@ -374,7 +430,9 @@ function RequestForm({
 
     setSaving(true);
     try {
+      const createdAt = new Date().toISOString();
       const payload = {
+        id: crypto.randomUUID(),
         numero_os: null,
         frota,
         localizacao: localizacao || null,
@@ -386,13 +444,33 @@ function RequestForm({
         status: "pendente",
         solicitacao_os: true,
         solicitacao_status: "aguardando_os",
-        solicitada_em: new Date().toISOString(),
+        solicitada_em: createdAt,
       };
 
-      const { error } = await supabase.from("ordens_servico").insert(payload);
-      if (error) throw error;
+      let queued = !navigator.onLine;
+      if (!queued) {
+        const { error } = await supabase.from("ordens_servico").insert(payload);
+        if (error) {
+          const message = error.message.toLowerCase();
+          const networkFailure = !navigator.onLine || message.includes("failed to fetch") || message.includes("networkerror") || message.includes("network error") || message.includes("load failed") || message.includes("fetch failed");
+          if (!networkFailure) throw error;
+          queued = true;
+        }
+      }
+      if (queued) {
+        await saveOfflineOrders([payload as Ordem]);
+        await queueOfflineAction({
+          id: makeOfflineId(),
+          type: "create_request",
+          payload,
+          actorId: user.id,
+          createdAt,
+        });
+      }
 
-      toast.success("Solicitação enviada ao gestor.");
+      toast.success(queued
+        ? "Solicitação salva neste aparelho. Será enviada automaticamente quando a internet voltar."
+        : "Solicitação enviada ao gestor.");
       onOpenChange(false);
       event.currentTarget.reset();
       await onCreated();
