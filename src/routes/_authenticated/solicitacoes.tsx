@@ -82,7 +82,7 @@ async function getPageData() {
 
   // Envia solicitações criadas offline antes de consultar a caixa de entrada.
   // O ID local permanece igual no banco, evitando duplicidade em caso de resposta perdida.
-  const queuedRequests = (await getOfflineQueue()).filter((action) => action.type === "create_request");
+  const queuedRequests = (await getOfflineQueue()).filter((action) => action.type === "create_request" && action.actorId === authData.user.id);
   for (const action of queuedRequests) {
     if (action.type !== "create_request") continue;
     const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
@@ -417,7 +417,8 @@ function RequestForm({
     event.preventDefault();
     if (saving) return;
 
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const frota = String(form.get("frota") ?? "").trim();
     const localizacao = String(form.get("localizacao") ?? "").trim();
     const setor = String(form.get("setor") ?? "").trim();
@@ -472,7 +473,7 @@ function RequestForm({
         ? "Solicitação salva neste aparelho. Será enviada automaticamente quando a internet voltar."
         : "Solicitação enviada ao gestor.");
       onOpenChange(false);
-      event.currentTarget.reset();
+      formElement.reset();
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
