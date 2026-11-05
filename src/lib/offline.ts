@@ -18,7 +18,7 @@ export type OfflineAction =
       pieces?: Array<{ id: string; nome: string; quantidade: number }> | string[];
       classeManutencao?: string;
       createdAt: string;
-    };
+    }
   | {
       id: string;
       type: "record_finish_time";
