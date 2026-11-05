@@ -543,7 +543,10 @@ function TechnicianPage() {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js")
+        .then(() => navigator.serviceWorker.ready)
         .then((registration) => {
+          // Aguarda o worker ficar ativo antes de enviar os módulos já carregados.
+          // Isso evita perder o primeiro lote de arquivos no primeiro acesso ao PWA.
           const urls = performance.getEntriesByType("resource")
             .map((entry) => (entry as PerformanceResourceTiming).name)
             .filter((url) => url.startsWith(window.location.origin));
