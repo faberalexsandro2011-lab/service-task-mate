@@ -321,20 +321,73 @@ function TechnicianPage() {
 
   async function load() {
     const requestId = ++loadRequestRef.current;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const auth = { user: sessionData.session?.user };
-    if (!auth.user) return;
 
-    const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
-    const cachedOrders = await getOfflineOrders<Ordem>();
+    // Primeiro restaura o snapshot local. A tela do técnico não pode depender
+    // de uma sessão Supabase recuperável para continuar mostrando a fila offline.
+    // O cache é filtrado pelo ator persistido para não misturar técnicos.
+    const [actorResult, ordersResult, queueResult] = await Promise.allSettled([
+      getOfflineActor<{ id: string; email: string; name: string }>(),
+      getOfflineOrders<Ordem>(),
+      getOfflineQueue(),
+    ]);
+    let cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
+    const cachedOrders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
+    const offlineQueue = queueResult.status === "fulfilled" ? queueResult.value : [];
+
+    if (actorResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
+    }
+    if (ordersResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar as OS do armazenamento local:", ordersResult.reason);
+    }
+    if (queueResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar a fila offline:", queueResult.reason);
+    }
+
+    // Se o ator ainda não foi persistido, uma solicitação criada offline contém
+    // identidade suficiente para restaurar somente os dados daquele técnico.
+    if (!cachedActor) {
+      const queuedRequest = offlineQueue.find((action) => action.type === "create_request");
+      if (queuedRequest?.type === "create_request") {
+        const payload = queuedRequest.payload as Partial<Ordem>;
+        cachedActor = {
+          id: queuedRequest.actorId,
+          email: String(payload.tecnico_email ?? ""),
+          name: String(payload.tecnico_nome ?? payload.tecnico_email ?? "Técnico"),
+        };
+      }
+    }
+
+    if (requestId !== loadRequestRef.current) return;
+
+    const restoreLocalOrders = (actorToRestore: { id: string; email: string; name: string }) => {
+      setActor(actorToRestore);
+      setProfileName(actorToRestore.name);
+      const actorEmail = actorToRestore.email.trim().toLowerCase();
+      const localOrders = cachedOrders.filter((order) =>
+        order.tecnico_id === actorToRestore.id ||
+        (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+      );
+      const queuedRequests = offlineQueue
+        .filter((action) => action.type === "create_request" && action.actorId === actorToRestore.id)
+        .map((action) => action.type === "create_request" ? action.payload as Ordem : null)
+        .filter((order): order is Ordem => !!order);
+      const unique = new Map<string, Ordem>();
+      for (const order of localOrders) unique.set(order.id, order);
+      for (const order of queuedRequests) unique.set(order.id, order);
+      setOrders([...unique.values()].sort((a, b) => String(b.created_at ?? b.solicitada_em ?? "").localeCompare(String(a.created_at ?? a.solicitada_em ?? ""))));
+    };
 
     if (!navigator.onLine) {
-      if (requestId !== loadRequestRef.current) return;
-      if (cachedActor) {
-        setActor(cachedActor);
-        setProfileName(cachedActor.name);
-      }
-      if (cachedOrders.length) setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      if (cachedActor) restoreLocalOrders(cachedActor);
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const auth = { user: sessionData.session?.user };
+    if (!auth.user) {
+      // Sessão temporariamente indisponível não deve apagar a tela já salva.
+      if (cachedActor) restoreLocalOrders(cachedActor);
       return;
     }
 
@@ -395,8 +448,8 @@ function TechnicianPage() {
     for (const item of byId.data ?? []) unique.set(item.id, item);
     for (const item of byEmail.data ?? []) unique.set(item.id, item);
 
-    // Uma das consultas pode falhar por uma política/RLS específica. Se a outra
-    // trouxe OS válidas, não descartamos esses dados e mostramos o que conseguimos.
+    // Uma consulta vazia só substitui a tela quando ambas concluíram sem erro.
+    // Se as duas falharem, preserva o snapshot local em vez de zerar a fila.
     const successfulRows = (byId.data?.length ?? 0) + (byEmail.data?.length ?? 0);
     const queryError = byId.error || byEmail.error;
     if (requestId !== loadRequestRef.current) return;
@@ -406,12 +459,19 @@ function TechnicianPage() {
       setOrders(result);
       await saveOfflineOrders(result);
       if (queryError) console.warn("[Técnico] Uma consulta de sincronização falhou; usando a outra:", queryError);
-    } else if (cachedOrders.length) {
-      setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
-      console.warn("[Técnico] Falha ao sincronizar OS; usando cache:", queryError);
     } else {
-      console.error("[Técnico] Falha ao sincronizar OS:", queryError);
-      if (profileError) console.warn("[Técnico] Perfil indisponível:", profileError);
+      const actorEmail = nextActor.email.trim().toLowerCase();
+      const fallbackOrders = cachedOrders.filter((order) =>
+        order.tecnico_id === nextActor.id ||
+        (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+      );
+      if (fallbackOrders.length) {
+        setOrders(fallbackOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+        console.warn("[Técnico] Falha ao sincronizar OS; mantendo cache local:", queryError);
+      } else {
+        console.error("[Técnico] Falha ao sincronizar OS e não há snapshot local:", queryError);
+        if (profileError) console.warn("[Técnico] Perfil indisponível:", profileError);
+      }
     }
   }
 
