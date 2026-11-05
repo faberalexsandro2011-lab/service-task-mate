@@ -494,8 +494,39 @@ function TechnicianPage() {
             : rawPieces;
           const rpcArgs: Record<string, unknown> = { p_os_id: action.orderId, p_notas: action.notes, p_pecas: pieces };
           if (action.classeManutencao) rpcArgs.p_classe_manutencao = action.classeManutencao;
-          const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
-          if (error) throw error;
+          const { error: finishError } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
+
+          // A RPC pode ter sido confirmada no banco mesmo que a resposta se perca.
+          // Como a função só finaliza OS em andamento, uma repetição não baixa estoque
+          // novamente. Neste caso, confirmamos que a OS concluída pertence ao técnico.
+          if (finishError) {
+            const { data: existing, error: lookupError } = await supabase
+              .from("ordens_servico")
+              .select("id,status,tecnico_id,tecnico_email")
+              .eq("id", action.orderId)
+              .maybeSingle();
+
+            const belongsToActor =
+              existing?.tecnico_id === action.actorId ||
+              String(existing?.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase();
+
+            if (lookupError || existing?.status !== "concluida" || !belongsToActor) {
+              throw finishError;
+            }
+          }
+
+          // Preserva o horário registrado no aparelho, mesmo quando a resposta da
+          // primeira tentativa foi perdida e a RPC já concluiu a OS no servidor.
+          const { data: timestampUpdated, error: timestampError } = await (supabase as any)
+            .from("ordens_servico")
+            .update({ concluida_em: action.createdAt })
+            .eq("id", action.orderId)
+            .eq("status", "concluida")
+            .select("id");
+
+          if (timestampError || !timestampUpdated?.length) {
+            throw timestampError ?? new Error("Não foi possível preservar o horário real da finalização offline.");
+          }
         }
 
         await removeOfflineAction(action.id);
