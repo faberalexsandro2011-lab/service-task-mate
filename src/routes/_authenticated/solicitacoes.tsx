@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { getOfflineActor, getOfflineOrders, getOfflineQueue, getOfflineRole, makeOfflineId, queueOfflineAction, removeOfflineAction, saveOfflineOrders } from "@/lib/offline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,6 +53,26 @@ export const Route = createFileRoute("/_authenticated/solicitacoes")({
 });
 
 async function getPageData() {
+  if (!navigator.onLine) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) throw new Error("Sessão indisponível neste aparelho. Conecte-se para entrar novamente.");
+    const role = await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">();
+    if (role !== "tecnico") throw new Error("Esta área offline está disponível somente para técnicos com perfil previamente validado.");
+    const actor = await getOfflineActor<{ id: string; email: string; name: string }>();
+    if (!actor || actor.id !== user.id) throw new Error("Identificação offline não encontrada. Abra a área do técnico enquanto estiver conectado.");
+    const cached = await getOfflineOrders<Ordem>();
+    return {
+      user,
+      email: actor.email,
+      isManager: false,
+      requests: cached.filter((item) => item.solicitacao_os === true && item.tecnico_id === user.id),
+      history: [],
+      technicians: [],
+      me: { id: actor.id, nome: actor.name, email: actor.email },
+    };
+  }
+
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
@@ -63,6 +84,27 @@ async function getPageData() {
 
   const isManager = manager === true;
   const email = (authData.user.email ?? "").trim().toLowerCase();
+
+  // Reenvia solicitações locais usando o mesmo UUID, evitando criar uma segunda OS.
+  const pendingActions = (await getOfflineQueue()).filter((action) => action.type === "create_request");
+  for (const action of pendingActions) {
+    if (action.type !== "create_request") continue;
+    const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
+    if (!error || error.code === "23505") {
+      if (error?.code === "23505") {
+        const { data: existing, error: lookupError } = await supabase
+          .from("ordens_servico").select("id")
+          .eq("id", String(action.payload.id))
+          .eq("tecnico_id", action.actorId)
+          .maybeSingle();
+        if (lookupError || !existing) break;
+      }
+      await removeOfflineAction(action.id);
+    } else {
+      console.warn("[Solicitações] Envio offline pendente:", error);
+      break;
+    }
+  }
 
   const requestsQuery = supabase
     .from("ordens_servico")
@@ -376,6 +418,7 @@ function RequestForm({
     setSaving(true);
     try {
       const payload = {
+        id: crypto.randomUUID(),
         numero_os: null,
         frota,
         localizacao: localizacao || null,
@@ -390,10 +433,33 @@ function RequestForm({
         solicitada_em: new Date().toISOString(),
       };
 
-      const { error } = await supabase.from("ordens_servico").insert(payload);
-      if (error) throw error;
+      const saveForSync = async () => {
+        const cached = await getOfflineOrders<Ordem>();
+        await saveOfflineOrders([...cached.filter((item) => item.id !== payload.id), payload as Ordem]);
+        await queueOfflineAction({
+          id: makeOfflineId(),
+          type: "create_request",
+          payload,
+          actorId: user.id,
+          createdAt: payload.solicitada_em,
+        });
+      };
 
-      toast.success("Solicitação enviada ao gestor.");
+      let queued = !navigator.onLine;
+      if (!queued) {
+        const { error } = await supabase.from("ordens_servico").insert(payload);
+        if (error) {
+          const message = error.message.toLowerCase();
+          const networkFailure = !navigator.onLine || message.includes("failed to fetch") || message.includes("networkerror") || message.includes("network error") || message.includes("load failed") || message.includes("fetch failed");
+          if (!networkFailure) throw error;
+          queued = true;
+        }
+      }
+      if (queued) await saveForSync();
+
+      toast.success(queued
+        ? "Solicitação salva neste aparelho. Será enviada automaticamente quando a internet voltar."
+        : "Solicitação enviada ao gestor.");
       onOpenChange(false);
       formElement.reset();
       await onCreated();
