@@ -476,6 +476,17 @@ function TechnicianPage() {
             });
             if (historyError) throw historyError;
           }
+        } else if (action.type === "create_request") {
+          const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
+          if (error && error.code !== "23505") throw error;
+          if (error?.code === "23505") {
+            const { data: existing, error: lookupError } = await supabase
+              .from("ordens_servico").select("id")
+              .eq("id", String(action.payload.id))
+              .eq("tecnico_id", action.actorId)
+              .maybeSingle();
+            if (lookupError || !existing) throw lookupError ?? new Error("Solicitação duplicada ou não pertence a este técnico.");
+          }
         } else {
           const rawPieces = action.pieces ?? [];
           const pieces = Array.isArray(rawPieces) && rawPieces.length && typeof rawPieces[0] === "string"
