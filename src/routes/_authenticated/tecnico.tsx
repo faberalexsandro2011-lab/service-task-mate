@@ -526,7 +526,342 @@ function TechnicianPage() {
             .eq("usuario_id", action.actorId)
             .limit(1);
           if (!history?.length) {
-          if (!solution) { toast.error("Informe o serviço realizado."); return; }
+            const { error: historyError } = await supabase.from("historico_edicoes").insert({
+              os_id: action.orderId,
+              acao: "horario_finalizacao_registrado",
+              detalhe: "Horário de finalização registrado por " + action.actorEmail + "; aguardando o ADM informar o número da OS (sincronizado offline).",
+              usuario_id: action.actorId,
+              usuario_email: action.actorEmail,
+            });
+            if (historyError) throw historyError;
+          }
+        } else if (action.type === "create_request") {
+          const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
+          if (error && error.code !== "23505") throw error;
+          if (error?.code === "23505") {
+            const { data: existing, error: lookupError } = await supabase
+              .from("ordens_servico").select("id")
+              .eq("id", String(action.payload.id))
+              .eq("tecnico_id", action.actorId)
+              .maybeSingle();
+            if (lookupError || !existing) throw lookupError ?? new Error("Solicitação duplicada ou não pertence a este técnico.");
+          }
+        } else {
+          const rawPieces = action.pieces ?? [];
+          const pieces = Array.isArray(rawPieces) && rawPieces.length && typeof rawPieces[0] === "string"
+            ? (await (supabase as any).from("pecas_catalogo").select("id,nome").in("nome", rawPieces as string[])).data?.map((item: { id: string; nome: string }) => ({ id: item.id, nome: item.nome, quantidade: 1 })) ?? []
+            : rawPieces;
+          const rpcArgs: Record<string, unknown> = { p_os_id: action.orderId, p_notas: action.notes, p_pecas: pieces };
+          if (action.classeManutencao) rpcArgs.p_classe_manutencao = action.classeManutencao;
+          const { error: finishError } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
+
+          // A RPC pode ter sido confirmada no banco mesmo que a resposta se perca.
+          // Como a função só finaliza OS em andamento, uma repetição não baixa estoque
+          // novamente. Neste caso, confirmamos que a OS concluída pertence ao técnico.
+          if (finishError) {
+            const { data: existing, error: lookupError } = await supabase
+              .from("ordens_servico")
+              .select("id,status,tecnico_id,tecnico_email")
+              .eq("id", action.orderId)
+              .maybeSingle();
+
+            const belongsToActor =
+              existing?.tecnico_id === action.actorId ||
+              String(existing?.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase();
+
+            if (lookupError || existing?.status !== "concluida" || !belongsToActor) {
+              throw finishError;
+            }
+          }
+
+          // Preserva o horário registrado no aparelho, mesmo quando a resposta da
+          // primeira tentativa foi perdida e a RPC já concluiu a OS no servidor.
+          const { data: timestampUpdated, error: timestampError } = await (supabase as any)
+            .from("ordens_servico")
+            .update({ concluida_em: action.createdAt })
+            .eq("id", action.orderId)
+            .eq("status", "concluida")
+            .select("id");
+
+          if (timestampError || !timestampUpdated?.length) {
+            throw timestampError ?? new Error("Não foi possível preservar o horário real da finalização offline.");
+          }
+        }
+
+        await removeOfflineAction(action.id);
+      } catch (error) {
+        console.error("Falha ao sincronizar ação offline:", error);
+        break;
+      }
+    }
+
+    await load();
+    } finally {
+      syncRunningRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js")
+        .then((registration) => {
+          const urls = performance.getEntriesByType("resource")
+            .map((entry) => (entry as PerformanceResourceTiming).name)
+            .filter((url) => url.startsWith(window.location.origin));
+          registration.active?.postMessage({ type: "CACHE_ASSETS", urls });
+        })
+        .catch((error) => console.warn("Service worker offline:", error));
+    }
+    setOnline(navigator.onLine);    void registerWebPush().catch((error) => console.warn("[Push] Registro automático indisponível:", error));
+    void load();
+    void loadPartsCatalog();
+    void syncOffline();
+
+    const onlineHandler = () => {
+      setOnline(true);
+      toast.success("Internet restaurada. Sincronizando alterações...");
+      void syncOffline();
+      void load();
+    };
+    const offlineHandler = () => {
+      setOnline(false);
+      toast.info("Você está offline. As alterações ficarão salvas no aparelho.");
+    };
+    const visibilityHandler = () => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        void load();
+        void loadPartsCatalog();
+        void syncOffline();
+      }
+    };
+
+    window.addEventListener("online", onlineHandler);
+    window.addEventListener("offline", offlineHandler);
+    document.addEventListener("visibilitychange", visibilityHandler);
+
+    const actorId = actor?.id;
+    const actorEmail = actor?.email?.trim().toLowerCase() || "";
+
+    const channel = supabase
+      .channel(`tecnico_ordens_live_${actorId || "pending"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, async (payload) => {
+        const next = payload.new as Partial<Ordem>;
+        const previous = payload.old as Partial<Ordem>;
+        const nextEmail = String(next.tecnico_email ?? "").trim().toLowerCase();
+        const previousEmail = String(previous.tecnico_email ?? "").trim().toLowerCase();
+
+        const technicianMatch =
+          next.tecnico_id === actorId ||
+          previous.tecnico_id === actorId ||
+          (!!actorEmail && (nextEmail === actorEmail || previousEmail === actorEmail));
+
+        if (!technicianMatch) return;
+
+        const assignedToTechnician =
+          next.tecnico_id === actorId ||
+          (!!actorEmail && nextEmail === actorEmail);
+
+        // O payload do Realtime é apenas o gatilho. A fonte de verdade é uma
+        // nova consulta ao banco, evitando depender de RLS/payload parcial.
+        void load();
+
+        const receivedNewOrder = payload.eventType === "INSERT" || (assignedToTechnician && previous.tecnico_id !== actorId && previousEmail !== actorEmail);
+        const requestReceivedOfficialNumber = assignedToTechnician && !String(previous.numero_os || "").trim() && !!String(next.numero_os || "").trim() && (next.solicitacao_status === "regularizada" || previous.solicitacao_os === true);
+
+        if (receivedNewOrder || requestReceivedOfficialNumber) {
+          const title = requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
+          const body = requestReceivedOfficialNumber
+            ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
+            : "Uma nova ordem de serviço foi enviada para você.";
+          toast.success(body);
+          try { playFieldAlert(); } catch {}
+          if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
+          if ("Notification" in window) {
+            if (Notification.permission === "default") void Notification.requestPermission();
+            if (Notification.permission === "granted" && "serviceWorker" in navigator) {
+              void navigator.serviceWorker.ready.then((registration) => registration.showNotification(title, { body, icon: "/agri-icon.svg", badge: "/agri-icon.svg" }));
+            }
+          }
+        }      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void load();
+          void loadPartsCatalog();
+          void syncOffline();
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn("[Técnico] Realtime indisponível:", status);
+          // O polling abaixo continua garantindo a atualização.
+        }
+      });
+
+    // Fallback permanente: mesmo que o Realtime não esteja disponível, o técnico
+    // consulta o banco periodicamente. Também reduz o risco de perder um INSERT.
+    const poll = window.setInterval(() => {
+      if (navigator.onLine) void load();
+    }, 3000);
+
+    return () => {
+      window.clearInterval(poll);
+      window.removeEventListener("online", onlineHandler);
+      window.removeEventListener("offline", offlineHandler);
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      supabase.removeChannel(channel);
+    };
+  }, [actor?.id, actor?.email]);
+
+  const visible = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt");
+    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em && (o.status === "pendente" || o.status === "em_andamento"));
+    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em) : activeOrders.filter(o => o.status === tab);
+    if (!term) return base;
+    return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
+  }, [orders, tab, search]);
+
+  async function start(order: Ordem) {
+    if (!actor) return;
+    const startedAt = new Date().toISOString();
+
+    const queueAction = async () => {
+      const updated = {
+        ...order,
+        status: "em_andamento",
+        data_inicio: startedAt,
+        tecnico_nome: actor.name,
+        tecnico_email: actor.email,
+        updated_at: startedAt,
+      } as Ordem;
+      setOrders(current => current.map(item => item.id === order.id ? updated : item));
+      await saveOfflineOrders([updated]);
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "start",
+        orderId: order.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorName: actor.name,
+        createdAt: startedAt,
+      });
+      toast.success("Atendimento iniciado offline. Será sincronizado quando a internet voltar.");
+    };
+
+    if (!navigator.onLine) {
+      await queueAction();
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("ordens_servico")
+      .update({
+        status: "em_andamento",
+        data_inicio: startedAt,
+        tecnico_nome: actor.name,
+        tecnico_email: actor.email,
+      })
+      .eq("id", order.id)
+      .eq("status", "pendente")
+      .select("id");
+
+    if (error) {
+      if (isNetworkError(error)) {
+        await queueAction();
+        return;
+      }
+      toast.error(error.message || "Não foi possível iniciar a OS."); return;
+    }
+
+    if (!data?.length) { toast.error("A OS já foi alterada."); return; }
+
+    const { error: historyError } = await supabase.from("historico_edicoes").insert({
+      os_id: order.id,
+      acao: "iniciada",
+      detalhe: `Atendimento iniciado por ${actor.email}`,
+      usuario_id: actor.id,
+      usuario_email: actor.email,
+    });
+
+    if (historyError) {
+      await queueOfflineAction({
+        id: makeOfflineId(),
+        type: "start",
+        orderId: order.id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        actorName: actor.name,
+        createdAt: startedAt,
+      });
+      toast.warning("Atendimento iniciado, mas o histórico ficou pendente de sincronização.");
+      return;
+    }
+
+    toast.success("Atendimento iniciado.");
+    await load();
+  }
+
+  async function finalize() {
+    if (!actor || !finish) return;
+    const solution = notes.trim();
+    if (!maintenanceClasses.length) { toast.error("Selecione pelo menos uma classe de manutenção."); return; }
+    const maintenanceClass = maintenanceClasses.join(", ");
+
+    // Sem número de OS: registrar o horário real e o relato, sem concluir a OS nem movimentar estoque.
+    if (!finish.numero_os?.trim()) {
+      if (!solution) { toast.error("Informe o serviço realizado."); return; }
+      const finishedAt = finish.concluida_em ?? new Date().toISOString();
+      const updated = {
+        ...finish,
+        notas_fecho: solution,
+        classe_manutencao: maintenanceClass,
+        concluida_em: finishedAt,
+        updated_at: finishedAt,
+      } as Ordem;
+      const queueFinishTime = async () => {
+        await saveOfflineOrders([updated]);
+        await queueOfflineAction({
+          id: makeOfflineId(),
+          type: "record_finish_time",
+          orderId: finish.id,
+          actorId: actor.id,
+          actorEmail: actor.email,
+          notes: solution,
+          classeManutencao: maintenanceClass,
+          createdAt: finishedAt,
+        });
+        setOrders(current => current.map(item => item.id === finish.id ? updated : item));
+        setFinish(null);
+        setNotes("");
+        toast.success("Horário registrado neste aparelho. Será sincronizado quando a internet voltar.");
+      };
+      if (!navigator.onLine) {
+        await queueFinishTime();
+        return;
+      }
+      const { error } = await (supabase as any).from("ordens_servico")
+        .update({ notas_fecho: solution, classe_manutencao: maintenanceClass, concluida_em: finishedAt, updated_at: finishedAt })
+        .eq("id", finish.id)
+        .eq("status", "em_andamento");
+      if (error) {
+        if (isNetworkError(error)) {
+          await queueFinishTime();
+          return;
+        }
+        toast.error(error.message || "Não foi possível registrar o horário de finalização.");
+        return;
+      }
+      const { error: historyError } = await supabase.from("historico_edicoes").insert({
+        os_id: finish.id,
+        acao: "horario_finalizacao_registrado",
+        detalhe: "Horário de finalização registrado por " + actor.email + "; aguardando o ADM informar o número da OS.",
+        usuario_id: actor.id,
+        usuario_email: actor.email,
+      });
+      if (historyError) console.warn("Horário salvo, mas o histórico ficou pendente:", historyError);
+      setFinish(null);
+      toast.success("Horário registrado. A OS aguarda o número informado pelo ADM.");
+      await load();
+      return;
+      }
+    if (!solution) { toast.error("Informe o serviço realizado."); return; }
     const pieces = partsReplaced === "sim"
       ? selectedParts.filter((part) => part.id && part.quantidade > 0)
       : [];
