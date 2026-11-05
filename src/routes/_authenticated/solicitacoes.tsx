@@ -178,6 +178,10 @@ function SolicitacoesPage() {
   });
 
   useEffect(() => {
+    const handleOnline = () => {
+      void queryClient.invalidateQueries({ queryKey: ["solicitacoes-os"] });
+    };
+    window.addEventListener("online", handleOnline);
     const channel = supabase
       .channel("solicitacoes_os_live")
       .on("postgres_changes", { event: "*", schema: "public", table: "ordens_servico" }, () => {
@@ -186,6 +190,7 @@ function SolicitacoesPage() {
       .subscribe();
 
     return () => {
+      window.removeEventListener("online", handleOnline);
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
