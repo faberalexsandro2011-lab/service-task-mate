@@ -492,6 +492,49 @@ function TechnicianPage() {
             });
             if (historyError) throw historyError;
           }
+        } else if (action.type === "record_finish_time") {
+          const { data: updated, error } = await (supabase as any)
+            .from("ordens_servico")
+            .update({
+              notas_fecho: action.notes,
+              classe_manutencao: action.classeManutencao,
+              concluida_em: action.createdAt,
+              updated_at: action.createdAt,
+            })
+            .eq("id", action.orderId)
+            .eq("status", "em_andamento")
+            .select("id");
+          if (error) throw error;
+          if (!updated?.length) {
+            const { data: existing, error: lookupError } = await (supabase as any)
+              .from("ordens_servico")
+              .select("id,status,concluida_em,tecnico_id,tecnico_email")
+              .eq("id", action.orderId)
+              .maybeSingle();
+            const belongsToActor = existing?.tecnico_id === action.actorId ||
+              String(existing?.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase();
+            if (lookupError || existing?.status !== "em_andamento" || !belongsToActor ||
+                Date.parse(existing?.concluida_em ?? "") !== Date.parse(action.createdAt)) {
+              throw lookupError ?? new Error("A OS foi alterada por outra pessoa; o horário offline continua pendente.");
+            }
+          }
+          const { data: history } = await supabase
+            .from("historico_edicoes")
+            .select("id")
+            .eq("os_id", action.orderId)
+            .eq("acao", "horario_finalizacao_registrado")
+            .eq("usuario_id", action.actorId)
+            .limit(1);
+          if (!history?.length) {
+            const { error: historyError } = await supabase.from("historico_edicoes").insert({
+              os_id: action.orderId,
+              acao: "horario_finalizacao_registrado",
+              detalhe: "Horário de finalização registrado por " + action.actorEmail + "; aguardando o ADM informar o número da OS (sincronizado offline).",
+              usuario_id: action.actorId,
+              usuario_email: action.actorEmail,
+            });
+            if (historyError) throw historyError;
+          }
         } else if (action.type === "create_request") {
           const { error } = await supabase.from("ordens_servico").insert(action.payload as any);
           if (error && error.code !== "23505") throw error;
@@ -765,13 +808,58 @@ function TechnicianPage() {
     if (!finish.numero_os?.trim()) {
       if (!solution) { toast.error("Informe o serviço realizado."); return; }
       const finishedAt = finish.concluida_em ?? new Date().toISOString();
+      const updated = {
+        ...finish,
+        notas_fecho: solution,
+        classe_manutencao: maintenanceClass,
+        concluida_em: finishedAt,
+        updated_at: finishedAt,
+      } as Ordem;
+      const queueFinishTime = async () => {
+        await saveOfflineOrders([updated]);
+        await queueOfflineAction({
+          id: makeOfflineId(),
+          type: "record_finish_time",
+          orderId: finish.id,
+          actorId: actor.id,
+          actorEmail: actor.email,
+          notes: solution,
+          classeManutencao: maintenanceClass,
+          createdAt: finishedAt,
+        });
+        setOrders(current => current.map(item => item.id === finish.id ? updated : item));
+        setFinish(null);
+        setNotes("");
+        toast.success("Horário registrado neste aparelho. Será sincronizado quando a internet voltar.");
+      };
+      if (!navigator.onLine) {
+        await queueFinishTime();
+        return;
+      }
       const { error } = await (supabase as any).from("ordens_servico")
-        .update({ notas_fecho: solution, classe_manutencao: maintenanceClass, concluida_em: finishedAt, updated_at: new Date().toISOString() })
+        .update({ notas_fecho: solution, classe_manutencao: maintenanceClass, concluida_em: finishedAt, updated_at: finishedAt })
         .eq("id", finish.id)
         .eq("status", "em_andamento");
       if (error) {
+        if (isNetworkError(error)) {
+          await queueFinishTime();
+          return;
+        }
         toast.error(error.message || "Não foi possível registrar o horário de finalização.");
         return;
+      }
+      const { error: historyError } = await supabase.from("historico_edicoes").insert({
+        os_id: finish.id,
+        acao: "horario_finalizacao_registrado",
+        detalhe: "Horário de finalização registrado por " + actor.email + "; aguardando o ADM informar o número da OS.",
+        usuario_id: actor.id,
+        usuario_email: actor.email,
+      });
+      if (historyError) console.warn("Horário salvo, mas o histórico ficou pendente:", historyError);
+      setFinish(null);
+      toast.success("Horário registrado. A OS aguarda o número informado pelo ADM.");
+      await load();
+      return;
       }
       const { error: historyError } = await supabase.from("historico_edicoes").insert({
         os_id: finish.id,
