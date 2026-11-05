@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getOfflineActor, getOfflineRole, saveOfflineActor, saveOfflineCredential, verifyOfflineCredential } from "@/lib/offline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,34 @@ function Index() {
     const form = new FormData(event.currentTarget);
     const login = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
+
+    // Sem rede, autentica localmente apenas um técnico previamente validado
+    // online neste aparelho. A senha nunca é persistida: somente um verificador
+    // PBKDF2 com salt aleatório fica no IndexedDB.
+    if (!navigator.onLine) {
+      try {
+        const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
+        const cachedRole = await getOfflineRole<"gestor" | "tecnico" | "visualizador">();
+        const matchesActor = !!cachedActor && (
+          login.trim().toLowerCase() === cachedActor.email.trim().toLowerCase() ||
+          login.trim().toLowerCase() === cachedActor.name.trim().toLowerCase()
+        );
+        const emailForOffline = cachedActor?.email ?? "";
+        if (matchesActor && cachedRole === "tecnico" && await verifyOfflineCredential(emailForOffline, password)) {
+          await navigate({ to: "/tecnico", replace: true });
+          setBusy(false);
+          return;
+        }
+        setBusy(false);
+        setError("Acesso offline indisponível. Entre online uma vez neste aparelho com a conta de técnico e tente novamente. O acesso offline não libera contas de gestor.");
+        return;
+      } catch (offlineError) {
+        console.error("[Login] Falha na validação offline:", offlineError);
+        setBusy(false);
+        setError("Não foi possível validar o acesso offline neste aparelho.");
+        return;
+      }
+    }
 
     // O login por nome usa uma função segura no banco, pois o usuário ainda
     // não está autenticado e as políticas de profiles não permitem consultar
@@ -79,6 +108,19 @@ function Index() {
         setError("Não foi possível entrar. Tente novamente ou contacte o gestor.");
       }
       return;
+    }
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
+      if (user?.id && user.email) {
+        const name = String(user.user_metadata?.["nome"] ?? user.user_metadata?.["name"] ?? user.email);
+        await Promise.all([
+          saveOfflineActor({ id: user.id, email: user.email, name }),
+          saveOfflineCredential(user.email, password),
+        ]);
+      }
+    } catch (cacheError) {
+      console.warn("[Login] Não foi possível preparar o acesso offline neste aparelho:", cacheError);
     }
     await navigate({ to: "/dashboard", replace: true });
   }
