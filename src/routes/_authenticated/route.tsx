@@ -15,7 +15,9 @@ export const Route = createFileRoute("/_authenticated")({
         p_nome_dispositivo: getCentralOSDeviceLabel(),
         p_user_agent: getCentralOSUserAgent(),
       });
-      if (deviceCheckError || deviceCheck?.permitido !== true) {
+      // Só encerra a sessão quando o servidor negar explicitamente o dispositivo.
+      // Erros de rede/indisponibilidade não devem desconectar quem já está autenticado.
+      if (deviceCheck?.permitido === false) {
         await supabase.auth.signOut();
         throw redirect({ to: "/", replace: true });
       }
@@ -135,7 +137,9 @@ function AuthenticatedLayout() {
           p_nome_dispositivo: getCentralOSDeviceLabel(),
           p_user_agent: getCentralOSUserAgent(),
         });
-        if (error || data?.permitido !== true) {
+        // Uma falha de comunicação não é uma revogação de autorização.
+        // Encerrar a sessão somente diante de uma negativa explícita do servidor.
+        if (!error && data?.permitido === false) {
           await supabase.auth.signOut();
           window.location.assign("/");
         }
