@@ -431,7 +431,9 @@ function TechnicianPage() {
   }
 
   async function syncOffline() {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine || syncRunningRef.current) return;
+    syncRunningRef.current = true;
+    try {
     const queue = await getOfflineQueue();
     if (!queue.length) return;
 
@@ -551,6 +553,9 @@ function TechnicianPage() {
     }
 
     await load();
+    } finally {
+      syncRunningRef.current = false;
+    }
   }
 
   useEffect(() => {
