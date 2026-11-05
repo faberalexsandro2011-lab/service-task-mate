@@ -325,12 +325,14 @@ function TechnicianPage() {
     // Primeiro restaura o snapshot local. A tela do técnico não pode depender
     // de uma sessão Supabase recuperável para continuar mostrando a fila offline.
     // O cache é filtrado pelo ator persistido para não misturar técnicos.
-    const [actorResult, ordersResult] = await Promise.allSettled([
+    const [actorResult, ordersResult, queueResult] = await Promise.allSettled([
       getOfflineActor<{ id: string; email: string; name: string }>(),
       getOfflineOrders<Ordem>(),
+      getOfflineQueue(),
     ]);
-    const cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
+    let cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
     const cachedOrders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
+    const offlineQueue = queueResult.status === "fulfilled" ? queueResult.value : [];
 
     if (actorResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
@@ -338,28 +340,56 @@ function TechnicianPage() {
     if (ordersResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar as OS do armazenamento local:", ordersResult.reason);
     }
+    if (queueResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar a fila offline:", queueResult.reason);
+    }
+
+    // Se o ator ainda não foi persistido, uma solicitação criada offline contém
+    // identidade suficiente para restaurar somente os dados daquele técnico.
+    if (!cachedActor) {
+      const queuedRequest = offlineQueue.find((action) => action.type === "create_request");
+      if (queuedRequest?.type === "create_request") {
+        const payload = queuedRequest.payload as Partial<Ordem>;
+        cachedActor = {
+          id: queuedRequest.actorId,
+          email: String(payload.tecnico_email ?? ""),
+          name: String(payload.tecnico_nome ?? payload.tecnico_email ?? "Técnico"),
+        };
+      }
+    }
 
     if (requestId !== loadRequestRef.current) return;
 
+    const restoreLocalOrders = (actorToRestore: { id: string; email: string; name: string }) => {
+      setActor(actorToRestore);
+      setProfileName(actorToRestore.name);
+      const actorEmail = actorToRestore.email.trim().toLowerCase();
+      const localOrders = cachedOrders.filter((order) =>
+        order.tecnico_id === actorToRestore.id ||
+        (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+      );
+      const queuedRequests = offlineQueue
+        .filter((action) => action.type === "create_request" && action.actorId === actorToRestore.id)
+        .map((action) => action.type === "create_request" ? action.payload as Ordem : null)
+        .filter((order): order is Ordem => !!order);
+      const unique = new Map<string, Ordem>();
+      for (const order of localOrders) unique.set(order.id, order);
+      for (const order of queuedRequests) unique.set(order.id, order);
+      setOrders([...unique.values()].sort((a, b) => String(b.created_at ?? b.solicitada_em ?? "").localeCompare(String(a.created_at ?? a.solicitada_em ?? ""))));
+    };
+
     if (!navigator.onLine) {
-      if (cachedActor) {
-        setActor(cachedActor);
-        setProfileName(cachedActor.name);
-        const actorEmail = cachedActor.email.trim().toLowerCase();
-        const actorOrders = cachedOrders.filter((order) =>
-          order.tecnico_id === cachedActor.id ||
-          (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
-        );
-        if (actorOrders.length) {
-          setOrders(actorOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
-        }
-      }
+      if (cachedActor) restoreLocalOrders(cachedActor);
       return;
     }
 
     const { data: sessionData } = await supabase.auth.getSession();
     const auth = { user: sessionData.session?.user };
-    if (!auth.user) return;
+    if (!auth.user) {
+      // Sessão temporariamente indisponível não deve apagar a tela já salva.
+      if (cachedActor) restoreLocalOrders(cachedActor);
+      return;
+    }
 
     // O e-mail vem sempre da sessão do Auth. O perfil é apenas a fonte do nome.
     // Assim, uma falha de RLS em profiles não impede a identificação do técnico.
