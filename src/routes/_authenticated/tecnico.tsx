@@ -321,22 +321,45 @@ function TechnicianPage() {
 
   async function load() {
     const requestId = ++loadRequestRef.current;
-    const { data: sessionData } = await supabase.auth.getSession();
-    const auth = { user: sessionData.session?.user };
-    if (!auth.user) return;
 
-    const cachedActor = await getOfflineActor<{ id: string; email: string; name: string }>();
-    const cachedOrders = await getOfflineOrders<Ordem>();
+    // Primeiro restaura o snapshot local. A tela do técnico não pode depender
+    // de uma sessão Supabase recuperável para continuar mostrando a fila offline.
+    // O cache é filtrado pelo ator persistido para não misturar técnicos.
+    const [actorResult, ordersResult] = await Promise.allSettled([
+      getOfflineActor<{ id: string; email: string; name: string }>(),
+      getOfflineOrders<Ordem>(),
+    ]);
+    const cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
+    const cachedOrders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
+
+    if (actorResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
+    }
+    if (ordersResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar as OS do armazenamento local:", ordersResult.reason);
+    }
+
+    if (requestId !== loadRequestRef.current) return;
 
     if (!navigator.onLine) {
-      if (requestId !== loadRequestRef.current) return;
       if (cachedActor) {
         setActor(cachedActor);
         setProfileName(cachedActor.name);
+        const actorEmail = cachedActor.email.trim().toLowerCase();
+        const actorOrders = cachedOrders.filter((order) =>
+          order.tecnico_id === cachedActor.id ||
+          (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+        );
+        if (actorOrders.length) {
+          setOrders(actorOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+        }
       }
-      if (cachedOrders.length) setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
       return;
     }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const auth = { user: sessionData.session?.user };
+    if (!auth.user) return;
 
     // O e-mail vem sempre da sessão do Auth. O perfil é apenas a fonte do nome.
     // Assim, uma falha de RLS em profiles não impede a identificação do técnico.
@@ -395,8 +418,8 @@ function TechnicianPage() {
     for (const item of byId.data ?? []) unique.set(item.id, item);
     for (const item of byEmail.data ?? []) unique.set(item.id, item);
 
-    // Uma das consultas pode falhar por uma política/RLS específica. Se a outra
-    // trouxe OS válidas, não descartamos esses dados e mostramos o que conseguimos.
+    // Uma consulta vazia só substitui a tela quando ambas concluíram sem erro.
+    // Se as duas falharem, preserva o snapshot local em vez de zerar a fila.
     const successfulRows = (byId.data?.length ?? 0) + (byEmail.data?.length ?? 0);
     const queryError = byId.error || byEmail.error;
     if (requestId !== loadRequestRef.current) return;
@@ -406,12 +429,19 @@ function TechnicianPage() {
       setOrders(result);
       await saveOfflineOrders(result);
       if (queryError) console.warn("[Técnico] Uma consulta de sincronização falhou; usando a outra:", queryError);
-    } else if (cachedOrders.length) {
-      setOrders(cachedOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
-      console.warn("[Técnico] Falha ao sincronizar OS; usando cache:", queryError);
     } else {
-      console.error("[Técnico] Falha ao sincronizar OS:", queryError);
-      if (profileError) console.warn("[Técnico] Perfil indisponível:", profileError);
+      const actorEmail = nextActor.email.trim().toLowerCase();
+      const fallbackOrders = cachedOrders.filter((order) =>
+        order.tecnico_id === nextActor.id ||
+        (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+      );
+      if (fallbackOrders.length) {
+        setOrders(fallbackOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+        console.warn("[Técnico] Falha ao sincronizar OS; mantendo cache local:", queryError);
+      } else {
+        console.error("[Técnico] Falha ao sincronizar OS e não há snapshot local:", queryError);
+        if (profileError) console.warn("[Técnico] Perfil indisponível:", profileError);
+      }
     }
   }
 
