@@ -79,7 +79,10 @@ export const Route = createFileRoute("/_authenticated")({
 
       await saveOfflineRole(role);
     } else {
-      role = (await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">()) ?? "tecnico";
+      const cachedRole = await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">();
+      // Sem perfil previamente validado, não conceder acesso offline por padrão.
+      if (!cachedRole) throw redirect({ to: "/", replace: true });
+      role = cachedRole;
     }
 
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
