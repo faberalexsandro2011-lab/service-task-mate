@@ -21,6 +21,13 @@ export type OfflineAction =
     }
   | {
       id: string;
+      type: "create_request";
+      payload: Record<string, unknown>;
+      actorId: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
       type: "record_finish_time";
       orderId: string;
       actorId: string;
