@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getCentralOSDeviceId, getCentralOSDeviceLabel, getCentralOSUserAgent } from "@/lib/deviceAccess";
+import { getOfflineRole } from "@/lib/offline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,27 @@ function Index() {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
+  // Recupera a sessão já persistida no aparelho quando a conexão cair.
+  // Não tenta autenticar senha offline: apenas restaura uma sessão previamente validada.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || navigator.onLine) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user || cancelled) return;
+      const cachedRole = await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">();
+      if (cancelled || !cachedRole) return;
+      const destination = cachedRole === "gestor" ? "/painel-teste"
+        : cachedRole === "admin_unidade" ? "/painel-teste"
+        : cachedRole === "visualizador" ? "/visualizacao"
+        : "/tecnico";
+      await navigate({ to: destination, replace: true });
+    })().catch((restoreError) => {
+      console.warn("[Offline Auth] Não foi possível restaurar a sessão local:", restoreError);
+    });
+    return () => { cancelled = true; };
+  }, [navigate]);
+
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -36,6 +58,22 @@ function Index() {
     const form = new FormData(event.currentTarget);
     const login = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
+
+    if (!navigator.onLine) {
+      const { data } = await supabase.auth.getSession();
+      const cachedRole = await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">();
+      if (data.session?.user && cachedRole) {
+        const destination = cachedRole === "gestor" || cachedRole === "admin_unidade" ? "/painel-teste"
+          : cachedRole === "visualizador" ? "/visualizacao"
+          : "/tecnico";
+        await navigate({ to: destination, replace: true });
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+      setError("Sem internet: conecte-se uma vez para validar sua conta neste aparelho. Depois, sua sessão poderá ser mantida offline.");
+      return;
+    }
 
     // O login por nome usa uma função segura no banco, pois o usuário ainda
     // não está autenticado e as políticas de profiles não permitem consultar
@@ -86,10 +124,24 @@ function Index() {
       p_nome_dispositivo: getCentralOSDeviceLabel(),
       p_user_agent: getCentralOSUserAgent(),
     });
-    if (deviceCheckError || deviceCheck?.permitido !== true) {
+    if (deviceCheck?.permitido === false) {
       await supabase.auth.signOut();
       setBusy(false);
-      setError(deviceCheck?.motivo || "Não foi possível validar este dispositivo. Tente novamente ou contacte o Gestor Geral.");
+      setError(deviceCheck.motivo || "Este dispositivo não está autorizado. Contacte o Gestor Geral.");
+      return;
+    }
+    if (deviceCheckError) {
+      // Falha de rede não equivale a dispositivo recusado: preserve a sessão.
+      const cachedRole = await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">();
+      setBusy(false);
+      if (!navigator.onLine && cachedRole) {
+        const destination = cachedRole === "gestor" || cachedRole === "admin_unidade" ? "/painel-teste"
+          : cachedRole === "visualizador" ? "/visualizacao"
+          : "/tecnico";
+        await navigate({ to: destination, replace: true });
+        return;
+      }
+      setError("Sua sessão foi iniciada, mas a validação do dispositivo ficou pendente por falta de conexão. Reconecte à internet para concluir o acesso.");
       return;
     }
     setBusy(false);
