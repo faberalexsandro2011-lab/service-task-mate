@@ -452,11 +452,25 @@ function TechnicianPage() {
 
           if (error) throw error;
 
-          const current = !data?.length
-            ? (await supabase.from("ordens_servico").select("status").eq("id", action.orderId).maybeSingle()).data?.status
-            : "em_andamento";
+          let currentOrder: { status: string; tecnico_id: string | null; tecnico_email: string | null; data_inicio: string | null } | null = null;
+          if (!data?.length) {
+            const { data: existing, error: lookupError } = await supabase
+              .from("ordens_servico")
+              .select("status,tecnico_id,tecnico_email,data_inicio")
+              .eq("id", action.orderId)
+              .maybeSingle();
+            if (lookupError) throw lookupError;
+            currentOrder = existing;
+          }
 
-          if (current !== "em_andamento") throw new Error("A OS não está disponível para sincronização.");
+          const alreadyStartedByActor = currentOrder?.status === "em_andamento" &&
+            (currentOrder.tecnico_id === action.actorId ||
+              String(currentOrder.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase()) &&
+            currentOrder.data_inicio === action.createdAt;
+
+          if (!data?.length && !alreadyStartedByActor) {
+            throw new Error("A OS foi alterada por outro usuário ou não está mais disponível para sincronização.");
+          }
 
           const { data: history } = await supabase
             .from("historico_edicoes")
