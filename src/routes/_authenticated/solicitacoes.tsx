@@ -446,6 +446,9 @@ function RequestForm({
         solicitacao_os: true,
         solicitacao_status: "aguardando_os",
         solicitada_em: createdAt,
+        // Preserve the real creation time when this request is queued offline;
+        // otherwise PostgreSQL defaults created_at to the later sync time.
+        created_at: createdAt,
       };
 
       let queued = !navigator.onLine;
