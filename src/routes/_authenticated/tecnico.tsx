@@ -466,7 +466,7 @@ function TechnicianPage() {
           const alreadyStartedByActor = currentOrder?.status === "em_andamento" &&
             (currentOrder.tecnico_id === action.actorId ||
               String(currentOrder.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase()) &&
-            currentOrder.data_inicio === action.createdAt;
+            Date.parse(currentOrder.data_inicio ?? "") === Date.parse(action.createdAt);
 
           if (!data?.length && !alreadyStartedByActor) {
             throw new Error("A OS foi alterada por outro usuário ou não está mais disponível para sincronização.");
