@@ -1,4 +1,4 @@
-const CACHE_NAME = "central-os-offline-v2";
+const CACHE_NAME = "central-os-offline-v3";
 const APP_SHELL = ["/tecnico", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -22,13 +22,16 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "CACHE_ASSETS" || !Array.isArray(event.data.urls)) return;
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.addAll(
-        event.data.urls.filter(
-          (url) => typeof url === "string" && url.startsWith(self.location.origin)
-        )
-      )
-    )
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const urls = [...new Set(event.data.urls)].filter(
+        (url) => typeof url === "string" && url.startsWith(self.location.origin)
+      );
+      // Um chunk antigo que já saiu do deploy não pode impedir o cache dos demais.
+      await Promise.allSettled(urls.map(async (url) => {
+        const response = await fetch(url, { cache: "no-cache" });
+        if (response.ok) await cache.put(url, response);
+      }));
+    })
   );
 });
 
