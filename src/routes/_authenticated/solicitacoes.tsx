@@ -348,78 +348,112 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [message, setMessage] = useState("");
-  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  type Recognition = {
+    lang: string;
+    interimResults: boolean;
+    continuous: boolean;
+    onstart: (() => void) | null;
+    onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+    onerror: ((event: { error: string }) => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+  };
+  type RecognitionWindow = Window & {
+    SpeechRecognition?: new () => Recognition;
+    webkitSpeechRecognition?: new () => Recognition;
+  };
+  const recognitionRef = useRef<Recognition | null>(null);
 
   useEffect(() => {
-    setSupported(Boolean(
-      (window as Window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition ||
-      (window as Window & { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition
-    ));
+    const speechWindow = window as RecognitionWindow;
+    setSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
+    return () => {
+      const active = recognitionRef.current;
+      recognitionRef.current = null;
+      if (active) {
+        active.onend = null;
+        active.onerror = null;
+        try { active.stop(); } catch { /* já encerrado pelo navegador */ }
+      }
+    };
   }, []);
 
   function toggleListening() {
-    const speechWindow = window as Window & {
-      SpeechRecognition?: new () => {
-        lang: string;
-        interimResults: boolean;
-        continuous: boolean;
-        onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-        onerror: ((event: { error: string }) => void) | null;
-        onend: (() => void) | null;
-        start: () => void;
-        stop: () => void;
-      };
-      webkitSpeechRecognition?: new () => {
-        lang: string;
-        interimResults: boolean;
-        continuous: boolean;
-        onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
-        onerror: ((event: { error: string }) => void) | null;
-        onend: (() => void) | null;
-        start: () => void;
-        stop: () => void;
-      };
-    };
+    const speechWindow = window as RecognitionWindow;
     const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+
     if (!Recognition) {
       setSupported(false);
       setMessage("Este navegador não oferece reconhecimento de voz. Use o preenchimento manual.");
       return;
     }
 
-    if (listening) {
-      recognitionRef.current?.stop();
+    if (listening && recognitionRef.current) {
+      const active = recognitionRef.current;
+      recognitionRef.current = null;
       setListening(false);
+      setMessage("Gravação encerrada.");
+      try { active.stop(); } catch { /* a gravação já pode ter terminado */ }
       return;
     }
 
+    // Cada tentativa cria uma instância nova. Eventos antigos não podem
+    // encerrar nem alterar o estado de uma gravação iniciada depois.
     const recognition = new Recognition();
     recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
+
+    recognition.onstart = () => {
+      if (recognitionRef.current !== recognition) return;
+      setListening(true);
+      setMessage("Ouvindo… fale os dados da OS em português.");
+    };
+
     recognition.onresult = (event) => {
-      const transcript = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ").trim();
+      if (recognitionRef.current !== recognition) return;
+      const transcript = Array.from(event.results)
+        .map((result) => result[0]?.transcript || "")
+        .join(" ")
+        .trim();
       if (transcript) {
         onTranscript(transcript);
         setMessage("Voz convertida em texto. Confira os campos antes de enviar.");
       }
     };
+
     recognition.onerror = (event) => {
-      setMessage(event.error === "not-allowed"
-        ? "Permita o acesso ao microfone nas configurações do navegador."
-        : "Não foi possível reconhecer a fala. Tente novamente ou digite os dados.");
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
       setListening(false);
+      const messages: Record<string, string> = {
+        "not-allowed": "O microfone está bloqueado. Autorize o acesso nas configurações do navegador.",
+        "service-not-allowed": "O navegador bloqueou o serviço de voz. Verifique a permissão do microfone.",
+        "no-speech": "Não detectei fala. Toque em Falar OS e tente novamente.",
+        "audio-capture": "Não encontrei um microfone disponível. Verifique o dispositivo.",
+        "network": "A conexão com o reconhecimento de voz falhou. Verifique a internet e tente novamente.",
+        "aborted": "A gravação foi interrompida. Toque em Falar OS para tentar novamente.",
+      };
+      setMessage(messages[event.error] || "Não foi possível reconhecer a fala. Toque em Falar OS para tentar novamente.");
     };
-    recognition.onend = () => { setListening(false); recognitionRef.current = null; };
+
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setListening(false);
+      setMessage((current) => current || "Gravação encerrada. Você pode tocar em Falar OS para gravar novamente.");
+    };
 
     try {
-      setMessage("Ouvindo… fale os dados da OS em português.");
+      setMessage("Iniciando microfone…");
       setListening(true);
       recognition.start();
     } catch {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
       setListening(false);
-      setMessage("Não foi possível iniciar o microfone. Tente novamente.");
+      setMessage("O navegador não iniciou o microfone. Aguarde um instante e toque em Falar OS novamente.");
     }
   }
 
@@ -440,12 +474,11 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
           {listening ? "Parar gravação" : "Falar OS"}
         </Button>
       </div>
-      {message && <p role="status" className="mt-2 text-xs text-muted-foreground">{message}</p>}
+      {message && <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">{message}</p>}
       {!supported && <p className="mt-2 text-xs text-amber-700">Reconhecimento de voz indisponível neste navegador.</p>}
     </div>
   );
 }
-
 function parseVoiceFields(transcript: string) {
   const text = transcript.trim();
   const extract = (label: string, nextLabels: string[]) => {
