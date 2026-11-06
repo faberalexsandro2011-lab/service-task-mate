@@ -402,9 +402,7 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
 
     if (listening && recognitionRef.current) {
       const active = recognitionRef.current;
-      recognitionRef.current = null;
-      setListening(false);
-      setMessage("Gravação encerrada.");
+      setMessage("Finalizando seu pedido…");
       try { active.stop(); } catch { /* a gravação já pode ter terminado */ }
       return;
     }
