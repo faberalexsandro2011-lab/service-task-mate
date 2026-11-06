@@ -8,6 +8,8 @@ import {
   Clock3,
   FilePlus2,
   Inbox,
+  Mic,
+  MicOff,
   RefreshCw,
   Send,
   ShieldAlert,
@@ -342,6 +344,124 @@ type RegisterValues = {
   tecnico_id: string;
 };
 
+function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => void }) {
+  const [listening, setListening] = useState(false);
+  const [supported, setSupported] = useState(true);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setSupported(Boolean(
+      (window as Window & { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown }).SpeechRecognition ||
+      (window as Window & { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition
+    ));
+  }, []);
+
+  function toggleListening() {
+    const speechWindow = window as Window & {
+      SpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+        onerror: ((event: { error: string }) => void) | null;
+        onend: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+      webkitSpeechRecognition?: new () => {
+        lang: string;
+        interimResults: boolean;
+        continuous: boolean;
+        onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+        onerror: ((event: { error: string }) => void) | null;
+        onend: (() => void) | null;
+        start: () => void;
+        stop: () => void;
+      };
+    };
+    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) {
+      setSupported(false);
+      setMessage("Este navegador não oferece reconhecimento de voz. Use o preenchimento manual.");
+      return;
+    }
+
+    if (listening) {
+      setListening(false);
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.lang = "pt-BR";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ").trim();
+      if (transcript) {
+        onTranscript(transcript);
+        setMessage("Voz convertida em texto. Confira os campos antes de enviar.");
+      }
+    };
+    recognition.onerror = (event) => {
+      setMessage(event.error === "not-allowed"
+        ? "Permita o acesso ao microfone nas configurações do navegador."
+        : "Não foi possível reconhecer a fala. Tente novamente ou digite os dados.");
+      setListening(false);
+    };
+    recognition.onend = () => setListening(false);
+
+    try {
+      setMessage("Ouvindo… fale os dados da OS em português.");
+      setListening(true);
+      recognition.start();
+    } catch {
+      setListening(false);
+      setMessage("Não foi possível iniciar o microfone. Tente novamente.");
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-primary/25 bg-primary/[0.04] p-3 sm:p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <Mic className="size-4 text-primary" />
+            Criar solicitação falando
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Diga, por exemplo: “Frota trator 24, setor plantio, localização talhão 8, serviço verificar GPS e corrigir antena”.
+          </p>
+        </div>
+        <Button type="button" variant={listening ? "destructive" : "default"} className="min-h-12 shrink-0 gap-2 rounded-xl" onClick={toggleListening}>
+          {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+          {listening ? "Parar gravação" : "Falar OS"}
+        </Button>
+      </div>
+      {message && <p role="status" className="mt-2 text-xs text-muted-foreground">{message}</p>}
+      {!supported && <p className="mt-2 text-xs text-amber-700">Reconhecimento de voz indisponível neste navegador.</p>}
+    </div>
+  );
+}
+
+function parseVoiceFields(transcript: string) {
+  const text = transcript.trim();
+  const extract = (label: string, nextLabels: string[]) => {
+    const next = nextLabels.join("|");
+    const match = text.match(new RegExp("(?:^|[,;. ]+)" + label + "\\\\s*[:,-]?\\\\s*(.+?)(?=\\\\s+(?:" + next + ")\\\\s*[:,-]?|[,;.]+\\\\s*(?:" + next + ")\\\\s*[:,-]?|$)", "i"));
+    return match?.[1]?.trim().replace(/[,.]+$/, "") || "";
+  };
+  const frota = extract("frota", ["setor", "localização", "local", "serviço", "descrição"]);
+  const setor = extract("setor", ["frota", "localização", "local", "serviço", "descrição"]);
+  const localizacao = extract("localização|local", ["frota", "setor", "serviço", "descrição"]);
+  const descricao = extract("serviço|descrição", ["frota", "setor", "localização", "local"]);
+  return {
+    frota,
+    setor,
+    localizacao,
+    descricao: descricao || text,
+  };
+}
+
 function RequestForm({
   open,
   onOpenChange,
@@ -356,19 +476,25 @@ function RequestForm({
   onCreated: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
+  const [frota, setFrota] = useState("");
+  const [localizacao, setLocalizacao] = useState("");
+  const [setor, setSetor] = useState("");
+  const [descricao, setDescricao] = useState("");
+
+  function applyTranscript(transcript: string) {
+    const parsed = parseVoiceFields(transcript);
+    if (parsed.frota) setFrota(parsed.frota);
+    if (parsed.localizacao) setLocalizacao(parsed.localizacao);
+    if (parsed.setor) setSetor(parsed.setor);
+    setDescricao(parsed.descricao);
+    toast.success("Texto da fala preenchido. Confira e ajuste os campos.");
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
 
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const frota = String(form.get("frota") ?? "").trim();
-    const localizacao = String(form.get("localizacao") ?? "").trim();
-    const setor = String(form.get("setor") ?? "").trim();
-    const descricao = String(form.get("descricao") ?? "").trim();
-
-    if (!frota || !descricao) {
+    if (!frota.trim() || !descricao.trim()) {
       toast.error("Preencha Frota e o serviço realizado.");
       return;
     }
@@ -377,10 +503,10 @@ function RequestForm({
     try {
       const payload = {
         numero_os: null,
-        frota,
-        localizacao: localizacao || null,
-        setor: setor || null,
-        descricao,
+        frota: frota.trim(),
+        localizacao: localizacao.trim() || null,
+        setor: setor.trim() || null,
+        descricao: descricao.trim(),
         tecnico_id: profile?.id ?? user.id,
         tecnico_email: profile?.email?.trim() || user.email || "",
         tecnico_nome: profile?.nome?.trim() || user.email || "Técnico",
@@ -395,7 +521,10 @@ function RequestForm({
 
       toast.success("Solicitação enviada ao gestor.");
       onOpenChange(false);
-      formElement.reset();
+      setFrota("");
+      setLocalizacao("");
+      setSetor("");
+      setDescricao("");
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
@@ -410,19 +539,17 @@ function RequestForm({
         <DialogHeader>
           <DialogTitle>Solicitar cadastro de OS</DialogTitle>
           <DialogDescription>
-            Informe a frota, localização e o serviço realizado. O gestor completará o número da OS e enviará a OS para você.
+            Fale ou digite os dados do serviço. O gestor completará o número da OS e enviará a OS para você.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
-          <Field label="Número da OS (se houver)">
-            <Input name="numero_os" placeholder="Pode deixar em branco se a OS ainda não existir." disabled />
-          </Field>
+          <VoiceCapture onTranscript={applyTranscript} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Frota"><Input name="frota" required placeholder="TR-024" /></Field>
-            <Field label="Localização"><Input name="localizacao" placeholder="Fazenda / Oficina / Talhão" /></Field>
-            <Field label="Setor"><Input name="setor" placeholder="Digite o setor onde o serviço foi realizado" /></Field>
+            <Field label="Frota"><Input name="frota" value={frota} onChange={(event) => setFrota(event.target.value)} required placeholder="TR-024" /></Field>
+            <Field label="Localização"><Input name="localizacao" value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} placeholder="Fazenda / Oficina / Talhão" /></Field>
+            <Field label="Setor"><Input name="setor" value={setor} onChange={(event) => setSetor(event.target.value)} placeholder="Setor onde o serviço foi realizado" /></Field>
           </div>
-          <Field label="Serviço realizado"><Textarea name="descricao" required rows={5} placeholder="Descreva o trabalho realizado..." /></Field>
+          <Field label="Serviço realizado"><Textarea name="descricao" value={descricao} onChange={(event) => setDescricao(event.target.value)} required rows={5} placeholder="Descreva o trabalho realizado..." /></Field>
           <div className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             Solicitante: <strong>{profile?.nome || profile?.email || user.email}</strong>
           </div>
