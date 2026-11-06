@@ -450,7 +450,7 @@ function parseVoiceFields(transcript: string) {
   const text = transcript.trim();
   const extract = (label: string, nextLabels: string[]) => {
     const next = nextLabels.join("|");
-    const match = text.match(new RegExp("(?:^|[,;. ]+)" + label + "\\\\s*[:,-]?\\\\s*(.+?)(?=\\\\s+(?:" + next + ")\\\\s*[:,-]?|[,;.]+\\\\s*(?:" + next + ")\\\\s*[:,-]?|$)", "i"));
+    const match = text.match(new RegExp("(?:^|[,;. ]+)(?:" + label + ")\\s*[:,-]?\\s*(.+?)(?=\\s+(?:" + next + ")\\s*[:,-]?|[,;.]+\\s*(?:" + next + ")\\s*[:,-]?|$)", "i"));
     return match?.[1]?.trim().replace(/[,.]+$/, "") || "";
   };
   const frota = extract("frota", ["setor", "localização", "local", "serviço", "descrição"]);
