@@ -364,6 +364,7 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     webkitSpeechRecognition?: new () => Recognition;
   };
   const recognitionRef = useRef<Recognition | null>(null);
+  const transcriptRef = useRef("");
 
   useEffect(() => {
     if (!question || !("speechSynthesis" in window)) return;
@@ -413,24 +414,24 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     const recognition = new Recognition();
     recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
-    recognition.interimResults = false;
-    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    transcriptRef.current = "";
 
     recognition.onstart = () => {
       if (recognitionRef.current !== recognition) return;
       setListening(true);
-      setMessage("Ouvindo… fale os dados da OS em português.");
+      setMessage("Ouvindo o pedido completo… continue falando e toque em Concluir pedido quando terminar.");
     };
 
     recognition.onresult = (event) => {
       if (recognitionRef.current !== recognition) return;
-      const transcript = Array.from(event.results)
+      transcriptRef.current = Array.from(event.results)
         .map((result) => result[0]?.transcript || "")
         .join(" ")
         .trim();
-      if (transcript) {
-        onTranscript(transcript);
-        setMessage("Voz convertida em texto. Confira os campos antes de enviar.");
+      if (transcriptRef.current) {
+        setMessage("Estou ouvindo o pedido completo. Pode continuar falando…");
       }
     };
 
@@ -446,6 +447,7 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
         "network": "A conexão com o reconhecimento de voz falhou. Verifique a internet e tente novamente.",
         "aborted": "A gravação foi interrompida. Toque em Falar OS para tentar novamente.",
       };
+      transcriptRef.current = "";
       setMessage(messages[event.error] || "Não foi possível reconhecer a fala. Toque em Falar OS para tentar novamente.");
     };
 
@@ -453,7 +455,14 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
       if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
       setListening(false);
-      setMessage((current) => current || "Gravação encerrada. Você pode tocar em Falar OS para gravar novamente.");
+      const completedTranscript = transcriptRef.current.trim();
+      transcriptRef.current = "";
+      if (completedTranscript) {
+        onTranscript(completedTranscript);
+        setMessage("Pedido recebido por completo. Confira os dados e responda às perguntas pendentes.");
+      } else {
+        setMessage("Nenhuma fala foi registrada. Toque em Falar OS para tentar novamente.");
+      }
     };
 
     try {
@@ -476,12 +485,12 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
             Criar solicitação falando
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Diga, por exemplo: “Frota trator 24, setor plantio, localização talhão 8, serviço verificar GPS e corrigir antena”.
+            Fale o pedido inteiro do seu jeito. Quando terminar, toque em “Concluir pedido”; só depois o aplicativo perguntará o que estiver faltando.
           </p>
         </div>
         <Button type="button" variant={listening ? "destructive" : "default"} className="min-h-12 shrink-0 gap-2 rounded-xl" onClick={toggleListening}>
           {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-          {listening ? "Parar gravação" : "Falar OS"}
+          {listening ? "Concluir pedido" : "Falar OS"}
         </Button>
       </div>
       {message && <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">{message}</p>}
@@ -527,28 +536,57 @@ function RequestForm({
   const [setor, setSetor] = useState("");
   const [descricao, setDescricao] = useState("");
   const [voiceQuestion, setVoiceQuestion] = useState("");
-  const [awaitingFleet, setAwaitingFleet] = useState(false);
+  const [pendingVoiceFields, setPendingVoiceFields] = useState<Array<"frota" | "setor" | "localizacao" | "descricao">>([]);
+  const [awaitingVoiceField, setAwaitingVoiceField] = useState<"frota" | "setor" | "localizacao" | "descricao" | null>(null);
 
-  function applyTranscript(transcript: string) {
-    if (awaitingFleet) {
-      setFrota(transcript.trim());
-      setAwaitingFleet(false);
+  const voiceFieldLabels = {
+    frota: "Qual é a frota?",
+    setor: "Qual é o setor?",
+    localizacao: "Qual é a localização do serviço?",
+    descricao: "Qual serviço foi realizado?",
+  } as const;
+
+  function askNextPendingField(fields: Array<"frota" | "setor" | "localizacao" | "descricao">) {
+    const [next, ...remaining] = fields;
+    setPendingVoiceFields(remaining);
+    if (!next) {
+      setAwaitingVoiceField(null);
       setVoiceQuestion("");
-      toast.success("Frota preenchida. Confira os dados antes de enviar.");
+      toast.success("Pedido completo. Confira todos os dados antes de enviar.");
       return;
     }
+    setAwaitingVoiceField(next);
+    setVoiceQuestion(voiceFieldLabels[next]);
+  }
+
+  function applyTranscript(transcript: string) {
+    if (awaitingVoiceField) {
+      const answer = transcript.trim();
+      if (awaitingVoiceField === "frota") setFrota(answer);
+      if (awaitingVoiceField === "setor") setSetor(answer);
+      if (awaitingVoiceField === "localizacao") setLocalizacao(answer);
+      if (awaitingVoiceField === "descricao") setDescricao(answer);
+      askNextPendingField(pendingVoiceFields);
+      return;
+    }
+
     const parsed = parseVoiceFields(transcript);
     if (parsed.frota) setFrota(parsed.frota);
     if (parsed.localizacao) setLocalizacao(parsed.localizacao);
     if (parsed.setor) setSetor(parsed.setor);
-    setDescricao(parsed.descricao);
-    if (!parsed.frota) {
-      setAwaitingFleet(true);
-      setVoiceQuestion("Não identifiquei a frota. Qual é a frota?");
+    if (parsed.descricao) setDescricao(parsed.descricao);
+
+    const missing: Array<"frota" | "setor" | "localizacao" | "descricao"> = [];
+    if (!(parsed.frota || frota.trim())) missing.push("frota");
+    if (!(parsed.setor || setor.trim())) missing.push("setor");
+    if (!(parsed.localizacao || localizacao.trim())) missing.push("localizacao");
+    if (!(parsed.descricao || descricao.trim())) missing.push("descricao");
+    if (missing.length) {
+      askNextPendingField(missing);
       return;
     }
     setVoiceQuestion("");
-    toast.success("Dados preenchidos. Confira e ajuste os campos.");
+    toast.success("Pedido completo. Confira e ajuste os campos antes de enviar.");
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -587,7 +625,8 @@ function RequestForm({
       setSetor("");
       setDescricao("");
       setVoiceQuestion("");
-      setAwaitingFleet(false);
+      setPendingVoiceFields([]);
+      setAwaitingVoiceField(null);
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
