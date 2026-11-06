@@ -497,21 +497,36 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
   );
 }
 function parseVoiceFields(transcript: string) {
-  const text = transcript.trim();
-  const extract = (label: string, nextLabels: string[]) => {
-    const next = nextLabels.join("|");
-    const match = text.match(new RegExp("(?:^|[,;. ]+)(?:" + label + ")\\s*[:,-]?\\s*(.+?)(?=\\s+(?:" + next + ")\\s*[:,-]?|[,;.]+\\s*(?:" + next + ")\\s*[:,-]?|$)", "i"));
-    return match?.[1]?.trim().replace(/[,.]+$/, "") || "";
-  };
-  const frota = extract("frota", ["setor", "localização", "local", "serviço", "descrição"]);
-  const setor = extract("setor", ["frota", "localização", "local", "serviço", "descrição"]);
-  const localizacao = extract("localização|local", ["frota", "setor", "serviço", "descrição"]);
-  const descricao = extract("serviço|descrição", ["frota", "setor", "localização", "local"]);
+  // Reconhece os rótulos mesmo quando o usuário fala naturalmente:
+  // "na frota 01, no setor Plantio, na localização Santa Rosa,
+  // descrição do serviço: troca de antena".
+  const labelPattern = /(?:^|[\\s,;.])(?:(?:na|no|do|da)\\s+)?(descrição\\s+do\\s+serviço|descrição|serviço|localiza(?:ção|cao)|local|setor|frota)\\b\\s*(?::|,|-)?\\s*/gi;
+  const matches = Array.from(transcript.matchAll(labelPattern));
+  const values: Record<string, string> = {};
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const label = (match[1] || "").toLocaleLowerCase("pt-BR");
+    const valueStart = (match.index ?? 0) + match[0].length;
+    const valueEnd = index + 1 < matches.length ? (matches[index + 1].index ?? transcript.length) : transcript.length;
+    const value = transcript.slice(valueStart, valueEnd)
+      .replace(/^[\\s,;:.\\-]+|[\\s,;:.\\-]+$/g, "")
+      .trim();
+    if (!value) continue;
+
+    if (label === "frota") values.frota = value;
+    else if (label === "setor") values.setor = value;
+    else if (label === "local" || label.startsWith("localiza")) values.localizacao = value;
+    else if (label === "serviço" || label === "descrição" || label === "descrição do serviço") values.descricao = value;
+  }
+
   return {
-    frota,
-    setor,
-    localizacao,
-    descricao: descricao || text,
+    frota: values.frota || "",
+    setor: values.setor || "",
+    localizacao: values.localizacao || "",
+    // Não usar a frase inteira como descrição: se o usuário não disser
+    // o serviço, o fluxo de pendências deve perguntar especificamente.
+    descricao: values.descricao || "",
   };
 }
 
