@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -348,6 +348,7 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [message, setMessage] = useState("");
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   useEffect(() => {
     setSupported(Boolean(
@@ -387,11 +388,13 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
     }
 
     if (listening) {
+      recognitionRef.current?.stop();
       setListening(false);
       return;
     }
 
     const recognition = new Recognition();
+    recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.continuous = false;
@@ -408,7 +411,7 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
         : "Não foi possível reconhecer a fala. Tente novamente ou digite os dados.");
       setListening(false);
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => { setListening(false); recognitionRef.current = null; };
 
     try {
       setMessage("Ouvindo… fale os dados da OS em português.");
