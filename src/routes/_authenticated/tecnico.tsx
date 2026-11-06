@@ -322,15 +322,16 @@ function TechnicianPage() {
   async function load() {
     const requestId = ++loadRequestRef.current;
 
-    // Primeiro restaura o snapshot local. A tela do técnico não pode depender
-    // de uma sessão Supabase recuperável para continuar mostrando a fila offline.
-    // O cache é filtrado pelo ator persistido para não misturar técnicos.
-    const [actorResult, ordersResult] = await Promise.allSettled([
+    // Restaura primeiro o snapshot local; a exibição offline não depende da
+    // sessão Supabase nem de uma consulta de rede.
+    const [actorResult, ordersResult, queueResult] = await Promise.allSettled([
       getOfflineActor<{ id: string; email: string; name: string }>(),
       getOfflineOrders<Ordem>(),
+      getOfflineQueue(),
     ]);
     const cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
     const cachedOrders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
+    const offlineQueue = queueResult.status === "fulfilled" ? queueResult.value : [];
 
     if (actorResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
@@ -338,22 +339,39 @@ function TechnicianPage() {
     if (ordersResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar as OS do armazenamento local:", ordersResult.reason);
     }
+    if (queueResult.status === "rejected") {
+      console.warn("[Técnico] Não foi possível recuperar a fila offline:", queueResult.reason);
+    }
 
     if (requestId !== loadRequestRef.current) return;
 
+    const restoreLocalOrders = (actorToRestore: { id: string; email: string; name: string }) => {
+      setActor(actorToRestore);
+      setProfileName(actorToRestore.name);
+      const actorEmail = actorToRestore.email.trim().toLowerCase();
+      const localOrders = cachedOrders.filter((order) =>
+        order.tecnico_id === actorToRestore.id ||
+        (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
+      );
+      // A fila é a fonte de recuperação para solicitações que foram enfileiradas
+      // mas cujo snapshot de OS não chegou a ser gravado. O actorId mantém o
+      // isolamento entre técnicos; o ID da solicitação é o mesmo da fila.
+      const queuedRequests = offlineQueue
+        .filter((action) => action.type === "create_request" && action.actorId === actorToRestore.id)
+        .map((action) => action.type === "create_request" ? action.payload as Ordem : null)
+        .filter((order): order is Ordem => !!order);
+      const unique = new Map<string, Ordem>();
+      for (const order of localOrders) unique.set(order.id, order);
+      for (const order of queuedRequests) unique.set(order.id, order);
+      const restored = [...unique.values()].sort((a, b) =>
+        String(b.created_at ?? b.solicitada_em ?? "").localeCompare(String(a.created_at ?? a.solicitada_em ?? ""))
+      );
+      // Um cache/fila vazios não limpam um estado útil que já esteja em memória.
+      if (restored.length) setOrders(restored);
+    };
+
     if (!navigator.onLine) {
-      if (cachedActor) {
-        setActor(cachedActor);
-        setProfileName(cachedActor.name);
-        const actorEmail = cachedActor.email.trim().toLowerCase();
-        const actorOrders = cachedOrders.filter((order) =>
-          order.tecnico_id === cachedActor.id ||
-          (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
-        );
-        if (actorOrders.length) {
-          setOrders(actorOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
-        }
-      }
+      if (cachedActor) restoreLocalOrders(cachedActor);
       return;
     }
 
