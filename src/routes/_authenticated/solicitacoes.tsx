@@ -344,7 +344,7 @@ type RegisterValues = {
   tecnico_id: string;
 };
 
-function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => void }) {
+function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: string) => void; question?: string }) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
   const [message, setMessage] = useState("");
@@ -364,6 +364,16 @@ function VoiceCapture({ onTranscript }: { onTranscript: (transcript: string) => 
     webkitSpeechRecognition?: new () => Recognition;
   };
   const recognitionRef = useRef<Recognition | null>(null);
+
+  useEffect(() => {
+    if (!question || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const speech = new SpeechSynthesisUtterance(question);
+    speech.lang = "pt-BR";
+    window.speechSynthesis.speak(speech);
+    setMessage(question + " Toque em Falar OS para responder.");
+    return () => window.speechSynthesis.cancel();
+  }, [question]);
 
   useEffect(() => {
     const speechWindow = window as RecognitionWindow;
@@ -516,14 +526,29 @@ function RequestForm({
   const [localizacao, setLocalizacao] = useState("");
   const [setor, setSetor] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [voiceQuestion, setVoiceQuestion] = useState("");
+  const [awaitingFleet, setAwaitingFleet] = useState(false);
 
   function applyTranscript(transcript: string) {
+    if (awaitingFleet) {
+      setFrota(transcript.trim());
+      setAwaitingFleet(false);
+      setVoiceQuestion("");
+      toast.success("Frota preenchida. Confira os dados antes de enviar.");
+      return;
+    }
     const parsed = parseVoiceFields(transcript);
     if (parsed.frota) setFrota(parsed.frota);
     if (parsed.localizacao) setLocalizacao(parsed.localizacao);
     if (parsed.setor) setSetor(parsed.setor);
     setDescricao(parsed.descricao);
-    toast.success("Texto da fala preenchido. Confira e ajuste os campos.");
+    if (!parsed.frota) {
+      setAwaitingFleet(true);
+      setVoiceQuestion("Não identifiquei a frota. Qual é a frota?");
+      return;
+    }
+    setVoiceQuestion("");
+    toast.success("Dados preenchidos. Confira e ajuste os campos.");
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -561,6 +586,8 @@ function RequestForm({
       setLocalizacao("");
       setSetor("");
       setDescricao("");
+      setVoiceQuestion("");
+      setAwaitingFleet(false);
       await onCreated();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a solicitação.");
@@ -579,7 +606,7 @@ function RequestForm({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
-          <VoiceCapture onTranscript={applyTranscript} />
+          <VoiceCapture onTranscript={applyTranscript} question={voiceQuestion} />
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Frota"><Input name="frota" value={frota} onChange={(event) => setFrota(event.target.value)} required placeholder="TR-024" /></Field>
             <Field label="Localização"><Input name="localizacao" value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} placeholder="Fazenda / Oficina / Talhão" /></Field>
