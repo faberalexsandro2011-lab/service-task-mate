@@ -362,6 +362,8 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
   const speakingRef = useRef(false);
   const finalRef = useRef("");
   const interimRef = useRef("");
+  const queuedTranscriptRef = useRef("");
+  const silenceTimerRef = useRef<number | null>(null);
 
   function startListening() {
     const speechWindow = window as RecognitionWindow;
@@ -376,6 +378,10 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     recognition.onstart = () => { if (recognitionRef.current === recognition) { setListening(true); setMessage("Estou ouvindo. Pode falar normalmente; não precisa apertar novamente."); } };
     recognition.onresult = (event) => {
       if (recognitionRef.current !== recognition) return;
+      if (silenceTimerRef.current !== null) {
+        window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
       const chunks: string[] = [];
       for (let i = 0; i < event.results.length; i++) {
         const text = event.results[i]?.[0]?.transcript?.trim();
@@ -403,9 +409,18 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
       setListening(false);
       const phrase = interimRef.current.trim();
       interimRef.current = "";
-      if (phrase && activeRef.current) onTranscript(phrase);
+      if (phrase) {
+        queuedTranscriptRef.current = [queuedTranscriptRef.current, phrase].filter(Boolean).join(" ").trim();
+        if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = window.setTimeout(() => {
+          silenceTimerRef.current = null;
+          const completePhrase = queuedTranscriptRef.current.trim();
+          queuedTranscriptRef.current = "";
+          if (completePhrase && activeRef.current) onTranscript(completePhrase);
+        }, 2000);
+      }
       if (activeRef.current && !speakingRef.current) {
-        setMessage("Reconectando o microfone… continue falando normalmente.");
+        setMessage("Conversa ativa. Pode continuar falando; vou esperar você concluir antes de perguntar.");
         window.setTimeout(() => startListening(), 350);
       }
     };
@@ -420,11 +435,16 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
   function endConversation() {
     activeRef.current = false;
     setListening(false);
+    if (silenceTimerRef.current !== null) {
+      window.clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
     const current = recognitionRef.current;
+    const finalPhrase = [queuedTranscriptRef.current, interimRef.current].filter(Boolean).join(" ").trim();
+    queuedTranscriptRef.current = "";
+    interimRef.current = "";
+    if (finalPhrase) onTranscript(finalPhrase);
     if (current) {
-      const phrase = interimRef.current.trim();
-      interimRef.current = "";
-      if (phrase) onTranscript(phrase);
       recognitionRef.current = null;
       current.onend = null;
       try { current.stop(); } catch { /* reconhecimento já encerrado */ }
@@ -439,6 +459,7 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     setSupported(available);
     return () => {
       activeRef.current = false;
+      if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
       const current = recognitionRef.current;
       recognitionRef.current = null;
       if (current) { current.onend = null; current.onerror = null; try { current.stop(); } catch { /* ignorado */ } }
@@ -474,6 +495,9 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     activeRef.current = true;
     finalRef.current = "";
     interimRef.current = "";
+    queuedTranscriptRef.current = "";
+    if (silenceTimerRef.current !== null) window.clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = null;
     setMessage("Iniciando conversa…");
     startListening();
   }
@@ -482,9 +506,9 @@ function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: s
     <div className="rounded-2xl border border-primary/25 bg-primary/[0.04] p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-bold"><Mic className="size-4 text-primary" /> Conversar para criar OS</div>
+          <div className="flex items-center gap-2 text-sm font-bold"><Mic className="size-4 text-primary" /> Conversar para criar OS {activeRef.current && <span className="size-2 animate-pulse rounded-full bg-emerald-500" />}</div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Inicie uma vez e fale naturalmente. Vou preencher os campos e perguntar em voz alta somente o que estiver faltando.
+            Inicie uma vez e fale naturalmente. Vou esperar você concluir, organizar os dados e perguntar em voz alta somente o que estiver faltando.
           </p>
         </div>
         <Button type="button" variant={activeRef.current ? "destructive" : "default"} className="min-h-12 shrink-0 gap-2 rounded-xl" onClick={toggleConversation}>
