@@ -500,7 +500,7 @@ function parseVoiceFields(transcript: string) {
   // Reconhece os rótulos mesmo quando o usuário fala naturalmente:
   // "na frota 01, no setor Plantio, na localização Santa Rosa,
   // descrição do serviço: troca de antena".
-  const labelPattern = /(?:^|[\\s,;.])(?:(?:na|no|do|da)\\s+)?(descrição\\s+do\\s+serviço|descrição|serviço|localiza(?:ção|cao)|local|setor|frota)\\b\\s*(?::|,|-)?\\s*/gi;
+  const labelPattern = /(?:^|[\s,;.])(?:(?:na|no|do|da)\s+)?(descrição\s+do\s+serviço|descrição|serviço|localiza(?:ção|cao)|local|setor|frota)\b\s*(?::|,|-)?\s*/gi;
   const matches = Array.from(transcript.matchAll(labelPattern));
   const values: Record<string, string> = {};
 
@@ -510,7 +510,7 @@ function parseVoiceFields(transcript: string) {
     const valueStart = (match.index ?? 0) + match[0].length;
     const valueEnd = index + 1 < matches.length ? (matches[index + 1].index ?? transcript.length) : transcript.length;
     const value = transcript.slice(valueStart, valueEnd)
-      .replace(/^[\\s,;:.\\-]+|[\\s,;:.\\-]+$/g, "")
+      .replace(/^[\s,;:.\-]+|[\s,;:.\-]+$/g, "")
       .trim();
     if (!value) continue;
 
