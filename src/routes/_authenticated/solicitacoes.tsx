@@ -347,151 +347,152 @@ type RegisterValues = {
 function VoiceCapture({ onTranscript, question }: { onTranscript: (transcript: string) => void; question?: string }) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(true);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Toque uma vez para iniciar a conversa por voz.");
   type Recognition = {
-    lang: string;
-    interimResults: boolean;
-    continuous: boolean;
+    lang: string; interimResults: boolean; continuous: boolean;
     onstart: (() => void) | null;
-    onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+    onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string; isFinal?: boolean }>> }) => void) | null;
     onerror: ((event: { error: string }) => void) | null;
     onend: (() => void) | null;
-    start: () => void;
-    stop: () => void;
+    start: () => void; stop: () => void;
   };
-  type RecognitionWindow = Window & {
-    SpeechRecognition?: new () => Recognition;
-    webkitSpeechRecognition?: new () => Recognition;
-  };
+  type RecognitionWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
   const recognitionRef = useRef<Recognition | null>(null);
-  const transcriptRef = useRef("");
+  const activeRef = useRef(false);
+  const speakingRef = useRef(false);
+  const finalRef = useRef("");
+  const interimRef = useRef("");
 
-  useEffect(() => {
-    if (!question || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(question);
-    speech.lang = "pt-BR";
-    window.speechSynthesis.speak(speech);
-    setMessage(question + " Toque em Falar OS para responder.");
-    return () => window.speechSynthesis.cancel();
-  }, [question]);
-
-  useEffect(() => {
-    const speechWindow = window as RecognitionWindow;
-    setSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition));
-    return () => {
-      const active = recognitionRef.current;
-      recognitionRef.current = null;
-      if (active) {
-        active.onend = null;
-        active.onerror = null;
-        try { active.stop(); } catch { /* já encerrado pelo navegador */ }
-      }
-    };
-  }, []);
-
-  function toggleListening() {
+  function startListening() {
     const speechWindow = window as RecognitionWindow;
     const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-
-    if (!Recognition) {
-      setSupported(false);
-      setMessage("Este navegador não oferece reconhecimento de voz. Use o preenchimento manual.");
-      return;
-    }
-
-    if (listening && recognitionRef.current) {
-      const active = recognitionRef.current;
-      setMessage("Finalizando seu pedido…");
-      try { active.stop(); } catch { /* a gravação já pode ter terminado */ }
-      return;
-    }
-
-    // Cada tentativa cria uma instância nova. Eventos antigos não podem
-    // encerrar nem alterar o estado de uma gravação iniciada depois.
+    if (!Recognition || !activeRef.current || speakingRef.current) return;
+    if (recognitionRef.current) return;
     const recognition = new Recognition();
     recognitionRef.current = recognition;
     recognition.lang = "pt-BR";
     recognition.interimResults = true;
     recognition.continuous = true;
-    transcriptRef.current = "";
-
-    recognition.onstart = () => {
-      if (recognitionRef.current !== recognition) return;
-      setListening(true);
-      setMessage("Ouvindo o pedido completo… continue falando e toque em Concluir pedido quando terminar.");
-    };
-
+    recognition.onstart = () => { if (recognitionRef.current === recognition) { setListening(true); setMessage("Estou ouvindo. Pode falar normalmente; não precisa apertar novamente."); } };
     recognition.onresult = (event) => {
       if (recognitionRef.current !== recognition) return;
-      transcriptRef.current = Array.from(event.results)
-        .map((result) => result[0]?.transcript || "")
-        .join(" ")
-        .trim();
-      if (transcriptRef.current) {
-        setMessage("Estou ouvindo o pedido completo. Pode continuar falando…");
+      const chunks: string[] = [];
+      for (let i = 0; i < event.results.length; i++) {
+        const text = event.results[i]?.[0]?.transcript?.trim();
+        if (text) chunks.push(text);
+      }
+      const transcript = chunks.join(" ").trim();
+      if (transcript) {
+        interimRef.current = transcript;
+        setMessage("Estou ouvindo e organizando sua solicitação…");
       }
     };
-
     recognition.onerror = (event) => {
       if (recognitionRef.current !== recognition) return;
-      recognitionRef.current = null;
-      setListening(false);
-      const messages: Record<string, string> = {
-        "not-allowed": "O microfone está bloqueado. Autorize o acesso nas configurações do navegador.",
-        "service-not-allowed": "O navegador bloqueou o serviço de voz. Verifique a permissão do microfone.",
-        "no-speech": "Não detectei fala. Toque em Falar OS e tente novamente.",
-        "audio-capture": "Não encontrei um microfone disponível. Verifique o dispositivo.",
-        "network": "A conexão com o reconhecimento de voz falhou. Verifique a internet e tente novamente.",
-        "aborted": "A gravação foi interrompida. Toque em Falar OS para tentar novamente.",
-      };
-      transcriptRef.current = "";
-      setMessage(messages[event.error] || "Não foi possível reconhecer a fala. Toque em Falar OS para tentar novamente.");
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        activeRef.current = false;
+        setListening(false);
+        setMessage("Microfone bloqueado. Autorize o acesso ao microfone no navegador.");
+      } else if (event.error === "network") {
+        setMessage("Falha na conexão do reconhecimento de voz. Verifique a internet.");
+      }
     };
-
     recognition.onend = () => {
       if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
       setListening(false);
-      const completedTranscript = transcriptRef.current.trim();
-      transcriptRef.current = "";
-      if (completedTranscript) {
-        onTranscript(completedTranscript);
-        setMessage("Pedido recebido por completo. Confira os dados e responda às perguntas pendentes.");
-      } else {
-        setMessage("Nenhuma fala foi registrada. Toque em Falar OS para tentar novamente.");
+      const phrase = interimRef.current.trim();
+      interimRef.current = "";
+      if (phrase && activeRef.current) onTranscript(phrase);
+      if (activeRef.current && !speakingRef.current) {
+        setMessage("Reconectando o microfone… continue falando normalmente.");
+        window.setTimeout(() => startListening(), 350);
       }
     };
-
-    try {
-      setMessage("Iniciando microfone…");
-      setListening(true);
-      recognition.start();
-    } catch {
-      if (recognitionRef.current === recognition) recognitionRef.current = null;
+    try { recognition.start(); }
+    catch {
+      recognitionRef.current = null;
       setListening(false);
-      setMessage("O navegador não iniciou o microfone. Aguarde um instante e toque em Falar OS novamente.");
+      if (activeRef.current) setMessage("Não consegui iniciar o microfone. Confira a permissão e tente novamente.");
     }
+  }
+
+  function endConversation() {
+    activeRef.current = false;
+    setListening(false);
+    const current = recognitionRef.current;
+    if (current) {
+      const phrase = interimRef.current.trim();
+      interimRef.current = "";
+      if (phrase) onTranscript(phrase);
+      recognitionRef.current = null;
+      current.onend = null;
+      try { current.stop(); } catch { /* reconhecimento já encerrado */ }
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setMessage("Conversa encerrada. Confira os campos e complete o que faltar.");
+  }
+
+  useEffect(() => {
+    const speechWindow = window as RecognitionWindow;
+    const available = Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition);
+    setSupported(available);
+    return () => {
+      activeRef.current = false;
+      const current = recognitionRef.current;
+      recognitionRef.current = null;
+      if (current) { current.onend = null; current.onerror = null; try { current.stop(); } catch { /* ignorado */ } }
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!question || !activeRef.current || !("speechSynthesis" in window)) return;
+    speakingRef.current = true;
+    const current = recognitionRef.current;
+    if (current) { recognitionRef.current = null; current.onend = null; try { current.stop(); } catch { /* ignorado */ } }
+    setListening(false);
+    window.speechSynthesis.cancel();
+    const speech = new SpeechSynthesisUtterance(question);
+    speech.lang = "pt-BR";
+    speech.onend = () => {
+      speakingRef.current = false;
+      if (activeRef.current) startListening();
+    };
+    window.speechSynthesis.speak(speech);
+    setMessage(question + " Pode responder; continuo ouvindo.");
+  }, [question]);
+
+  function toggleConversation() {
+    if (activeRef.current) { endConversation(); return; }
+    const speechWindow = window as RecognitionWindow;
+    if (!(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition)) {
+      setSupported(false);
+      setMessage("Este navegador não oferece reconhecimento de voz. Use o preenchimento manual.");
+      return;
+    }
+    activeRef.current = true;
+    finalRef.current = "";
+    interimRef.current = "";
+    setMessage("Iniciando conversa…");
+    startListening();
   }
 
   return (
     <div className="rounded-2xl border border-primary/25 bg-primary/[0.04] p-3 sm:p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-bold">
-            <Mic className="size-4 text-primary" />
-            Criar solicitação falando
-          </div>
+          <div className="flex items-center gap-2 text-sm font-bold"><Mic className="size-4 text-primary" /> Conversar para criar OS</div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Fale o pedido inteiro do seu jeito. Quando terminar, toque em “Concluir pedido”; só depois o aplicativo perguntará o que estiver faltando.
+            Inicie uma vez e fale naturalmente. Vou preencher os campos e perguntar em voz alta somente o que estiver faltando.
           </p>
         </div>
-        <Button type="button" variant={listening ? "destructive" : "default"} className="min-h-12 shrink-0 gap-2 rounded-xl" onClick={toggleListening}>
-          {listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-          {listening ? "Concluir pedido" : "Falar OS"}
+        <Button type="button" variant={activeRef.current ? "destructive" : "default"} className="min-h-12 shrink-0 gap-2 rounded-xl" onClick={toggleConversation}>
+          {activeRef.current ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+          {activeRef.current ? "Encerrar conversa" : "Conversar por voz"}
         </Button>
       </div>
-      {message && <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">{message}</p>}
+      <p role="status" aria-live="polite" className="mt-2 text-xs text-muted-foreground">{message}</p>
       {!supported && <p className="mt-2 text-xs text-amber-700">Reconhecimento de voz indisponível neste navegador.</p>}
     </div>
   );
