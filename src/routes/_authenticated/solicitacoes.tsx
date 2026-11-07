@@ -521,6 +521,12 @@ function parseVoiceFields(transcript: string) {
     else if (label === "serviço" || label === "descrição" || label === "descrição do serviço") values.descricao = value;
   }
 
+  // Fallback específico para a frota: alguns reconhecedores inserem
+  // palavras antes do rótulo ("abrir uma OS na frota 01") ou pontuação
+  // diferente. Capturamos o primeiro identificador após "frota".
+  const fleetMatch = transcript.match(/(?:^|[\\s,;.])(?:a\\s+)?(?:na\\s+)?frota\\s*(?:n[ºo.]?\\s*)?([^\\s,;.]+)/i);
+  if (fleetMatch?.[1]) values.frota = fleetMatch[1].trim();
+
   return {
     frota: values.frota || "",
     setor: values.setor || "",
