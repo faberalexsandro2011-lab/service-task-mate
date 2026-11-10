@@ -347,7 +347,6 @@ function TechnicianPage() {
     const pendingFinishIds = [...new Set(offlineQueue
       .filter((action) => action.type === "finish" || action.type === "record_finish_time")
       .map((action) => action.orderId))];
-    setPendingSyncOrderIds(pendingFinishIds);
 
     if (actorResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
@@ -374,6 +373,7 @@ function TechnicianPage() {
     }
 
     if (requestId !== loadRequestRef.current) return;
+    setPendingSyncOrderIds(pendingFinishIds);
 
     const restoreLocalOrders = (actorToRestore: { id: string; email: string; name: string }) => {
       setActor(actorToRestore);
@@ -1143,7 +1143,7 @@ function TechnicianPage() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {tab !== "minhas" && tab !== "historico" && (
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
-            <TabsList className="grid h-12 w-full grid-cols-4 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl bg-card p-1 shadow-sm sm:w-auto sm:grid-cols-4">
               <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
               <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
               <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
