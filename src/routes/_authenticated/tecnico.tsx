@@ -27,6 +27,16 @@ type SelectedPart = { id: string; nome: string; quantidade: number };
 const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT", "STARLINK/CONCENT"] as const;
 type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
 
+function compareBySequence(a: Ordem, b: Ordem) {
+  const sequenceA = a.sequencia;
+  const sequenceB = b.sequencia;
+  const hasA = typeof sequenceA === "number" && Number.isFinite(sequenceA);
+  const hasB = typeof sequenceB === "number" && Number.isFinite(sequenceB);
+  if (hasA && hasB && sequenceA !== sequenceB) return sequenceA - sequenceB;
+  if (hasA !== hasB) return hasA ? -1 : 1;
+  return String(b.created_at ?? b.solicitada_em ?? "").localeCompare(String(a.created_at ?? a.solicitada_em ?? ""));
+}
+
 function formatEntrada(value: string | null | undefined) {
   if (!value?.trim()) return null;
   const text = value.trim();
@@ -375,7 +385,7 @@ function TechnicianPage() {
       const unique = new Map<string, Ordem>();
       for (const order of localOrders) unique.set(order.id, order);
       for (const order of queuedRequests) unique.set(order.id, order);
-      setOrders([...unique.values()].sort((a, b) => String(b.created_at ?? b.solicitada_em ?? "").localeCompare(String(a.created_at ?? a.solicitada_em ?? ""))));
+      setOrders([...unique.values()].sort(compareBySequence));
     };
 
     if (!navigator.onLine) {
@@ -455,7 +465,7 @@ function TechnicianPage() {
     if (requestId !== loadRequestRef.current) return;
 
     if (successfulRows > 0 || (!byId.error && !byEmail.error)) {
-      const result = [...unique.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+      const result = [...unique.values()].sort(compareBySequence);
       setOrders(result);
       await saveOfflineOrders(result);
       if (queryError) console.warn("[Técnico] Uma consulta de sincronização falhou; usando a outra:", queryError);
@@ -466,7 +476,7 @@ function TechnicianPage() {
         (!!actorEmail && String(order.tecnico_email ?? "").trim().toLowerCase() === actorEmail)
       );
       if (fallbackOrders.length) {
-        setOrders(fallbackOrders.sort((a, b) => b.created_at.localeCompare(a.created_at)));
+        setOrders(fallbackOrders.sort(compareBySequence));
         console.warn("[Técnico] Falha ao sincronizar OS; mantendo cache local:", queryError);
       } else {
         console.error("[Técnico] Falha ao sincronizar OS e não há snapshot local:", queryError);
