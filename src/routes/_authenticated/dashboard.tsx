@@ -351,18 +351,16 @@ function Dashboard() {
       return matchesOS && matchesFrota && matchesTecnico && matchesSetor && matchesLocalizacao && matchesFrom && matchesTo;
     });
 
-    // Ordenação opcional por Frota, Setor ou Técnico. O modo padrão preserva a prioridade atual.
-    if (sortOrdersBy !== "padrao") {
+    const compareManualSort = (a: Ordem, b: Ordem) => {
+      if (sortOrdersBy === "padrao") return 0;
       const [field, direction] = sortOrdersBy.split("-");
       const multiplier = direction === "za" ? -1 : 1;
       if (field === "data") {
-        return matches.sort((a, b) => {
-          const aDate = getOrderOpenedAt(a)?.getTime() ?? null;
-          const bDate = getOrderOpenedAt(b)?.getTime() ?? null;
-          if (aDate === null) return bDate === null ? 0 : 1;
-          if (bDate === null) return -1;
-          return (aDate - bDate) * multiplier;
-        });
+        const aDate = getOrderOpenedAt(a)?.getTime() ?? null;
+        const bDate = getOrderOpenedAt(b)?.getTime() ?? null;
+        if (aDate === null) return bDate === null ? 0 : 1;
+        if (bDate === null) return -1;
+        return (aDate - bDate) * multiplier;
       }
       const valueFor = (order: Ordem) => {
         if (field === "frota") return String(order.frota ?? "");
@@ -371,21 +369,30 @@ function Dashboard() {
         if (field === "status") return STATUS_LABEL[order.status as Status] ?? String(order.status ?? "");
         return "";
       };
-      return matches.sort((a, b) => valueFor(a).localeCompare(valueFor(b), "pt-BR", { numeric: true, sensitivity: "base" }) * multiplier);
-    }
+      return valueFor(a).localeCompare(valueFor(b), "pt-BR", { numeric: true, sensitivity: "base" }) * multiplier;
+    };
 
-    // Se houver qualquer valor em seq, a sequência manual prevalece sobre a prioridade por atraso.
-    if (matches.some((order) => order.sequencia != null)) {
+    // A sequência numérica é sempre o critério principal; classificações manuais
+    // ficam como critério secundário e nunca embaralham sequências diferentes.
+    if (matches.some((order) => order.sequencia != null && Number.isFinite(Number(order.sequencia)))) {
       return matches.sort((a, b) => {
-        if (a.sequencia != null && b.sequencia != null) {
-          if (a.sequencia !== b.sequencia) return a.sequencia - b.sequencia;
+        const aSequence = a.sequencia == null || !Number.isFinite(Number(a.sequencia)) ? null : Number(a.sequencia);
+        const bSequence = b.sequencia == null || !Number.isFinite(Number(b.sequencia)) ? null : Number(b.sequencia);
+        if (aSequence === null && bSequence !== null) return 1;
+        if (bSequence === null && aSequence !== null) return -1;
+        if (aSequence !== null && bSequence !== null && aSequence !== bSequence) return aSequence - bSequence;
+
+        const manualComparison = compareManualSort(a, b);
+        if (manualComparison !== 0) return manualComparison;
+        if (aSequence !== null && bSequence !== null) {
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         }
-        if (a.sequencia != null) return -1;
-        if (b.sequencia != null) return 1;
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
     }
+
+    // Sem sequência preenchida, mantém a classificação manual ou a prioridade administrativa.
+    if (sortOrdersBy !== "padrao") return matches.sort(compareManualSort);
 
     // Sem valores em seq, mantém a prioridade administrativa por atraso.
     if (!isManager) return matches;
@@ -939,9 +946,10 @@ function Dashboard() {
                     </div>
                   )}
                   {isManager && t.list.length > 0 && (
-                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
+                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_55px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Seq.</span>
                       {(["frota", "setor", "localizacao", "tecnico", "status", "data"] as const).map((field) => {
                         const labels = { frota: "Frota", setor: "Setor", localizacao: "Localização", tecnico: "Técnico", status: "Status", data: "Datas" };
                         const sortable = field !== "localizacao";
@@ -1334,7 +1342,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
         }}
         aria-label={`Abrir detalhes da OS ${order.numero_os}`}
       >
-        <div className={actor.isManager ? "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center" : "flex flex-wrap items-center gap-x-2.5 gap-y-1.5"}>
+        <div className={actor.isManager ? "grid grid-cols-2 gap-x-3 gap-y-2 lg:grid-cols-[24px_110px_55px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center" : "flex flex-wrap items-center gap-x-2.5 gap-y-1.5"}>
         {actor.isManager ? (
           canSelect && order.status === "pendente" ? (
             <label className="flex shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
@@ -1351,6 +1359,10 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <ClipboardList className="size-3" />
             </span>
             <span className="font-bold text-sm">OS {order.numero_os}</span>
+          </div>
+
+          <div className="min-w-[55px]">
+            <p className="text-sm font-bold tabular-nums">{order.sequencia ?? "—"}</p>
           </div>
 
           <div className="min-w-[65px]">
