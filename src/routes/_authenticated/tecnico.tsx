@@ -25,7 +25,7 @@ type Ordem = Tables<"ordens_servico">;
 type Peca = { id: string; nome: string; ativo: boolean; criado_por_email: string | null; created_at: string | null; updated_at: string | null; estoque_atual: number; estoque_minimo: number; };
 type SelectedPart = { id: string; nome: string; quantidade: number };
 const MAINTENANCE_CLASSES = ["GPS", "SOLINFTEC", "RÁDIO", "RASTREADOR", "AUTM. IRR", "AUTM. PLANT", "STARLINK/CONCENT"] as const;
-type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico";
+type Tab = "todas" | "pendente" | "em_andamento" | "minhas" | "historico" | "sincronizacao";
 
 function compareBySequence(a: Ordem, b: Ordem) {
   const sequenceA = a.sequencia;
@@ -308,6 +308,7 @@ async function registerWebPush() {
 
 function TechnicianPage() {
   const [orders, setOrders] = useState<Ordem[]>([]);
+  const [pendingSyncOrderIds, setPendingSyncOrderIds] = useState<string[]>([]);
   const [actor, setActor] = useState<{ id: string; email: string; name: string } | null>(null);
   const [tab, setTab] = useState<Tab>("todas");
   const [finish, setFinish] = useState<Ordem | null>(null);
@@ -343,6 +344,10 @@ function TechnicianPage() {
     let cachedActor = actorResult.status === "fulfilled" ? actorResult.value : null;
     const cachedOrders = ordersResult.status === "fulfilled" ? ordersResult.value : [];
     const offlineQueue = queueResult.status === "fulfilled" ? queueResult.value : [];
+    const pendingFinishIds = [...new Set(offlineQueue
+      .filter((action) => action.type === "finish" || action.type === "record_finish_time")
+      .map((action) => action.orderId))];
+    setPendingSyncOrderIds(pendingFinishIds);
 
     if (actorResult.status === "rejected") {
       console.warn("[Técnico] Não foi possível recuperar a identificação offline:", actorResult.reason);
@@ -465,6 +470,14 @@ function TechnicianPage() {
     if (requestId !== loadRequestRef.current) return;
 
     if (successfulRows > 0 || (!byId.error && !byEmail.error)) {
+      // Mantém a versão local somente das finalizações ainda não sincronizadas.
+      // Assim, uma consulta online não sobrescreve o trabalho pendente nem mistura
+      // esse registro com o histórico confirmado pelo servidor.
+      for (const order of cachedOrders) {
+        const belongsToActor = order.tecnico_id === auth.user.id ||
+          (!!email && String(order.tecnico_email ?? "").trim().toLowerCase() === email);
+        if (belongsToActor && pendingFinishIds.includes(order.id)) unique.set(order.id, order);
+      }
       const result = [...unique.values()].sort(compareBySequence);
       setOrders(result);
       await saveOfflineOrders(result);
@@ -785,11 +798,14 @@ function TechnicianPage() {
 
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt");
-    const activeOrders = orders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em && (o.status === "pendente" || o.status === "em_andamento"));
-    const base = tab === "historico" ? orders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em) : activeOrders.filter(o => o.status === tab);
+    const pendingIds = new Set(pendingSyncOrderIds);
+    const pendingSyncOrders = orders.filter(o => pendingIds.has(o.id));
+    const syncedOrders = orders.filter(o => !pendingIds.has(o.id));
+    const activeOrders = syncedOrders.filter(o => !(o as Ordem & { fechada_em?: string | null }).fechada_em && (o.status === "pendente" || o.status === "em_andamento"));
+    const base = tab === "sincronizacao" ? pendingSyncOrders : tab === "historico" ? syncedOrders.filter(o => !!(o as Ordem & { fechada_em?: string | null }).fechada_em) : tab === "todas" ? activeOrders : tab === "minhas" ? syncedOrders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em) : activeOrders.filter(o => o.status === tab);
     if (!term) return base;
     return base.filter(o => [o.numero_os, o.frota, o.localizacao, o.descricao].filter(Boolean).some(v => v?.toLocaleLowerCase("pt").includes(term)));
-  }, [orders, tab, search]);
+  }, [orders, pendingSyncOrderIds, tab, search]);
 
   async function start(order: Ordem) {
     if (!actor) return;
@@ -900,6 +916,7 @@ function TechnicianPage() {
           classeManutencao: maintenanceClass,
           createdAt: finishedAt,
         });
+        setPendingSyncOrderIds(current => current.includes(finish.id) ? current : [...current, finish.id]);
         setOrders(current => current.map(item => item.id === finish.id ? updated : item));
         setFinish(null);
         setNotes("");
@@ -974,6 +991,7 @@ function TechnicianPage() {
         classeManutencao: maintenanceClass,
         createdAt: finishedAt,
       });
+      setPendingSyncOrderIds(current => current.includes(orderToFinish.id) ? current : [...current, orderToFinish.id]);
       setFinish(null);
       setNotes("");
       setSelectedParts([]);
@@ -1125,10 +1143,11 @@ function TechnicianPage() {
       <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {tab !== "minhas" && tab !== "historico" && (
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="w-full sm:w-auto">
-            <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
+            <TabsList className="grid h-12 w-full grid-cols-4 rounded-2xl bg-card p-1 shadow-sm sm:w-auto">
               <TabsTrigger value="todas" className="rounded-xl px-3">Todas</TabsTrigger>
               <TabsTrigger value="pendente" className="rounded-xl px-3">Pendentes</TabsTrigger>
               <TabsTrigger value="em_andamento" className="rounded-xl px-3">Em andamento</TabsTrigger>
+              <TabsTrigger value="sincronizacao" className="rounded-xl px-3">Sincronização ({pendingSyncOrderIds.length})</TabsTrigger>
             </TabsList>
           </Tabs>
         )}
