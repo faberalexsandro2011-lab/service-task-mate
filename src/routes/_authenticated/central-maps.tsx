@@ -69,19 +69,24 @@ function extractGeoPdfBounds(buffer: ArrayBuffer): GeoBounds | null {
   for (let i = 0; i < bytes.length; i += 0x8000) {
     source += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
   }
-  const geoObject = source.match(/\/Subtype\s*\/GEO[\s\S]*?\/GPTS\s*\[([\s\S]*?)\][\s\S]*?\/LPTS\s*\[([\s\S]*?)\]/);
+  // PDF dictionaries do not guarantee key order. In this QGIS GeoPDF,
+  // GPTS/LPTS appear before /Subtype /GEO and /GCS points to an EPSG object.
+  const measure = source.match(/\/GPTS\s*\[([\s\S]*?)\][\s\S]*?\/LPTS\s*\[([\s\S]*?)\][\s\S]*?\/Subtype\s*\/GEO/);
   const gcs = source.match(/\/EPSG\s+(\d+)/);
-  if (!geoObject || !gcs) return null;
-  const gpts = geoObject[1].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
-  const lpts = geoObject[2].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
-  if (Number(gcs[1]) !== 4326 || gpts.length < 8 || lpts.length < 8 || gpts.length % 2 !== 0) return null;
-  const pairs = Array.from({ length: gpts.length / 2 }, (_, i) => ({ lat: gpts[i * 2], lon: gpts[i * 2 + 1] }));
+  if (!measure || !gcs) return null;
+  const gpts = measure[1].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const lpts = measure[2].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  if (Number(gcs[1]) !== 4326 || gpts.length !== 8 || lpts.length !== 8) return null;
+  const pairs = Array.from({ length: 4 }, (_, i) => ({ lat: gpts[i * 2], lon: gpts[i * 2 + 1] }));
   const north = Math.max(...pairs.map((p) => p.lat));
   const south = Math.min(...pairs.map((p) => p.lat));
   const east = Math.max(...pairs.map((p) => p.lon));
   const west = Math.min(...pairs.map((p) => p.lon));
   if (!(north > south && east > west)) return null;
-  const corners = pairs.filter((p) => (Math.abs(p.lat - north) < 1e-6 || Math.abs(p.lat - south) < 1e-6) && (Math.abs(p.lon - east) < 1e-6 || Math.abs(p.lon - west) < 1e-6));
+  const corners = pairs.filter((p) =>
+    (Math.abs(p.lat - north) < 1e-6 || Math.abs(p.lat - south) < 1e-6) &&
+    (Math.abs(p.lon - east) < 1e-6 || Math.abs(p.lon - west) < 1e-6)
+  );
   if (corners.length !== 4) return null;
   return { north, south, east, west, epsg: Number(gcs[1]) };
 }
