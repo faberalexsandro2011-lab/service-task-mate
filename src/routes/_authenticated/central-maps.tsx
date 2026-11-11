@@ -1,14 +1,39 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Map, MapPin, Navigation, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import {
+  FileArchive, FileImage, FileText, Map, MapPin, Navigation, RefreshCw,
+  Upload, Wifi, WifiOff, Download, History, CheckCircle2, AlertCircle,
+} from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Position = { latitude: number; longitude: number; accuracy: number; capturedAt: string };
+type MapFile = {
+  id: string;
+  map_key: string;
+  version: number;
+  unit_name: string;
+  property_name: string;
+  display_name: string;
+  original_file_name: string;
+  storage_path: string;
+  file_size: number;
+  mime_type: string | null;
+  file_extension: string;
+  is_current: boolean;
+  created_at: string;
+};
 
 const DB_NAME = "central-maps-local";
 const STORE_NAME = "captured-points";
+const BUCKET = "central-maps";
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
+const ACCEPTED_EXTENSIONS = ["pdf", "kmz", "kml", "tif", "tiff", "zip", "geojson", "json"];
 
 function openLocalDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -36,6 +61,21 @@ async function saveCapturedPoint(position: Position) {
   db.close();
 }
 
+function extensionOf(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileIcon(extension: string) {
+  if (["tif", "tiff"].includes(extension)) return FileImage;
+  if (["kmz", "kml", "zip"].includes(extension)) return FileArchive;
+  return FileText;
+}
+
 export const Route = createFileRoute("/_authenticated/central-maps")({
   head: () => ({
     meta: [
@@ -53,6 +93,37 @@ function CentralMapsPage() {
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
 
+  const [maps, setMaps] = useState<MapFile[]>([]);
+  const [loadingMaps, setLoadingMaps] = useState(true);
+  const [isManager, setIsManager] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [unitName, setUnitName] = useState("");
+  const [propertyName, setPropertyName] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [selectedMapKey, setSelectedMapKey] = useState("new");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const selectedMap = useMemo(
+    () => maps.find((item) => item.map_key === selectedMapKey && item.is_current) ?? null,
+    [maps, selectedMapKey],
+  );
+
+  const loadMaps = useCallback(async () => {
+    setLoadingMaps(true);
+    const { data, error } = await supabase
+      .from("central_maps_files")
+      .select("id,map_key,version,unit_name,property_name,display_name,original_file_name,storage_path,file_size,mime_type,file_extension,is_current,created_at")
+      .order("created_at", { ascending: false });
+    if (error) {
+      setUploadError("Não foi possível carregar os mapas. Verifique sua conexão e as permissões.");
+    } else {
+      setMaps((data ?? []) as MapFile[]);
+    }
+    setLoadingMaps(false);
+  }, []);
+
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -63,6 +134,35 @@ function CentralMapsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    const checkManager = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId || !active) return;
+      const [manager, centralManager] = await Promise.all([
+        supabase.rpc("has_role", { _role: "gestor", _user_id: userId }),
+        supabase.rpc("has_role", { _role: "gestor_central", _user_id: userId }),
+      ]);
+      if (active) setIsManager(manager.data === true || centralManager.data === true);
+    };
+    void checkManager();
+    void loadMaps();
+    return () => { active = false; };
+  }, [loadMaps]);
+
+  useEffect(() => {
+    if (selectedMap) {
+      setUnitName(selectedMap.unit_name);
+      setPropertyName(selectedMap.property_name);
+      setDisplayName(selectedMap.display_name);
+    } else if (selectedMapKey === "new") {
+      setUnitName("");
+      setPropertyName("");
+      setDisplayName("");
+    }
+  }, [selectedMap, selectedMapKey]);
+
   const captureLocation = () => {
     setGpsError("");
     if (!("geolocation" in navigator)) {
@@ -70,14 +170,12 @@ function CentralMapsPage() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      ({ coords, timestamp }) => {
-        setPosition({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          accuracy: coords.accuracy,
-          capturedAt: new Date(timestamp).toISOString(),
-        });
-      },
+      ({ coords, timestamp }) => setPosition({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        capturedAt: new Date(timestamp).toISOString(),
+      }),
       (error) => {
         const messages: Record<number, string> = {
           1: "Permita o acesso à localização nas configurações do navegador.",
@@ -104,14 +202,109 @@ function CentralMapsPage() {
     }
   };
 
+  const uploadMap = async () => {
+    setUploadError("");
+    setUploadMessage("");
+    if (!isManager) {
+      setUploadError("Somente gestores podem importar ou atualizar mapas.");
+      return;
+    }
+    if (!unitName.trim() || !propertyName.trim() || !displayName.trim() || !selectedFile) {
+      setUploadError("Informe unidade, propriedade, nome do mapa e selecione o arquivo.");
+      return;
+    }
+    const extension = extensionOf(selectedFile.name);
+    if (!ACCEPTED_EXTENSIONS.includes(extension)) {
+      setUploadError("Formato não aceito. Use PDF, KMZ, KML, GeoTIFF, ZIP ou GeoJSON.");
+      return;
+    }
+    if (selectedFile.size <= 0 || selectedFile.size > MAX_FILE_SIZE) {
+      setUploadError("O arquivo precisa ter conteúdo e não pode ultrapassar 200 MB.");
+      return;
+    }
+
+    setUploading(true);
+    let uploadedPath = "";
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) throw new Error("Sua sessão expirou. Entre novamente no Central OS.");
+      const current = selectedMap;
+      const mapKey = current?.map_key ?? crypto.randomUUID();
+      const nextVersion = current ? current.version + 1 : 1;
+      const safeFileName = selectedFile.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+      uploadedPath = `${mapKey}/v${nextVersion}/${Date.now()}-${safeFileName || "mapa"}`;
+
+      const { error: storageError } = await supabase.storage.from(BUCKET).upload(uploadedPath, selectedFile, {
+        contentType: selectedFile.type || "application/octet-stream",
+        upsert: false,
+      });
+      if (storageError) throw storageError;
+
+      const { data: newRecord, error: insertError } = await supabase
+        .from("central_maps_files")
+        .insert({
+          map_key: mapKey,
+          version: nextVersion,
+          unit_name: unitName.trim(),
+          property_name: propertyName.trim(),
+          display_name: displayName.trim(),
+          original_file_name: selectedFile.name,
+          storage_path: uploadedPath,
+          file_size: selectedFile.size,
+          mime_type: selectedFile.type || null,
+          file_extension: extension,
+          uploaded_by: userData.user.id,
+          is_current: true,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+
+      if (current) {
+        const { error: archiveError } = await supabase
+          .from("central_maps_files")
+          .update({ is_current: false })
+          .eq("id", current.id);
+        if (archiveError) {
+          setUploadError("A nova versão foi enviada, mas não foi possível arquivar a anterior. Atualize a lista para conferir.");
+        }
+      }
+      setSelectedFile(null);
+      const fileInput = document.getElementById("central-map-file") as HTMLInputElement | null;
+      if (fileInput) fileInput.value = "";
+      setSelectedMapKey("new");
+      setUploadMessage(`Mapa importado com sucesso. Versão ${nextVersion} registrada.`);
+      await loadMaps();
+      if (!newRecord?.id) throw new Error("O arquivo foi enviado, mas não foi possível confirmar o registro.");
+    } catch (error) {
+      if (uploadedPath) {
+        await supabase.storage.from(BUCKET).remove([uploadedPath]);
+      }
+      setUploadError(error instanceof Error ? error.message : "Falha ao importar o mapa. Tente novamente.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadMap = async (mapFile: MapFile) => {
+    setUploadError("");
+    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(mapFile.storage_path, 60 * 5);
+    if (error || !data?.signedUrl) {
+      setUploadError("Não foi possível gerar o link de download. Verifique sua conexão.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const currentMaps = maps.filter((item) => item.is_current);
+  const historicalMaps = maps.filter((item) => !item.is_current);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-emerald-900 p-3 text-white">
-              <Map className="h-6 w-6" />
-            </div>
+            <div className="rounded-xl bg-emerald-900 p-3 text-white"><Map className="h-6 w-6" /></div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Central Maps</h1>
               <p className="text-sm text-muted-foreground">Mapas e localização para operações de campo</p>
@@ -125,43 +318,134 @@ function CentralMapsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Navigation className="h-5 w-5 text-emerald-700" />
-              Localização do aparelho
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5 text-emerald-700" /> Biblioteca de mapas</CardTitle>
             <CardDescription>
-              A captura de coordenadas usa o GPS do dispositivo e pode funcionar sem internet.
+              Importe mapas georreferenciados e publique novas versões sem perder o arquivo anterior. Os arquivos ficam guardados no ambiente de teste.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={captureLocation} className="gap-2">
-                <RefreshCw className="h-4 w-4" />
-                Capturar minha localização
-              </Button>
-              <Button variant="outline" onClick={savePoint} disabled={!position || saving} className="gap-2">
-                <MapPin className="h-4 w-4" />
-                {saving ? "Salvando..." : "Salvar ponto neste aparelho"}
-              </Button>
-            </div>
+            {isManager ? (
+              <div className="grid gap-3 rounded-xl border p-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="central-map-version">Ação</Label>
+                  <Select value={selectedMapKey} onValueChange={setSelectedMapKey}>
+                    <SelectTrigger id="central-map-version"><SelectValue placeholder="Escolha um mapa para atualizar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">Importar um novo mapa</SelectItem>
+                      {currentMaps.map((item) => (
+                        <SelectItem key={item.map_key} value={item.map_key}>
+                          Atualizar: {item.unit_name} · {item.property_name} · {item.display_name} (v{item.version})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="central-map-unit">Unidade</Label>
+                  <Input id="central-map-unit" value={unitName} onChange={(event) => setUnitName(event.target.value)} placeholder="Ex.: Vale do Paraná" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="central-map-property">Propriedade / fazenda</Label>
+                  <Input id="central-map-property" value={propertyName} onChange={(event) => setPropertyName(event.target.value)} placeholder="Nome da propriedade" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="central-map-name">Nome do mapa</Label>
+                  <Input id="central-map-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Ex.: Mapa geral de talhões" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="central-map-file">Arquivo georreferenciado</Label>
+                  <Input
+                    id="central-map-file"
+                    type="file"
+                    accept=".pdf,.kmz,.kml,.tif,.tiff,.zip,.geojson,.json"
+                    onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                    className="h-auto min-h-11 py-2"
+                  />
+                  <p className="text-xs text-muted-foreground">PDF, KMZ, KML, GeoTIFF, Shapefile em ZIP ou GeoJSON · máximo 200 MB por arquivo.</p>
+                  {selectedFile && <p className="text-sm font-medium">{selectedFile.name} · {formatBytes(selectedFile.size)}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                  <Button onClick={uploadMap} disabled={uploading || !online} className="gap-2">
+                    <Upload className="h-4 w-4" /> {uploading ? "Enviando mapa..." : selectedMap ? "Publicar nova versão" : "Importar mapa"}
+                  </Button>
+                  {!online && <span className="text-xs text-muted-foreground">Conecte-se à internet para enviar ou atualizar mapas.</span>}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                A biblioteca está disponível para consulta. A importação e atualização de mapas são exclusivas dos gestores.
+              </div>
+            )}
+            {uploadError && <p role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{uploadError}</p>}
+            {uploadMessage && <p role="status" className="flex items-start gap-2 text-sm text-emerald-700"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{uploadMessage}</p>}
+          </CardContent>
+        </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Mapas disponíveis</CardTitle>
+            <CardDescription>Versões atuais organizadas por unidade e propriedade.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loadingMaps ? <p className="text-sm text-muted-foreground">Carregando mapas...</p>
+              : currentMaps.length === 0 ? (
+                <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
+                  <Map className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                  <p className="font-medium">Nenhum mapa importado ainda</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Quando o primeiro mapa for enviado, ele aparecerá nesta biblioteca.</p>
+                </div>
+              ) : currentMaps.map((item) => {
+                const Icon = fileIcon(item.file_extension);
+                return (
+                  <div key={item.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="rounded-lg bg-emerald-50 p-2 text-emerald-800"><Icon className="h-5 w-5" /></div>
+                      <div className="min-w-0">
+                        <p className="font-semibold">{item.display_name}</p>
+                        <p className="text-sm text-muted-foreground">{item.unit_name} · {item.property_name}</p>
+                        <p className="truncate text-xs text-muted-foreground">{item.original_file_name} · {formatBytes(Number(item.file_size))}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">Versão {item.version}</Badge>
+                      <Button size="sm" variant="outline" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-4 w-4" /> Baixar</Button>
+                    </div>
+                  </div>
+                );
+              })}
+            {historicalMaps.length > 0 && (
+              <details className="rounded-lg border p-3">
+                <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium"><History className="h-4 w-4" /> Histórico de versões ({historicalMaps.length})</summary>
+                <div className="mt-3 space-y-2">
+                  {historicalMaps.map((item) => (
+                    <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm">
+                      <div><p>{item.display_name} · v{item.version}</p><p className="text-xs text-muted-foreground">{item.unit_name} · {item.property_name} · {new Date(item.created_at).toLocaleDateString("pt-BR")}</p></div>
+                      <Button size="sm" variant="ghost" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-3.5 w-3.5" /> Arquivo antigo</Button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => void loadMaps()} disabled={loadingMaps} className="gap-2"><RefreshCw className="h-4 w-4" /> Atualizar lista</Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Navigation className="h-5 w-5 text-emerald-700" /> Localização do aparelho</CardTitle>
+            <CardDescription>A captura de coordenadas usa o GPS do dispositivo e pode funcionar sem internet.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={captureLocation} className="gap-2"><RefreshCw className="h-4 w-4" /> Capturar minha localização</Button>
+              <Button variant="outline" onClick={savePoint} disabled={!position || saving} className="gap-2"><MapPin className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar ponto neste aparelho"}</Button>
+            </div>
             {position ? (
               <div className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Latitude</p>
-                  <p className="font-mono text-sm font-semibold">{position.latitude.toFixed(6)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Longitude</p>
-                  <p className="font-mono text-sm font-semibold">{position.longitude.toFixed(6)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Precisão informada pelo GPS</p>
-                  <p className="text-sm font-semibold">± {Math.round(position.accuracy)} metros</p>
-                </div>
-                <p className="text-xs text-muted-foreground sm:col-span-3">
-                  Capturado em {new Date(position.capturedAt).toLocaleString("pt-BR")}
-                </p>
+                <div><p className="text-xs text-muted-foreground">Latitude</p><p className="font-mono text-sm font-semibold">{position.latitude.toFixed(6)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Longitude</p><p className="font-mono text-sm font-semibold">{position.longitude.toFixed(6)}</p></div>
+                <div><p className="text-xs text-muted-foreground">Precisão informada pelo GPS</p><p className="text-sm font-semibold">± {Math.round(position.accuracy)} metros</p></div>
+                <p className="text-xs text-muted-foreground sm:col-span-3">Capturado em {new Date(position.capturedAt).toLocaleString("pt-BR")}</p>
               </div>
             ) : (
               <div className="rounded-lg border border-dashed bg-muted/20 px-4 py-8 text-center">
@@ -170,36 +454,17 @@ function CentralMapsPage() {
                 <p className="mt-1 text-xs text-muted-foreground">Toque em “Capturar minha localização” para testar o GPS.</p>
               </div>
             )}
-
             {gpsError && <p role="alert" className="text-sm text-destructive">{gpsError}</p>}
-            <p className="text-xs text-muted-foreground">
-              Pontos salvos nesta etapa ficam somente no armazenamento local deste navegador. A sincronização com o Central OS será implementada em uma etapa posterior.
-            </p>
+            <p className="text-xs text-muted-foreground">Pontos salvos nesta etapa ficam somente no armazenamento local deste navegador.</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Mapa operacional</CardTitle>
-            <CardDescription>Estrutura inicial preparada para receber mapas georreferenciados e camadas das propriedades.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center">
-              <Map className="mb-3 h-10 w-10 text-emerald-800" />
-              <p className="font-semibold">Base cartográfica será ativada na próxima etapa</p>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Nesta fundação, o Central Maps já testa o GPS e o armazenamento local. A visualização cartográfica, os mapas baixáveis e as camadas offline serão adicionados após a definição da fonte e do formato dos mapas.
-              </p>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline">GPS do dispositivo</Badge>
-              <Badge variant="outline">Armazenamento local</Badge>
-              <Badge variant="outline">Preparado para offline</Badge>
-            </div>
-          </CardContent>
+          <CardHeader><CardTitle>Visualização cartográfica</CardTitle><CardDescription>Próxima etapa: exibir os mapas georreferenciados sobre a posição GPS e preparar o cache offline por propriedade.</CardDescription></CardHeader>
+          <CardContent><div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center"><Map className="mb-3 h-10 w-10 text-emerald-800" /><p className="font-semibold">Biblioteca de mapas pronta para receber arquivos</p><p className="mt-2 max-w-md text-sm text-muted-foreground">Nesta versão já é possível importar, atualizar, baixar e consultar versões anteriores. A visualização geográfica e a navegação offline serão implementadas após validarmos o primeiro arquivo real.</p></div></CardContent>
         </Card>
 
-        <p className="text-xs text-muted-foreground">Pontos capturados nesta sessão: {savedCount}. Os registros permanecem no aparelho mesmo sem conexão.</p>
+        <p className="text-xs text-muted-foreground">Pontos capturados nesta sessão: {savedCount}. Arquivos da biblioteca ficam no armazenamento privado do ambiente de teste.</p>
       </div>
     </div>
   );
