@@ -36,9 +36,9 @@ export const Route = createFileRoute("/_authenticated")({
         if (isViewer === true) {
           role = "visualizador";
         } else {
-          // The isolated multi-unit test project uses usuarios_unidades instead
+          // The multi-unit project uses usuarios_unidades instead
           // of the production user_roles table. This check is intentionally
-          // scoped to the test project's authenticated session.
+          // scoped to this project's authenticated session.
           const { data: centralProfile } = await supabase
             .from("usuarios_unidades")
             .select("perfil")
