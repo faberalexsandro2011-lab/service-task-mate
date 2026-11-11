@@ -92,6 +92,16 @@ function Index() {
       setError(deviceCheck?.motivo || "Não foi possível validar este dispositivo. Tente novamente ou contacte o Gestor Geral.");
       return;
     }
+    // Ao autenticar, este aparelho passa a ser o único dispositivo ativo da conta.
+    const { error: exclusiveSessionError } = await supabase.rpc("registrar_sessao_dispositivo", {
+      p_device_id: getCentralOSDeviceId(),
+    });
+    if (exclusiveSessionError) {
+      await supabase.auth.signOut();
+      setBusy(false);
+      setError("Não foi possível ativar a sessão exclusiva. Tente novamente.");
+      return;
+    }
     setBusy(false);
     // No sistema multiunidade, direciona o Gestor Geral ao painel operacional,
     // sem abrir o dashboard legado que depende da tabela public.profiles.
