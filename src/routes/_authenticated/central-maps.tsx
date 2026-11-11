@@ -30,20 +30,25 @@ type MapFile = {
   is_current: boolean;
   created_at: string;
 };
+type CachedMapRecord = { id: string; map: MapFile; blob: Blob; downloaded_at: string };
 
 const DB_NAME = "central-maps-local";
 const STORE_NAME = "captured-points";
+const MAPS_STORE_NAME = "downloaded-maps";
 const BUCKET = "central-maps";
 const MAX_FILE_SIZE = 200 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = ["pdf", "kmz", "kml", "tif", "tiff", "zip", "geojson", "json"];
 
 function openLocalDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains(MAPS_STORE_NAME)) {
+        db.createObjectStore(MAPS_STORE_NAME, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -59,6 +64,56 @@ async function saveCapturedPoint(position: Position) {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("Não foi possível salvar o ponto."));
     transaction.onabort = () => reject(transaction.error ?? new Error("Gravação local cancelada."));
+  });
+  db.close();
+}
+
+async function listCachedMaps(): Promise<CachedMapRecord[]> {
+  const db = await openLocalDatabase();
+  const records = await new Promise<CachedMapRecord[]>((resolve, reject) => {
+    const request = db.transaction(MAPS_STORE_NAME, "readonly").objectStore(MAPS_STORE_NAME).getAll();
+    request.onsuccess = () => resolve(request.result as CachedMapRecord[]);
+    request.onerror = () => reject(request.error ?? new Error("Não foi possível consultar os mapas baixados."));
+  });
+  db.close();
+  return records;
+}
+
+async function getCachedMap(id: string): Promise<CachedMapRecord | null> {
+  const db = await openLocalDatabase();
+  const record = await new Promise<CachedMapRecord | null>((resolve, reject) => {
+    const request = db.transaction(MAPS_STORE_NAME, "readonly").objectStore(MAPS_STORE_NAME).get(id);
+    request.onsuccess = () => resolve((request.result as CachedMapRecord | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error("Não foi possível abrir o mapa salvo neste aparelho."));
+  });
+  db.close();
+  return record;
+}
+
+async function saveCachedMap(map: MapFile, blob: Blob) {
+  const db = await openLocalDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(MAPS_STORE_NAME, "readwrite");
+    transaction.objectStore(MAPS_STORE_NAME).put({
+      id: map.id,
+      map,
+      blob,
+      downloaded_at: new Date().toISOString(),
+    } satisfies CachedMapRecord);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Não foi possível guardar o mapa offline."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("O armazenamento offline foi cancelado."));
+  });
+  db.close();
+}
+
+async function removeCachedMap(id: string) {
+  const db = await openLocalDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(MAPS_STORE_NAME, "readwrite");
+    transaction.objectStore(MAPS_STORE_NAME).delete(id);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error("Não foi possível remover o mapa deste aparelho."));
   });
   db.close();
 }
@@ -125,6 +180,8 @@ function CentralMapsPage() {
 
   const [maps, setMaps] = useState<MapFile[]>([]);
   const [loadingMaps, setLoadingMaps] = useState(true);
+  const [offlineMapIds, setOfflineMapIds] = useState<string[]>([]);
+  const [downloadingMapId, setDownloadingMapId] = useState<string | null>(null);
   const [isManager, setIsManager] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState("");
@@ -149,19 +206,40 @@ function CentralMapsPage() {
     [maps, selectedMapKey],
   );
 
+  const refreshOfflineMaps = useCallback(async () => {
+    try {
+      const cached = await listCachedMaps();
+      setOfflineMapIds(cached.map((record) => record.id));
+      return cached;
+    } catch {
+      setOfflineMapIds([]);
+      return [];
+    }
+  }, []);
+
   const loadMaps = useCallback(async () => {
     setLoadingMaps(true);
+    const cached = await refreshOfflineMaps();
+    if (!navigator.onLine) {
+      setMaps(cached.map((record) => record.map).sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      setLoadingMaps(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("central_maps_files")
       .select("id,map_key,version,unit_name,property_name,display_name,original_file_name,storage_path,file_size,mime_type,file_extension,is_current,created_at")
       .order("created_at", { ascending: false });
     if (error) {
-      setUploadError("Não foi possível carregar os mapas. Verifique sua conexão e as permissões.");
+      setMaps(cached.map((record) => record.map));
+      setUploadError("Não foi possível sincronizar a biblioteca. Exibindo os mapas já baixados neste aparelho.");
     } else {
-      setMaps((data ?? []) as MapFile[]);
+      const remoteMaps = (data ?? []) as MapFile[];
+      const remoteIds = new Set(remoteMaps.map((item) => item.id));
+      const localOnlyMaps = cached.map((record) => record.map).filter((item) => !remoteIds.has(item.id));
+      setMaps([...remoteMaps, ...localOnlyMaps].sort((a, b) => b.created_at.localeCompare(a.created_at)));
     }
     setLoadingMaps(false);
-  }, []);
+  }, [refreshOfflineMaps]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -327,12 +405,41 @@ function CentralMapsPage() {
 
   const downloadMap = async (mapFile: MapFile) => {
     setUploadError("");
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(mapFile.storage_path, 60 * 5);
-    if (error || !data?.signedUrl) {
-      setUploadError("Não foi possível gerar o link de download. Verifique sua conexão.");
+    setUploadMessage("");
+    if (!online) {
+      setUploadError("Conecte-se à internet para baixar este mapa para uso offline.");
       return;
     }
-    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    setDownloadingMapId(mapFile.id);
+    try {
+      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(mapFile.storage_path, 60 * 10);
+      if (error || !data?.signedUrl) throw new Error("Não foi possível preparar o download do mapa.");
+      const response = await fetch(data.signedUrl);
+      if (!response.ok) throw new Error("Falha ao transferir o arquivo. Tente novamente com uma conexão estável.");
+      const blob = await response.blob();
+      if (blob.size === 0) throw new Error("O arquivo recebido está vazio.");
+      if (mapFile.file_size && blob.size !== Number(mapFile.file_size)) {
+        throw new Error("O tamanho do arquivo recebido não confere com o original. O mapa não foi salvo.");
+      }
+      await saveCachedMap(mapFile, blob);
+      if (navigator.storage?.persist) await navigator.storage.persist();
+      await refreshOfflineMaps();
+      setUploadMessage(`${mapFile.display_name} · versão ${mapFile.version} salva neste aparelho para uso offline (${formatBytes(blob.size)}).`);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Não foi possível salvar o mapa offline.");
+    } finally {
+      setDownloadingMapId(null);
+    }
+  };
+
+  const deleteOfflineMap = async (mapFile: MapFile) => {
+    try {
+      await removeCachedMap(mapFile.id);
+      await refreshOfflineMaps();
+      setUploadMessage(`${mapFile.display_name} removido do armazenamento offline deste aparelho. O arquivo na biblioteca permanece intacto.`);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Não foi possível remover o mapa offline.");
+    }
   };
 
   useEffect(() => {
@@ -355,11 +462,18 @@ function CentralMapsPage() {
     setPdfDocument(null);
     const openPdf = async () => {
       try {
-        const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(viewerMap.storage_path, 60 * 10);
-        if (error || !data?.signedUrl) throw new Error("Não foi possível abrir o arquivo armazenado.");
-        const response = await fetch(data.signedUrl);
-        if (!response.ok) throw new Error("Não foi possível baixar o PDF para leitura geoespacial.");
-        const pdfBytes = await response.arrayBuffer();
+        const cached = await getCachedMap(viewerMap.id);
+        let pdfBytes: ArrayBuffer;
+        if (cached?.blob) {
+          pdfBytes = await cached.blob.arrayBuffer();
+        } else {
+          if (!navigator.onLine) throw new Error("Este mapa não está baixado neste aparelho. Conecte-se à internet e toque em “Baixar offline” na biblioteca.");
+          const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(viewerMap.storage_path, 60 * 10);
+          if (error || !data?.signedUrl) throw new Error("Não foi possível abrir o arquivo armazenado.");
+          const response = await fetch(data.signedUrl);
+          if (!response.ok) throw new Error("Não foi possível baixar o PDF para leitura geoespacial.");
+          pdfBytes = await response.arrayBuffer();
+        }
         const bounds = extractGeoPdfBounds(pdfBytes);
         if (!cancelled) setGeoBounds(bounds);
         pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
@@ -532,7 +646,11 @@ function CentralMapsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">Versão {item.version}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-4 w-4" /> Visualizar</Button><Button size="sm" variant="outline" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-4 w-4" /> Baixar</Button>
+                      <Button size="sm" variant="outline" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-4 w-4" /> Visualizar</Button>
+                      <Button size="sm" variant="outline" onClick={() => void downloadMap(item)} disabled={!online || downloadingMapId === item.id} className="gap-2">
+                        <Download className="h-4 w-4" /> {downloadingMapId === item.id ? "Salvando..." : offlineMapIds.includes(item.id) ? "Atualizar offline" : "Baixar offline"}
+                      </Button>
+                      {offlineMapIds.includes(item.id) && <Button size="sm" variant="ghost" onClick={() => void deleteOfflineMap(item)} disabled={downloadingMapId === item.id}>Remover offline</Button>}
                     </div>
                   </div>
                 );
@@ -544,7 +662,11 @@ function CentralMapsPage() {
                   {historicalMaps.map((item) => (
                     <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm">
                       <div><p>{item.display_name} · v{item.version}</p><p className="text-xs text-muted-foreground">{item.unit_name} · {item.property_name} · {new Date(item.created_at).toLocaleDateString("pt-BR")}</p></div>
-                      <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-3.5 w-3.5" /> Ver</Button><Button size="sm" variant="ghost" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-3.5 w-3.5" /> Baixar</Button></div>
+                      <div className="flex flex-wrap gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-3.5 w-3.5" /> Ver</Button>
+                        <Button size="sm" variant="ghost" onClick={() => void downloadMap(item)} disabled={!online || downloadingMapId === item.id} className="gap-2"><Download className="h-3.5 w-3.5" /> {offlineMapIds.includes(item.id) ? "Atualizar offline" : "Baixar offline"}</Button>
+                        {offlineMapIds.includes(item.id) && <Button size="sm" variant="ghost" onClick={() => void deleteOfflineMap(item)}>Remover offline</Button>}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -584,8 +706,11 @@ function CentralMapsPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Visualização cartográfica</CardTitle><CardDescription>Próxima etapa: exibir os mapas georreferenciados sobre a posição GPS e preparar o cache offline por propriedade.</CardDescription></CardHeader>
-          <CardContent><div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 p-6 text-center"><Map className="mb-3 h-10 w-10 text-emerald-800" /><p className="font-semibold">Biblioteca de mapas pronta para receber arquivos</p><p className="mt-2 max-w-md text-sm text-muted-foreground">Nesta versão já é possível importar, atualizar, baixar e consultar versões anteriores. A visualização geográfica e a navegação offline serão implementadas após validarmos o primeiro arquivo real.</p></div></CardContent>
+          <CardHeader><CardTitle>Armazenamento offline</CardTitle><CardDescription>Baixe cada mapa enquanto estiver conectado. O arquivo ficará guardado neste aparelho e poderá ser aberto sem internet.</CardDescription></CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex items-center gap-2 text-sm"><Badge variant={offlineMapIds.length > 0 ? "default" : "secondary"}>{offlineMapIds.length} mapa(s) neste aparelho</Badge><span className="text-muted-foreground">O armazenamento é local e não ocupa espaço no servidor.</span></div>
+            <p className="text-xs text-muted-foreground">A primeira fase offline guarda os arquivos originais no dispositivo e permite reabrir GeoPDFs sem conexão. O funcionamento offline completo do aplicativo, incluindo a tela inicial, camadas cartográficas e sincronização de pontos, ainda será concluído e testado nas próximas etapas.</p>
+          </CardContent>
         </Card>
 
         <p className="text-xs text-muted-foreground">Pontos capturados nesta sessão: {savedCount}. Arquivos da biblioteca ficam no armazenamento privado do ambiente de teste.</p>
