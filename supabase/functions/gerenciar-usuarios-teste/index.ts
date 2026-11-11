@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
         return json({ ok: false, error: "O Gestor pode cadastrar apenas técnicos na própria unidade." }, 403);
       }
       unidadeId = actorProfile.unidade_id;
-    } else if (perfil === "gestor_central" || perfil === "gestor") {
+    } else if (perfil === "gestor_central") {
       unidadeId = null;
     } else {
       if (!unidadeCodigo) return json({ ok: false, error: "Selecione uma unidade válida." }, 400);
@@ -160,7 +160,7 @@ Deno.serve(async (req: Request) => {
     const patch: Record<string, unknown> = {};
     if (perfil) patch.perfil = perfil;
     if (ativo !== undefined) patch.ativo = ativo;
-    if (perfil === "gestor_central" || perfil === "gestor") patch.unidade_id = null;
+    if (perfil === "gestor_central") patch.unidade_id = null;
     else if (unidadeCodigo) {
       if (!unidadeCodigo) return json({ ok: false, error: "Unidade inválida." }, 400);
       const { data: unit, error: unitError } = await admin.from("unidades").select("id,codigo").eq("codigo", unidadeCodigo).eq("ativa", true).maybeSingle();
