@@ -146,7 +146,30 @@ function RootComponent() {
       router.invalidate();
       if (session) queryClient.invalidateQueries();
     });
-    return () => data.subscription.unsubscribe();
+
+    // Revalida/renova a sessão ao retornar do segundo plano (PWA/mobile).
+    let refreshing = false;
+    const resumeSession = async () => {
+      if (refreshing || document.visibilityState === "hidden" || !navigator.onLine) return;
+      refreshing = true;
+      try {
+        const { data: current } = await supabase.auth.getSession();
+        if (current.session) await supabase.auth.refreshSession();
+      } catch (error) {
+        console.warn("[Auth] Não foi possível renovar a sessão ao retomar:", error);
+      } finally {
+        refreshing = false;
+      }
+    };
+    window.addEventListener("focus", resumeSession);
+    window.addEventListener("pageshow", resumeSession);
+    document.addEventListener("visibilitychange", resumeSession);
+    return () => {
+      data.subscription.unsubscribe();
+      window.removeEventListener("focus", resumeSession);
+      window.removeEventListener("pageshow", resumeSession);
+      document.removeEventListener("visibilitychange", resumeSession);
+    };
   }, [queryClient, router]);
 
   return (
