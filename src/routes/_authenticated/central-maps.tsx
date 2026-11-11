@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Position = { latitude: number; longitude: number; accuracy: number; capturedAt: string };
+type GeoBounds = { north: number; south: number; west: number; east: number; epsg: number };
 type MapFile = {
   id: string;
   map_key: string;
@@ -60,6 +61,29 @@ async function saveCapturedPoint(position: Position) {
     transaction.onabort = () => reject(transaction.error ?? new Error("Gravação local cancelada."));
   });
   db.close();
+}
+
+function extractGeoPdfBounds(buffer: ArrayBuffer): GeoBounds | null {
+  const bytes = new Uint8Array(buffer);
+  let source = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    source += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
+  }
+  const geoObject = source.match(/\\/Subtype\\s*\\/GEO[\\s\\S]*?\\/GPTS\\s*\\[([\\s\\S]*?)\\][\\s\\S]*?\\/LPTS\\s*\\[([\\s\\S]*?)\\]/);
+  const gcs = source.match(/\\/EPSG\\s+(\\d+)/);
+  if (!geoObject || !gcs) return null;
+  const gpts = geoObject[1].match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) ?? [];
+  const lpts = geoObject[2].match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) ?? [];
+  if (Number(gcs[1]) !== 4326 || gpts.length < 8 || lpts.length < 8 || gpts.length % 2 !== 0) return null;
+  const pairs = Array.from({ length: gpts.length / 2 }, (_, i) => ({ lat: gpts[i * 2], lon: gpts[i * 2 + 1] }));
+  const north = Math.max(...pairs.map((p) => p.lat));
+  const south = Math.min(...pairs.map((p) => p.lat));
+  const east = Math.max(...pairs.map((p) => p.lon));
+  const west = Math.min(...pairs.map((p) => p.lon));
+  if (!(north > south && east > west)) return null;
+  const corners = pairs.filter((p) => (Math.abs(p.lat - north) < 1e-6 || Math.abs(p.lat - south) < 1e-6) && (Math.abs(p.lon - east) < 1e-6 || Math.abs(p.lon - west) < 1e-6));
+  if (corners.length !== 4) return null;
+  return { north, south, east, west, epsg: Number(gcs[1]) };
 }
 
 function extensionOf(fileName: string) {
@@ -112,6 +136,7 @@ function CentralMapsPage() {
   const [pdfZoom, setPdfZoom] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState("");
+  const [geoBounds, setGeoBounds] = useState<GeoBounds | null>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const selectedMap = useMemo(
@@ -311,6 +336,7 @@ function CentralMapsPage() {
       setPdfPages(0);
       setPdfPage(1);
       setPdfError("");
+      setGeoBounds(null);
       return;
     }
     if (viewerMap.file_extension !== "pdf") {
@@ -326,8 +352,13 @@ function CentralMapsPage() {
       try {
         const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(viewerMap.storage_path, 60 * 10);
         if (error || !data?.signedUrl) throw new Error("Não foi possível abrir o arquivo armazenado.");
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) throw new Error("Não foi possível baixar o PDF para leitura geoespacial.");
+        const pdfBytes = await response.arrayBuffer();
+        const bounds = extractGeoPdfBounds(pdfBytes);
+        if (!cancelled) setGeoBounds(bounds);
         pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-        loadingTask = pdfjsLib.getDocument({ url: data.signedUrl });
+        loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
         const document = await loadingTask.promise;
         if (cancelled) { await document.destroy(); return; }
         setPdfDocument(document);
@@ -574,13 +605,26 @@ function CentralMapsPage() {
             {pdfError && <p role="alert" className="mx-auto max-w-xl rounded-lg border border-destructive/30 bg-background p-4 text-sm text-destructive">{pdfError}</p>}
             {!pdfLoading && !pdfError && pdfDocument && (
               <div className="mx-auto w-fit max-w-full overflow-auto rounded-md bg-white shadow-lg">
-                <canvas ref={pdfCanvasRef} aria-label={`Página ${pdfPage} do mapa`} />
+                <div className="relative w-fit">
+                  <canvas ref={pdfCanvasRef} aria-label={`Página ${pdfPage} do mapa`} />
+                  {position && geoBounds && pdfPage === 1 && position.latitude <= geoBounds.north && position.latitude >= geoBounds.south && position.longitude >= geoBounds.west && position.longitude <= geoBounds.east && (
+                    <div className="pointer-events-none absolute z-10" style={{ left: `${((position.longitude - geoBounds.west) / (geoBounds.east - geoBounds.west)) * 100}%`, top: `${((geoBounds.north - position.latitude) / (geoBounds.north - geoBounds.south)) * 100}%`, transform: "translate(-50%, -50%)" }}>
+                      <span className="relative flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 shadow-lg"><span className="h-2 w-2 rounded-full bg-white" /></span>
+                      <span className="absolute left-1/2 top-6 -translate-x-1/2 whitespace-nowrap rounded bg-blue-700 px-2 py-1 text-[10px] font-semibold text-white shadow">Você está aqui</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            {!pdfLoading && pdfDocument && pdfPage === 1 && (
+              <div className="mx-auto mt-3 max-w-2xl rounded-lg border bg-background p-3 text-xs">
+                {geoBounds ? <><p className="font-semibold text-emerald-700">GeoPDF reconhecido · EPSG:{geoBounds.epsg}</p><p className="mt-1 text-muted-foreground">Limites: {geoBounds.south.toFixed(6)}, {geoBounds.west.toFixed(6)} até {geoBounds.north.toFixed(6)}, {geoBounds.east.toFixed(6)}</p><p className="mt-1 text-muted-foreground">{position && position.latitude >= geoBounds.south && position.latitude <= geoBounds.north && position.longitude >= geoBounds.west && position.longitude <= geoBounds.east ? "Sua posição está dentro da área deste mapa." : "Capture a localização dentro da área do mapa para testar a sobreposição GPS."}</p></> : <p className="text-amber-700">Não foi possível confirmar metadados GeoPDF compatíveis (EPSG:4326) neste arquivo.</p>}
               </div>
             )}
             {!pdfLoading && !pdfError && !pdfDocument && viewerMap.file_extension !== "pdf" && (
               <p className="py-10 text-center text-sm text-muted-foreground">Este formato ainda não possui visualizador nesta etapa. Você pode baixar o arquivo pela biblioteca.</p>
             )}
-            <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-muted-foreground">Este visualizador exibe o conteúdo do PDF. A posição GPS ainda não é sobreposta: isso depende da leitura e validação dos metadados geoespaciais do arquivo.</p>
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-muted-foreground">A sobreposição GPS é experimental e utiliza os limites geográficos lidos do GeoPDF. Confirme o alinhamento em campo antes de usar para navegação operacional.</p>
           </div>
         </div>
       )}
