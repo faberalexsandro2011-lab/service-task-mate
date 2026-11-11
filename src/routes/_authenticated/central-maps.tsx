@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  FileArchive, FileImage, FileText, Map, MapPin, Navigation, RefreshCw,
+  ArrowLeft, FileArchive, FileImage, FileText, Map, MapPin, Navigation, RefreshCw,
   Upload, Wifi, WifiOff, Download, History, CheckCircle2, AlertCircle, ZoomIn, ZoomOut, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -424,7 +424,10 @@ function CentralMapsPage() {
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button asChild variant="outline" className="gap-2">
+              <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Voltar ao Central OS</Link>
+            </Button>
             <div className="rounded-xl bg-emerald-900 p-3 text-white"><Map className="h-6 w-6" /></div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Central Maps</h1>
@@ -596,6 +599,9 @@ function CentralMapsPage() {
               <p className="text-xs text-muted-foreground">{viewerMap.unit_name} · {viewerMap.property_name} · v{viewerMap.version}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button asChild size="sm" variant="outline" className="gap-2">
+                <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Central OS</Link>
+              </Button>
               <Button size="sm" variant="outline" onClick={captureLocation} className="gap-2"><Navigation className="h-4 w-4" /> Capturar GPS</Button>
               <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.max(0.4, Number((value - 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomOut className="h-4 w-4" /></Button>
               <span className="min-w-14 text-center text-sm tabular-nums">{Math.round(pdfZoom * 100)}%</span>
