@@ -600,7 +600,7 @@ function CentralMapsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild size="sm" className="gap-2 border-2 border-emerald-900 bg-emerald-800 font-semibold text-white shadow-md hover:bg-emerald-900 hover:text-white focus-visible:ring-emerald-700">
-                <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Voltar ao Central OS</Link>
+                <Link to="/painel-teste"><ArrowLeft className="h-4 w-4" /> Voltar ao Central OS</Link>
               </Button>
               <Button size="sm" variant="outline" onClick={captureLocation} className="gap-2"><Navigation className="h-4 w-4" /> Capturar GPS</Button>
               <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.max(0.4, Number((value - 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomOut className="h-4 w-4" /></Button>
