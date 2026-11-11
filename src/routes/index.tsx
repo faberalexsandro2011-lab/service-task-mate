@@ -93,7 +93,7 @@ function Index() {
       return;
     }
     setBusy(false);
-    // No ambiente isolado multiunidade, direciona o Gestor Geral ao painel de teste,
+    // No sistema multiunidade, direciona o Gestor Geral ao painel operacional,
     // sem abrir o dashboard legado que depende da tabela public.profiles.
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
