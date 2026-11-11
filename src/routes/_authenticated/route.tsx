@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOfflineRole, saveOfflineRole } from "@/lib/offline";
@@ -87,11 +87,12 @@ export const Route = createFileRoute("/_authenticated")({
     const isViewerArea = location.pathname.endsWith("/visualizacao");
 
     const isTestPanel = location.pathname.endsWith("/painel-teste");
-    if (role === "admin_unidade" && !isTestPanel) throw redirect({ to: "/painel-teste", replace: true });
+    const isMapsArea = location.pathname.endsWith("/central-maps");
+    if (role === "admin_unidade" && !isTestPanel && !isMapsArea) throw redirect({ to: "/painel-teste", replace: true });
     if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
     if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : role === "admin_unidade" ? "/painel-teste" : "/tecnico", replace: true });
 
-    if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {
+    if (role === "tecnico" && !isTechnicianArea && !isRequestArea && !isMapsArea) {
       throw redirect({ to: "/tecnico", replace: true });
     }
 
@@ -145,8 +146,8 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!["/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
-        <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+      <div className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+        {!["/painel-teste", "/tecnico", "/dashboard", "/visualizacao", "/central-maps"].includes(pathname) ? (
           <button
             type="button"
             onClick={handleVoltar}
@@ -156,8 +157,16 @@ function AuthenticatedLayout() {
             <span aria-hidden="true">←</span>
             Voltar
           </button>
-        </div>
-      )}
+        ) : <span className="text-sm font-semibold text-muted-foreground">Central OS</span>}
+        <Link
+          to="/central-maps"
+          className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Abrir Central Maps"
+        >
+          <span aria-hidden="true">⌖</span>
+          Central Maps
+        </Link>
+      </div>
       <main className="flex-1">
         <Outlet />
       </main>
