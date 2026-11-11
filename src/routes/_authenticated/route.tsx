@@ -19,6 +19,13 @@ export const Route = createFileRoute("/_authenticated")({
         await supabase.auth.signOut();
         throw redirect({ to: "/", replace: true });
       }
+      const { data: exclusiveAllowed, error: exclusiveError } = await supabase.rpc("verificar_sessao_dispositivo", {
+        p_device_id: getCentralOSDeviceId(),
+      });
+      if (exclusiveError || exclusiveAllowed !== true) {
+        await supabase.auth.signOut();
+        throw redirect({ to: "/", replace: true });
+      }
     }
 
     let role: "gestor" | "admin_unidade" | "tecnico" | "visualizador" = "tecnico";
@@ -133,6 +140,13 @@ function AuthenticatedLayout() {
           p_user_agent: getCentralOSUserAgent(),
         });
         if (error || data?.permitido !== true) {
+          await supabase.auth.signOut();
+          window.location.assign("/");
+        }
+        const { data: exclusiveAllowed, error: exclusiveError } = await supabase.rpc("verificar_sessao_dispositivo", {
+          p_device_id: getCentralOSDeviceId(),
+        });
+        if (exclusiveError || exclusiveAllowed !== true) {
           await supabase.auth.signOut();
           window.location.assign("/");
         }
