@@ -186,7 +186,7 @@ function PainelTeste() {
       db.from("usuarios_unidades").select("user_id,unidade_id,perfil,ativo").order("perfil"),
     ]);
     if (resultadoUnidades.error || resultadoOrdens.error) {
-      setErro(resultadoUnidades.error?.message || resultadoOrdens.error?.message || "Não foi possível consultar o banco de teste.");
+      setErro(resultadoUnidades.error?.message || resultadoOrdens.error?.message || "Não foi possível consultar as informações operacionais.");
       setErroUsuarios(resultadoUsuarios.error?.message || "Não foi possível consultar os vínculos de usuários.");
       setUnidades([]);
       setOrdens([]);
@@ -220,17 +220,17 @@ function PainelTeste() {
     setSalvandoUnidade(false);
     if (error) { setMensagemUnidades("Não foi possível cadastrar a unidade: " + error.message); return; }
     setNomeUnidadeNova("");
-    setMensagemUnidades("Unidade cadastrada no ambiente de teste.");
+    setMensagemUnidades("Unidade cadastrada com sucesso.");
     await carregar();
   };
 
   const excluirUnidadeTeste = async (unidade: Unidade) => {
     if (perfilAtual !== "gestor_central") {
-      window.alert("Apenas o Gestor Geral pode excluir unidades no ambiente de teste.");
+      window.alert("Apenas o Gestor Geral pode excluir unidades.");
       return;
     }
     const nomeConfirmado = window.prompt(
-      `EXCLUSÃO DEFINITIVA NO AMBIENTE DE TESTE\n\nUnidade: ${unidade.nome}\n\nA exclusão só será feita se não houver OS, usuários ou peças vinculadas. Para confirmar, digite exatamente o nome da unidade:`,
+      `EXCLUSÃO DEFINITIVA\n\nUnidade: ${unidade.nome}\n\nA exclusão só será feita se não houver OS, usuários ou peças vinculadas. Para confirmar, digite exatamente o nome da unidade:`,
     );
     if (nomeConfirmado === null) return;
     if (nomeConfirmado !== unidade.nome) {
@@ -274,7 +274,7 @@ function PainelTeste() {
 
   const excluirPecaEstoqueTeste = async (peca: any) => {
     if (perfilAtual !== "gestor_central") {
-      window.alert("Apenas o Gestor Geral pode excluir peças no ambiente de teste.");
+      window.alert("Apenas o Gestor Geral pode excluir peças.");
       return;
     }
     const nomeConfirmado = window.prompt(
@@ -300,7 +300,7 @@ function PainelTeste() {
       }
       const resultado = data as { deleted?: boolean; peca?: string; movimentacoes_removidas?: number };
       const mensagem = resultado.deleted
-        ? `Peça "${resultado.peca ?? peca.nome}" excluída do estoque de teste. Movimentações removidas: ${resultado.movimentacoes_removidas ?? 0}.`
+        ? `Peça "${resultado.peca ?? peca.nome}" excluída do estoque. Movimentações removidas: ${resultado.movimentacoes_removidas ?? 0}.`
         : "A peça não foi excluída.";
       setMensagemEstoque(mensagem);
       window.alert(mensagem);
@@ -476,7 +476,7 @@ function PainelTeste() {
   };
   const salvarImportacao = async () => {
     if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") {
-      setMensagemOS("Importação não permitida para este perfil (" + String(perfilAtual || "não identificado") + "). Entre com o Gestor Central ou ADM da unidade no ambiente de teste.");
+      setMensagemOS("Importação não permitida para este perfil (" + String(perfilAtual || "não identificado") + "). Entre com o Gestor Central ou ADM da unidade neste sistema.");
       return;
     }
     const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
@@ -544,12 +544,12 @@ function PainelTeste() {
   const excluirOS = async (ordem: Ordem) => {
     if (perfilAtual !== "gestor_central" || emailUsuarioAtual !== "faber.alexsandro2011@gmail.com") return;
     if (!window.confirm("Excluir a OS " + (ordem.numero_os || ordem.frota || ordem.id) + " desta unidade? Esta ação não pode ser desfeita.")) return;
-    // A exclusão é restringida ao registro da unidade e também validada pela RLS do banco de teste.
+    // A exclusão é restringida ao registro da unidade e também validada pela RLS do banco operacional.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     const { error } = await db.from("ordens_servico").delete().eq("id", ordem.id).eq("unidade_id", ordem.unidade_id);
     if (error) { setMensagemOS("Não foi possível excluir a OS: " + error.message); return; }
-    setMensagemOS("OS excluída do ambiente de teste.");
+    setMensagemOS("OS excluída do sistema.");
     if (edicaoOS?.id === ordem.id) setEdicaoOS(null);
     if (ordemDetalhes?.id === ordem.id) setOrdemDetalhes(null);
     await carregar();
@@ -681,7 +681,7 @@ function PainelTeste() {
         perfil: perfilCriado,
         unidade_codigo: (perfilCriado === "gestor_central" || perfilCriado === "gestor") ? "" : perfilAtual === "admin_unidade" ? codigoUnidadeADM : unidadeNova,
       });
-      setMensagemUsuarios("Usuário criado e vinculado ao ambiente de teste.");
+      setMensagemUsuarios("Usuário criado e vinculado ao sistema.");
       setNomeNovo(""); setEmailNovo(""); setSenhaNova("");
       await carregarUsuariosAdmin();
       await carregar();
@@ -704,7 +704,7 @@ function PainelTeste() {
     setMensagemUsuarios("");
     try {
       await executarAcaoUsuario({ action: "update", user_id: usuarioAtualId, nome });
-      setMensagemUsuarios("Nome do Gestor Geral atualizado no ambiente de teste.");
+      setMensagemUsuarios("Nome do Gestor Geral atualizado neste sistema.");
       await carregarUsuariosAdmin();
       await carregar();
     } catch (error) {
@@ -773,7 +773,7 @@ function PainelTeste() {
     setErroUsuarios(""); setMensagemUsuarios("");
     try {
       await executarAcaoUsuario({ action: "delete", user_id: usuario.user_id });
-      setMensagemUsuarios("Conta excluída do ambiente de teste.");
+      setMensagemUsuarios("Conta excluída do sistema.");
       await carregarUsuariosAdmin();
       await carregar();
     } catch (error) {
@@ -850,7 +850,7 @@ function PainelTeste() {
       setMensagemDispositivos("Não foi possível atualizar o dispositivo: " + error.message);
       return;
     }
-    setMensagemDispositivos(bloqueado ? "Dispositivo bloqueado no ambiente de teste." : "Dispositivo desbloqueado no ambiente de teste.");
+    setMensagemDispositivos(bloqueado ? "Dispositivo bloqueado neste sistema." : "Dispositivo desbloqueado neste sistema.");
     await carregarDispositivos();
   };
 
@@ -1032,7 +1032,6 @@ function PainelTeste() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-lime-300 text-emerald-950"><Building2 size={24}/></div>
               <div><div className="text-xl font-extrabold tracking-tight">Central OS</div><div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.16em] text-emerald-300">Painel de operações</div></div>
             </div>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-950/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-200"><span className="h-1.5 w-1.5 rounded-full bg-amber-300"/> Ambiente de teste</div>
           </div>
           <nav aria-label="Menu principal" className="flex gap-1 overflow-x-auto p-3 md:flex-1 md:flex-col md:overflow-visible">
             <button type="button" onClick={() => {setAba("inicio");setGestaoOSAberta(false);setModoGestao("fechado");}} aria-current={aba === "inicio" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "inicio" ? "bg-lime-300 text-emerald-950 shadow-lg shadow-black/10" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Página Inicial</button>
@@ -1044,7 +1043,7 @@ function PainelTeste() {
             {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Gestão de Unidades</button>}
             {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Users size={18}/>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
           </nav>
-          <div className="hidden border-t border-emerald-800 p-4 text-[11px] leading-relaxed text-emerald-100/45 md:block">Central OS · Gestão de manutenção multiunidade<br/>Área isolada para testes e validação.</div>
+          
         </aside>
         <div className="min-w-0 flex-1">
           <header className="sticky top-0 z-10 border-b border-emerald-800/80 bg-[#002b25]/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
@@ -1219,9 +1218,9 @@ function PainelTeste() {
         </section>}
         {aba === "gestao_os" && modoGestao !== "solicitacoes" && <>
         <div className="mb-6 flex items-start gap-3"><ClipboardList className="mt-1 text-lime-300" /><div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Ordens de serviço</p><h1 className="text-2xl font-extrabold sm:text-3xl">Gestão de OS</h1><p className="mt-1 text-sm text-emerald-100/70">Escolha uma ação para cadastrar ou enviar ordens de serviço.</p></div></div>
-        {erro && <div role="alert" className="mb-5 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-100"><strong>Não foi possível carregar os dados.</strong><p className="mt-1 break-words">{erro}</p><p className="mt-2 text-xs">Confira a sessão de teste e os vínculos de unidade do usuário. Nenhum dado fictício é exibido como se fosse real.</p></div>}
-        {carregando && <p role="status" className="mb-4 text-sm text-emerald-100/80">Consultando o banco de teste…</p>}
-        {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade de teste.</div>}
+        {erro && <div role="alert" className="mb-5 rounded-xl border border-red-700 bg-red-950/40 p-4 text-sm text-red-100"><strong>Não foi possível carregar os dados.</strong><p className="mt-1 break-words">{erro}</p><p className="mt-2 text-xs">Confira a sessão e os vínculos de unidade do usuário. Nenhum dado fictício é exibido como se fosse real.</p></div>}
+        {carregando && <p role="status" className="mb-4 text-sm text-emerald-100/80">Consultando o banco operacional…</p>}
+        {!carregando && !erro && ordens.length === 0 && <div className="mb-5 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4 text-sm text-amber-100">A consulta retornou zero OS para este usuário. Isso pode significar que ainda falta associar o usuário a um perfil/unidade.</div>}
 
         {mensagemOS && <div role="status" className="mb-4 rounded-lg border border-emerald-700 p-3 text-sm text-emerald-100">{mensagemOS}</div>}
         {gestaoOSAberta && (perfilAtual === "admin_unidade" || perfilAtual === "gestor" || perfilAtual === "gestor_central") && <section className="mb-5 rounded-2xl border border-emerald-700 bg-[#003b32] p-4">
@@ -1250,7 +1249,7 @@ function PainelTeste() {
         </>}
         {aba === "historico" && <section className="mt-6 space-y-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Arquivo de ordens de serviço</p><h1 className="mt-1 text-2xl font-extrabold">Histórico de OS</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Consulta de registros preservados no banco de teste. Use os filtros e exporte todos os campos disponíveis de cada OS para Excel.</p></div>
+            <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Arquivo de ordens de serviço</p><h1 className="mt-1 text-2xl font-extrabold">Histórico de OS</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Consulta de registros operacionais. Use os filtros e exporte todos os campos disponíveis de cada OS para Excel.</p></div>
             <button type="button" onClick={exportarHistoricoOS} disabled={!ordensHistoricoFiltradas.length} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-lime-300 px-4 py-3 text-sm font-extrabold text-emerald-950 hover:bg-lime-200 disabled:cursor-not-allowed disabled:opacity-50"><FileSpreadsheet size={18}/> Exportar detalhado (.xlsx)</button>
           </div>
           <div className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1334,7 +1333,7 @@ function PainelTeste() {
             return <>
               <div className="overflow-hidden rounded-3xl border border-emerald-700 bg-gradient-to-br from-[#064b3e] via-[#034033] to-[#022c26] p-5 sm:p-7">
                 <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div><p className="text-xs font-bold uppercase tracking-[.22em] text-lime-300">Inteligência operacional · ambiente de teste</p><h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Análise Técnica & Desempenho</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/75">Visão executiva da operação: volume de serviços, andamento da carteira, produtividade, concentração por setor e qualidade do preenchimento. Os indicadores respeitam a unidade selecionada e os dados disponíveis.</p></div>
+                  <div><p className="text-xs font-bold uppercase tracking-[.22em] text-lime-300">Inteligência operacional</p><h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Análise Técnica & Desempenho</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-emerald-100/75">Visão executiva da operação: volume de serviços, andamento da carteira, produtividade, concentração por setor e qualidade do preenchimento. Os indicadores respeitam a unidade selecionada e os dados disponíveis.</p></div>
                   <div className="rounded-xl border border-lime-300/30 bg-black/10 px-4 py-3"><div className="text-[10px] font-bold uppercase tracking-widest text-emerald-100/65">Escopo analisado</div><div className="mt-1 text-sm font-bold">{perfilAtual === "admin_unidade" ? (unidades.find(u=>u.id===unidadeAtualId)?.nome || "Sua unidade") : filtro === "Todas" ? "Todas as unidades" : filtro}</div><div className="mt-1 text-xs text-emerald-100/60">{total} ordens de serviço no filtro atual</div></div>
                 </div>
               </div>
@@ -1420,7 +1419,7 @@ function PainelTeste() {
               </div>
               <article className="rounded-2xl border border-emerald-800 bg-[#00352d] p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div><h3 className="text-base font-extrabold">Base técnica de ordens de serviço</h3><p className="mt-1 text-xs text-emerald-100/60">Estrutura equivalente à análise do aplicativo original, preenchida somente com os registros do ambiente de teste.</p></div>
+                  <div><h3 className="text-base font-extrabold">Base técnica de ordens de serviço</h3><p className="mt-1 text-xs text-emerald-100/60">Estrutura equivalente à análise do aplicativo original, preenchida somente com os registros do sistema.</p></div>
 
                   <label className="grid gap-1 text-xs text-emerald-100/70">Pesquisar na base
                     <input value={buscaBaseTecnica} onChange={e=>setBuscaBaseTecnica(e.target.value)} placeholder="OS, frota, setor, técnico, classe ou peça..." className="w-full min-w-64 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white placeholder:text-emerald-100/35"/>
@@ -1441,7 +1440,7 @@ function PainelTeste() {
                 </div>
                 <p className="mt-3 text-[11px] text-emerald-100/50">A tabela respeita o filtro de unidade atual. Os campos sem informação permanecem em branco; nenhum dado do aplicativo oficial foi importado.</p>
               </article>
-              <p className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-xs leading-5 text-emerald-100/50">Nota de leitura: os gráficos usam os registros de OS atualmente carregados no ambiente de teste. A taxa de conclusão exclui as OS canceladas do denominador. Não são estimados custos, horas de trabalho ou economia, pois esses dados não estão disponíveis neste painel.</p>
+              <p className="rounded-xl border border-emerald-800 bg-[#002b25] p-3 text-xs leading-5 text-emerald-100/50">Nota de leitura: os gráficos usam os registros de OS atualmente carregados neste sistema. A taxa de conclusão exclui as OS canceladas do denominador. Não são estimados custos, horas de trabalho ou economia, pois esses dados não estão disponíveis neste painel.</p>
             </>;
           })()}
         </section>}
@@ -1481,7 +1480,7 @@ function PainelTeste() {
           </div>
         </section>}
         {aba === "unidades" && perfilAtual === "gestor_central" && <section className="mt-8 space-y-5">
-          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Administração global</p><h1 className="mt-1 text-2xl font-extrabold">Gestão de Unidades</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Cadastre novas unidades e controle sua disponibilidade. As permissões são verificadas também no banco de dados do ambiente de teste.</p></div>
+          <div><p className="text-xs font-bold uppercase tracking-[.18em] text-lime-300">Administração global</p><h1 className="mt-1 text-2xl font-extrabold">Gestão de Unidades</h1><p className="mt-2 max-w-3xl text-sm text-emerald-100/70">Cadastre novas unidades e controle sua disponibilidade. As permissões são verificadas também no banco de dados do sistema.</p></div>
           {mensagemUnidades && <div role="status" className="rounded-lg border border-emerald-700 bg-emerald-950/60 p-3 text-sm">{mensagemUnidades}</div>}
           <form onSubmit={cadastrarUnidade} className="grid gap-3 rounded-2xl border border-emerald-700 bg-[#00352d] p-4 sm:grid-cols-[1fr_auto] sm:items-end">
             <label className="grid gap-1 text-sm font-semibold">Nome da nova unidade<input required minLength={2} maxLength={100} value={nomeUnidadeNova} onChange={e=>setNomeUnidadeNova(e.target.value)} placeholder="Ex.: Unidade Santa Fé" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-3 text-sm font-normal text-white"/></label>
@@ -1493,7 +1492,7 @@ function PainelTeste() {
               <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={()=>{const novoNome=window.prompt("Novo nome da unidade:",unidade.nome);if(novoNome?.trim() && novoNome.trim()!==unidade.nome) void atualizarUnidade(unidade,{nome:novoNome.trim()});}} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">Editar nome</button><button type="button" onClick={()=>void atualizarUnidade(unidade,{ativa:unidade.ativa===false})} className="rounded-lg border border-emerald-700 px-3 py-2 text-xs font-semibold hover:bg-emerald-900">{unidade.ativa===false ? "Ativar unidade" : "Desativar unidade"}</button><button type="button" onClick={()=>void excluirUnidadeTeste(unidade)} className="rounded-lg border border-red-700 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950">Excluir definitivamente</button></div>
               <p className="mt-3 text-xs text-emerald-100/55">OS vinculadas e histórico não são apagados ao desativar.</p>
             </article>)}
-            {unidades.length===0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-sm text-emerald-100/60">Nenhuma unidade retornada pelo banco de teste.</div>}
+            {unidades.length===0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-sm text-emerald-100/60">Nenhuma unidade retornada pelo banco operacional.</div>}
           </div>
         </section>}
         {aba === "dispositivos" && perfilAtual === "gestor_central" && <section className="mt-8 space-y-5">
@@ -1512,12 +1511,12 @@ function PainelTeste() {
                 <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => { const nome = window.prompt("Nome para identificar este computador ou celular:", dispositivo.nome_dispositivo); if (nome?.trim()) void administrarDispositivo(dispositivo, dispositivo.bloqueado, nome.trim()); }} className="inline-flex items-center gap-2 rounded-lg border border-emerald-600 px-3 py-2 text-xs font-semibold hover:bg-emerald-900"><Pencil size={14}/>Renomear</button>{dispositivo.bloqueado ? <button type="button" onClick={() => { if (window.confirm("Desbloquear este dispositivo?")) void administrarDispositivo(dispositivo, false); }} className="inline-flex items-center gap-2 rounded-lg bg-lime-300 px-3 py-2 text-xs font-bold text-emerald-950 hover:bg-lime-200"><ShieldCheck size={14}/>Desbloquear acesso</button> : <button type="button" onClick={() => { if (window.confirm("Bloquear este dispositivo? O navegador será desconectado na próxima verificação de acesso.")) void administrarDispositivo(dispositivo, true); }} className="inline-flex items-center gap-2 rounded-lg border border-red-700 px-3 py-2 text-xs font-bold text-red-200 hover:bg-red-950"><ShieldX size={14}/>Bloquear acesso</button>}</div>
               </article>;
             })}
-            {dispositivos.length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center text-sm text-emerald-100/60">{carregandoDispositivos ? "Carregando dispositivos…" : "Nenhum dispositivo registrado ainda. Cada dispositivo aparecerá depois que o usuário entrar no ambiente de teste."}</div>}
+            {dispositivos.length === 0 && <div className="rounded-xl border border-dashed border-emerald-700 p-8 text-center text-sm text-emerald-100/60">{carregandoDispositivos ? "Carregando dispositivos…" : "Nenhum dispositivo registrado ainda. Cada dispositivo aparecerá depois que o usuário entrar neste sistema."}</div>}
           </div>
           <p className="text-xs text-emerald-100/55">Observação: o site identifica o navegador/dispositivo e seu identificador local; não consegue ler com segurança o nome real do computador. Se o usuário limpar os dados do navegador ou usar outro navegador, poderá aparecer como um novo dispositivo.</p>
         </section>}
         {aba === "usuarios" && (perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <section className="mt-8">
-          <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "admin_unidade" ? "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas." : "Cadastro e gerenciamento de contas somente no banco de teste multiunidade."}</p></div>
+          <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "admin_unidade" ? "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas." : "Cadastro e gerenciamento de contas somente no banco operacional multiunidade."}</p></div>
           <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "admin_unidade" ? "O servidor vincula automaticamente cada técnico à sua própria unidade." : "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação."} Senhas existentes nunca são exibidas; somente a conta principal pode redefini-las.</p></div>
           {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
           {mensagemUsuarios && <div role="status" className="mb-4 rounded-xl border border-lime-700 bg-lime-950/30 p-3 text-sm text-lime-100">{mensagemUsuarios}</div>}
@@ -1547,7 +1546,7 @@ function PainelTeste() {
               {usuariosAdmin.filter(usuario => filtroUnidadeUsuarios === "todas" || (filtroUnidadeUsuarios === "sem_unidade" ? !usuario.unidade_id : usuario.unidade_id === filtroUnidadeUsuarios)).length===0 && <tr><td colSpan={4} className="p-5 text-center text-emerald-100/60">{carregandoUsuarios ? "Carregando usuários…" : "Nenhum usuário encontrado para esta unidade."}</td></tr>}</tbody>
             </table>
           </div>
-          {perfilAtual === "gestor_central" && <p className="mt-3 text-xs text-emerald-100/60">Gestores Gerais só podem ser criados pela conta principal. A exclusão remove a conta de autenticação do ambiente de teste; confirme antes de excluir.</p>}
+          {perfilAtual === "gestor_central" && <p className="mt-3 text-xs text-emerald-100/60">Gestores Gerais só podem ser criados pela conta principal. A exclusão remove a conta de autenticação do sistema; confirme antes de excluir.</p>}
         </section>}
         <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. As permissões de criar e editar OS são validadas também pelas políticas RLS do banco de teste; o banco oficial e suas OS não são consultados por esta rota.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {formatarDataBR(atualizadoEm, true)}</p>}
