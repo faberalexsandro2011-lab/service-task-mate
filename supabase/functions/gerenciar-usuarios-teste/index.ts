@@ -53,12 +53,12 @@ Deno.serve(async (req: Request) => {
   // Gestores de unidade consultam somente os técnicos ativos da própria unidade.
   // ADMs não recebem acesso à gestão de usuários.
   if (action === "list") {
-    if (!gestorCentralAtivo && !gestorAtivo) {
-      return json({ ok: false, error: "Este perfil não pode consultar a lista de usuários." }, 403);
+    if (!gestorCentralAtivo && !gestorAtivo && !adminUnidadeAtivo) {
+      return json({ ok: false, error: "Este perfil não pode consultar a lista de técnicos." }, 403);
     }
     let query = admin.from("usuarios_unidades")
       .select("user_id,unidade_id,perfil,ativo,created_at").order("perfil");
-    if (gestorAtivo && actorProfile) {
+    if ((gestorAtivo || adminUnidadeAtivo) && actorProfile) {
       query = query.eq("unidade_id", actorProfile.unidade_id).eq("perfil", "tecnico").eq("ativo", true);
     }
     const { data, error } = await query;
