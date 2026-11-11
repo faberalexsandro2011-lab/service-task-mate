@@ -720,7 +720,7 @@ function PainelTeste() {
     try {
       await executarAcaoUsuario({
         action: "update", user_id: usuario.user_id, perfil,
-        ...((perfil === "gestor_central" || perfil === "gestor") ? {} : { unidade_codigo: unidadeCodigo }),
+        ...(perfil === "gestor_central" ? {} : { unidade_codigo: unidadeCodigo }),
       });
       setMensagemUsuarios("Perfil e unidade atualizados.");
       await carregarUsuariosAdmin();
@@ -1528,7 +1528,7 @@ function PainelTeste() {
             <label className="grid gap-1 text-sm">E-mail<input required type="email" value={emailNovo} onChange={e=>setEmailNovo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             <label className="grid gap-1 text-sm">Senha inicial<input required type="password" minLength={8} maxLength={128} value={senhaNova} onChange={e=>setSenhaNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
             {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Perfil<select value={perfilNovo} onChange={e=>setPerfilNovo(e.target.value as PerfilUsuario)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="tecnico">Técnico</option><option value="admin_unidade">ADM da unidade</option><option value="visualizador">Somente visualização</option><option value="gestor">Gestor</option><option value="gestor_central">Gestor Geral</option></select></label>}
-            {perfilAtual === "gestor_central" && perfilNovo !== "gestor_central" && perfilNovo !== "gestor" && <label className="grid gap-1 text-sm">Unidade<select required value={unidadeNova} onChange={e=>setUnidadeNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="" disabled>Selecione uma unidade</option>{unidades.filter(unidade => unidade.ativa !== false).map(unidade => <option key={unidade.id} value={unidade.codigo}>{unidade.nome}</option>)}</select></label>}
+            {perfilAtual === "gestor_central" && perfilNovo !== "gestor_central" && <label className="grid gap-1 text-sm">Unidade<select required value={unidadeNova} onChange={e=>setUnidadeNova(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="" disabled>Selecione uma unidade</option>{unidades.filter(unidade => unidade.ativa !== false).map(unidade => <option key={unidade.id} value={unidade.codigo}>{unidade.nome}</option>)}</select></label>}
             {perfilAtual === "gestor" && <div className="grid gap-1 text-sm"><span>Unidade vinculada</span><div className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2">{unidades.find(unidade => unidade.id === unidadeAtualId)?.nome ?? "Carregando unidade..."}</div></div>}
             <div className="flex items-end"><button disabled={salvandoUsuario} type="submit" className="w-full rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 hover:bg-lime-200 disabled:opacity-50">{salvandoUsuario ? "Salvando…" : "Criar usuário"}</button></div>
           </form>
