@@ -69,11 +69,11 @@ function extractGeoPdfBounds(buffer: ArrayBuffer): GeoBounds | null {
   for (let i = 0; i < bytes.length; i += 0x8000) {
     source += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
   }
-  const geoObject = source.match(/\\/Subtype\\s*\\/GEO[\\s\\S]*?\\/GPTS\\s*\\[([\\s\\S]*?)\\][\\s\\S]*?\\/LPTS\\s*\\[([\\s\\S]*?)\\]/);
-  const gcs = source.match(/\\/EPSG\\s+(\\d+)/);
+  const geoObject = source.match(/\/Subtype\s*\/GEO[\s\S]*?\/GPTS\s*\[([\s\S]*?)\][\s\S]*?\/LPTS\s*\[([\s\S]*?)\]/);
+  const gcs = source.match(/\/EPSG\s+(\d+)/);
   if (!geoObject || !gcs) return null;
-  const gpts = geoObject[1].match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) ?? [];
-  const lpts = geoObject[2].match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) ?? [];
+  const gpts = geoObject[1].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const lpts = geoObject[2].match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
   if (Number(gcs[1]) !== 4326 || gpts.length < 8 || lpts.length < 8 || gpts.length % 2 !== 0) return null;
   const pairs = Array.from({ length: gpts.length / 2 }, (_, i) => ({ lat: gpts[i * 2], lon: gpts[i * 2 + 1] }));
   const north = Math.max(...pairs.map((p) => p.lat));
