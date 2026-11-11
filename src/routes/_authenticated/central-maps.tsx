@@ -551,6 +551,39 @@ function CentralMapsPage() {
 
         <p className="text-xs text-muted-foreground">Pontos capturados nesta sessão: {savedCount}. Arquivos da biblioteca ficam no armazenamento privado do ambiente de teste.</p>
       </div>
+
+      {viewerMap && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-modal="true" aria-label={`Visualizador do mapa ${viewerMap.display_name}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+            <div className="min-w-0">
+              <h2 className="truncate font-semibold">{viewerMap.display_name}</h2>
+              <p className="text-xs text-muted-foreground">{viewerMap.unit_name} · {viewerMap.property_name} · v{viewerMap.version}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.max(0.4, Number((value - 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomOut className="h-4 w-4" /></Button>
+              <span className="min-w-14 text-center text-sm tabular-nums">{Math.round(pdfZoom * 100)}%</span>
+              <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.min(3, Number((value + 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomIn className="h-4 w-4" /></Button>
+              <Button size="sm" variant="outline" onClick={() => setPdfPage((value) => Math.max(1, value - 1))} disabled={!pdfDocument || pdfPage <= 1}><ChevronLeft className="h-4 w-4" /> Anterior</Button>
+              <span className="text-sm tabular-nums">{pdfPage} / {pdfPages || "—"}</span>
+              <Button size="sm" variant="outline" onClick={() => setPdfPage((value) => Math.min(pdfPages, value + 1))} disabled={!pdfDocument || pdfPage >= pdfPages}><ChevronRight className="h-4 w-4" /> Próxima</Button>
+              <Button size="sm" variant="ghost" onClick={() => setViewerMap(null)} aria-label="Fechar visualizador"><X className="h-5 w-5" /></Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto bg-muted/40 p-3 sm:p-6">
+            {pdfLoading && <p className="py-10 text-center text-sm text-muted-foreground">Carregando PDF...</p>}
+            {pdfError && <p role="alert" className="mx-auto max-w-xl rounded-lg border border-destructive/30 bg-background p-4 text-sm text-destructive">{pdfError}</p>}
+            {!pdfLoading && !pdfError && pdfDocument && (
+              <div className="mx-auto w-fit max-w-full overflow-auto rounded-md bg-white shadow-lg">
+                <canvas ref={pdfCanvasRef} aria-label={`Página ${pdfPage} do mapa`} />
+              </div>
+            )}
+            {!pdfLoading && !pdfError && !pdfDocument && viewerMap.file_extension !== "pdf" && (
+              <p className="py-10 text-center text-sm text-muted-foreground">Este formato ainda não possui visualizador nesta etapa. Você pode baixar o arquivo pela biblioteca.</p>
+            )}
+            <p className="mx-auto mt-4 max-w-2xl text-center text-xs text-muted-foreground">Este visualizador exibe o conteúdo do PDF. A posição GPS ainda não é sobreposta: isso depende da leitura e validação dos metadados geoespaciais do arquivo.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
