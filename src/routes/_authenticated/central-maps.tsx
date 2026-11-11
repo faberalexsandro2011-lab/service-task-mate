@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as pdfjsLib from "pdfjs-dist";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   FileArchive, FileImage, FileText, Map, MapPin, Navigation, RefreshCw,
-  Upload, Wifi, WifiOff, Download, History, CheckCircle2, AlertCircle,
+  Upload, Wifi, WifiOff, Download, History, CheckCircle2, AlertCircle, ZoomIn, ZoomOut, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,14 @@ function CentralMapsPage() {
   const [displayName, setDisplayName] = useState("");
   const [selectedMapKey, setSelectedMapKey] = useState("new");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [viewerMap, setViewerMap] = useState<MapFile | null>(null);
+  const [pdfDocument, setPdfDocument] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
+  const [pdfPages, setPdfPages] = useState(0);
+  const [pdfZoom, setPdfZoom] = useState(1);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+  const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const selectedMap = useMemo(
     () => maps.find((item) => item.map_key === selectedMapKey && item.is_current) ?? null,
@@ -296,6 +305,82 @@ function CentralMapsPage() {
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   };
 
+  useEffect(() => {
+    if (!viewerMap) {
+      setPdfDocument(null);
+      setPdfPages(0);
+      setPdfPage(1);
+      setPdfError("");
+      return;
+    }
+    if (viewerMap.file_extension !== "pdf") {
+      setPdfError("A visualização inicial aceita PDF. Os demais formatos serão adicionados nas próximas etapas.");
+      return;
+    }
+    let cancelled = false;
+    let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | null = null;
+    setPdfLoading(true);
+    setPdfError("");
+    setPdfDocument(null);
+    const openPdf = async () => {
+      try {
+        const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(viewerMap.storage_path, 60 * 10);
+        if (error || !data?.signedUrl) throw new Error("Não foi possível abrir o arquivo armazenado.");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+        loadingTask = pdfjsLib.getDocument({ url: data.signedUrl });
+        const document = await loadingTask.promise;
+        if (cancelled) { await document.destroy(); return; }
+        setPdfDocument(document);
+        setPdfPages(document.numPages);
+      } catch (error) {
+        if (!cancelled) setPdfError(error instanceof Error ? error.message : "Falha ao abrir o PDF.");
+      } finally {
+        if (!cancelled) setPdfLoading(false);
+      }
+    };
+    void openPdf();
+    return () => {
+      cancelled = true;
+      if (loadingTask) void loadingTask.destroy();
+    };
+  }, [viewerMap]);
+
+  useEffect(() => {
+    if (!pdfDocument || !pdfCanvasRef.current) return;
+    let cancelled = false;
+    let renderTask: { cancel: () => void } | null = null;
+    const drawPage = async () => {
+      try {
+        const page = await pdfDocument.getPage(pdfPage);
+        if (cancelled || !pdfCanvasRef.current) return;
+        const viewport = page.getViewport({ scale: pdfZoom });
+        const canvas = pdfCanvasRef.current;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+        const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        renderTask = page.render({
+          canvasContext: context,
+          viewport,
+          transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined,
+        });
+        await (renderTask as any).promise;
+      } catch (error) {
+        if (!cancelled && !(error instanceof Error && error.name === "RenderingCancelledException")) {
+          setPdfError("Não foi possível renderizar esta página do PDF.");
+        }
+      }
+    };
+    void drawPage();
+    return () => {
+      cancelled = true;
+      renderTask?.cancel();
+    };
+  }, [pdfDocument, pdfPage, pdfZoom]);
+
   const currentMaps = maps.filter((item) => item.is_current);
   const historicalMaps = maps.filter((item) => !item.is_current);
 
@@ -408,7 +493,7 @@ function CentralMapsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">Versão {item.version}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-4 w-4" /> Baixar</Button>
+                      <Button size="sm" variant="outline" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-4 w-4" /> Visualizar</Button><Button size="sm" variant="outline" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-4 w-4" /> Baixar</Button>
                     </div>
                   </div>
                 );
@@ -420,7 +505,7 @@ function CentralMapsPage() {
                   {historicalMaps.map((item) => (
                     <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm">
                       <div><p>{item.display_name} · v{item.version}</p><p className="text-xs text-muted-foreground">{item.unit_name} · {item.property_name} · {new Date(item.created_at).toLocaleDateString("pt-BR")}</p></div>
-                      <Button size="sm" variant="ghost" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-3.5 w-3.5" /> Arquivo antigo</Button>
+                      <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => setViewerMap(item)} className="gap-2"><Map className="h-3.5 w-3.5" /> Ver</Button><Button size="sm" variant="ghost" onClick={() => void downloadMap(item)} className="gap-2"><Download className="h-3.5 w-3.5" /> Baixar</Button></div>
                     </div>
                   ))}
                 </div>
