@@ -596,6 +596,7 @@ function CentralMapsPage() {
               <p className="text-xs text-muted-foreground">{viewerMap.unit_name} · {viewerMap.property_name} · v{viewerMap.version}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={captureLocation} className="gap-2"><Navigation className="h-4 w-4" /> Capturar GPS</Button>
               <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.max(0.4, Number((value - 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomOut className="h-4 w-4" /></Button>
               <span className="min-w-14 text-center text-sm tabular-nums">{Math.round(pdfZoom * 100)}%</span>
               <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.min(3, Number((value + 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomIn className="h-4 w-4" /></Button>
@@ -607,6 +608,7 @@ function CentralMapsPage() {
           </div>
           <div className="flex-1 overflow-auto bg-muted/40 p-3 sm:p-6">
             {pdfLoading && <p className="py-10 text-center text-sm text-muted-foreground">Carregando PDF...</p>}
+            {gpsError && <p role="alert" className="mx-auto mb-3 max-w-xl rounded-lg border border-destructive/30 bg-background p-3 text-sm text-destructive">{gpsError}</p>}
             {pdfError && <p role="alert" className="mx-auto max-w-xl rounded-lg border border-destructive/30 bg-background p-4 text-sm text-destructive">{pdfError}</p>}
             {!pdfLoading && !pdfError && pdfDocument && (
               <div className="mx-auto w-fit max-w-full overflow-auto rounded-md bg-white shadow-lg">
@@ -623,7 +625,7 @@ function CentralMapsPage() {
             )}
             {!pdfLoading && pdfDocument && pdfPage === 1 && (
               <div className="mx-auto mt-3 max-w-2xl rounded-lg border bg-background p-3 text-xs">
-                {geoBounds ? <><p className="font-semibold text-emerald-700">GeoPDF reconhecido · EPSG:{geoBounds.epsg}</p><p className="mt-1 text-muted-foreground">Limites: {geoBounds.south.toFixed(6)}, {geoBounds.west.toFixed(6)} até {geoBounds.north.toFixed(6)}, {geoBounds.east.toFixed(6)}</p><p className="mt-1 text-muted-foreground">{position && position.latitude >= geoBounds.south && position.latitude <= geoBounds.north && position.longitude >= geoBounds.west && position.longitude <= geoBounds.east ? "Sua posição está dentro da área deste mapa." : "Capture a localização dentro da área do mapa para testar a sobreposição GPS."}</p></> : <p className="text-amber-700">Não foi possível confirmar metadados GeoPDF compatíveis (EPSG:4326) neste arquivo.</p>}
+                {geoBounds ? <><p className="font-semibold text-emerald-700">GeoPDF reconhecido · EPSG:{geoBounds.epsg}</p><p className="mt-1 text-muted-foreground">Limites: {geoBounds.south.toFixed(6)}, {geoBounds.west.toFixed(6)} até {geoBounds.north.toFixed(6)}, {geoBounds.east.toFixed(6)}</p><p className="mt-1 text-muted-foreground">{!position ? "Toque em “Capturar GPS” para obter sua posição e exibir o marcador." : position.latitude >= geoBounds.south && position.latitude <= geoBounds.north && position.longitude >= geoBounds.west && position.longitude <= geoBounds.east ? "Sua posição está dentro da área deste mapa; o marcador azul deve aparecer." : "Sua posição atual está fora da área coberta por este mapa; o marcador não será exibido."}</p>{position && <p className="mt-1 text-muted-foreground">GPS: {position.latitude.toFixed(6)}, {position.longitude.toFixed(6)} · precisão ±{Math.round(position.accuracy)} m</p>}</> : <p className="text-amber-700">Não foi possível confirmar metadados GeoPDF compatíveis (EPSG:4326) neste arquivo.</p>}
               </div>
             )}
             {!pdfLoading && !pdfError && !pdfDocument && viewerMap.file_extension !== "pdf" && (
