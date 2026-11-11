@@ -426,7 +426,7 @@ function CentralMapsPage() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg" className="h-12 gap-2 border-2 border-emerald-900 bg-emerald-800 px-5 font-semibold text-white shadow-lg hover:bg-emerald-900 hover:text-white focus-visible:ring-emerald-700">
-              <Link to="/dashboard"><ArrowLeft className="h-5 w-5" /> Voltar ao Central OS</Link>
+              <Link to="/painel-teste"><ArrowLeft className="h-5 w-5" /> Voltar ao Central OS</Link>
             </Button>
             <div className="rounded-xl bg-emerald-900 p-3 text-white"><Map className="h-6 w-6" /></div>
             <div>
