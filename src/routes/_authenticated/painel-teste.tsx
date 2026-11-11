@@ -157,6 +157,9 @@ function PainelTeste() {
   const [pecaEntradaId, setPecaEntradaId] = useState("");
   const [quantidadeEntrada, setQuantidadeEntrada] = useState("1");
   const [observacaoEntrada, setObservacaoEntrada] = useState("");
+  const [pecaSaidaId, setPecaSaidaId] = useState("");
+  const [quantidadeSaida, setQuantidadeSaida] = useState("1");
+  const [observacaoSaida, setObservacaoSaida] = useState("");
   const [salvandoEstoque, setSalvandoEstoque] = useState(false);
   const [mensagemEstoque, setMensagemEstoque] = useState("");
 
@@ -349,6 +352,21 @@ function PainelTeste() {
     if (error) { setMensagemEstoque("Não foi possível registrar a entrada: " + error.message); return; }
     setQuantidadeEntrada("1"); setObservacaoEntrada("");
     setMensagemEstoque("Entrada registrada e saldo atualizado.");
+    await carregar();
+  };
+
+  const registrarSaida = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const qtd = Number(quantidadeSaida);
+    if (!pecaSaidaId || !Number.isInteger(qtd) || qtd <= 0) { setMensagemEstoque("Selecione uma peça e informe uma quantidade inteira maior que zero."); return; }
+    setSalvandoEstoque(true); setMensagemEstoque("");
+    const { error } = await (supabase as any).rpc("registrar_saida_estoque", {
+      p_peca_id: pecaSaidaId, p_quantidade: qtd, p_observacao: observacaoSaida.trim() || null,
+    });
+    setSalvandoEstoque(false);
+    if (error) { setMensagemEstoque("Não foi possível registrar a retirada: " + error.message); return; }
+    setQuantidadeSaida("1"); setObservacaoSaida("");
+    setMensagemEstoque("Retirada registrada e saldo atualizado.");
     await carregar();
   };
 
@@ -1451,7 +1469,7 @@ function PainelTeste() {
             {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade do estoque<select value={unidadeEstoqueId} onChange={e=>setUnidadeEstoqueId(e.target.value)} className="min-w-56 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione uma unidade</option>{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
           </div>
           {mensagemEstoque && <div role="status" className="mb-4 rounded-lg border border-emerald-700 bg-emerald-950/50 p-3 text-sm text-emerald-100">{mensagemEstoque}</div>}
-          <div className="mb-5 grid gap-4 lg:grid-cols-2">
+          <div className="mb-5 grid gap-4 lg:grid-cols-3">
             <form onSubmit={cadastrarPeca} className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
               <div><h3 className="font-bold">Cadastrar peça</h3><p className="text-xs text-emerald-100/70">O item pertence ao estoque da unidade selecionada.</p></div>
               <label className="grid gap-1 text-sm">Nome da peça<input required maxLength={120} value={nomePeca} onChange={e=>setNomePeca(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
@@ -1463,6 +1481,13 @@ function PainelTeste() {
               <label className="grid gap-1 text-sm">Peça<select required value={pecaEntradaId} onChange={e=>setPecaEntradaId(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione a peça</option>{pecasEstoque.filter(p=>p.ativo && p.unidade_id===(perfilAtual === "gestor" ? unidadeAtualId : unidadeEstoqueId)).map(p=><option key={p.id} value={p.id}>{p.nome} · saldo {p.estoque_atual}</option>)}</select></label>
               <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">Quantidade recebida<input type="number" min="1" step="1" required value={quantidadeEntrada} onChange={e=>setQuantidadeEntrada(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label><label className="grid gap-1 text-sm">Observação<input value={observacaoEntrada} onChange={e=>setObservacaoEntrada(e.target.value)} placeholder="Ex.: reposição mensal" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label></div>
               <button disabled={salvandoEstoque || !pecaEntradaId} className="rounded-lg border border-lime-400 px-4 py-2.5 font-bold text-lime-200 disabled:opacity-50">{salvandoEstoque ? "Registrando..." : "Registrar entrada"}</button>
+            </form>
+            <form onSubmit={registrarSaida} className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
+              <div><h3 className="font-bold">Registrar retirada</h3><p className="text-xs text-emerald-100/70">Reduz o saldo e registra a movimentação no histórico. Não permite saldo negativo.</p></div>
+              <label className="grid gap-1 text-sm">Peça<select required value={pecaSaidaId} onChange={e=>setPecaSaidaId(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione a peça</option>{pecasEstoque.filter(p=>p.ativo && p.unidade_id===(perfilAtual === "gestor" ? unidadeAtualId : unidadeEstoqueId)).map(p=><option key={p.id} value={p.id}>{p.nome} · saldo {p.estoque_atual}</option>)}</select></label>
+              <label className="grid gap-1 text-sm">Quantidade retirada<input type="number" min="1" step="1" required value={quantidadeSaida} onChange={e=>setQuantidadeSaida(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+              <label className="grid gap-1 text-sm">Motivo / observação<input value={observacaoSaida} onChange={e=>setObservacaoSaida(e.target.value)} placeholder="Ex.: retirada para manutenção" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
+              <button disabled={salvandoEstoque || !pecaSaidaId} className="rounded-lg border border-amber-400 px-4 py-2.5 font-bold text-amber-200 disabled:opacity-50">{salvandoEstoque ? "Registrando..." : "Registrar retirada"}</button>
             </form>
           </div>
           <div className="mb-5 overflow-x-auto rounded-2xl border border-emerald-800">
