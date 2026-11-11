@@ -163,7 +163,7 @@ function PainelTeste() {
   const carregar = async () => {
     setCarregando(true);
     setErro("");
-    // O schema multiunidade é exclusivo do projeto Supabase de teste.
+    // O schema multiunidade utiliza o banco de dados próprio deste sistema.
     // O cast temporário será substituído pelos tipos gerados após a estabilização do schema.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
@@ -278,7 +278,7 @@ function PainelTeste() {
       return;
     }
     const nomeConfirmado = window.prompt(
-      `EXCLUSÃO DE PEÇA NO AMBIENTE DE TESTE\\n\\nPeça: ${peca.nome}\\nUnidade: ${unidades.find(u => u.id === peca.unidade_id)?.nome ?? "—"}\\nSaldo atual: ${peca.estoque_atual}\\n\\nMovimentações sem vínculo com OS serão removidas junto com a peça. Histórico vinculado a OS será preservado e bloqueará a exclusão.\\n\\nDigite exatamente o nome da peça para confirmar:`,
+      `EXCLUSÃO DE PEÇA\\n\\nPeça: ${peca.nome}\\nUnidade: ${unidades.find(u => u.id === peca.unidade_id)?.nome ?? "—"}\\nSaldo atual: ${peca.estoque_atual}\\n\\nMovimentações sem vínculo com OS serão removidas junto com a peça. Histórico vinculado a OS será preservado e bloqueará a exclusão.\\n\\nDigite exatamente o nome da peça para confirmar:`,
     );
     if (nomeConfirmado === null) return;
     if (nomeConfirmado !== peca.nome) {
@@ -568,7 +568,7 @@ function PainelTeste() {
     }
     setSalvandoOS(true);
     setMensagemOS("");
-    // A política RLS do banco de teste limita o UPDATE às OS da unidade do ADM.
+    // A política de segurança do banco limita a edição às OS da unidade do ADM.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any;
     const unidadeDaOS = ordens.find(o => o.id === edicaoOS.id)?.unidade_id;
@@ -1287,7 +1287,7 @@ function PainelTeste() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-emerald-100/55">A exportação Excel inclui todos os campos que o banco de teste retornar para cada OS, além do nome da unidade e uma aba de resumo com data, filtros e quantidade exportada. A aba Histórico é somente consulta; ela não altera nem apaga ordens.</p>
+          <p className="text-xs text-emerald-100/55">A exportação Excel inclui todos os campos disponíveis para cada OS, além do nome da unidade e uma aba de resumo com data, filtros e quantidade exportada. A aba Histórico é somente consulta; ela não altera nem apaga ordens.</p>
         </section>}
         {aba === "analise" && <section className="mt-6 space-y-5">
           {(() => {
@@ -1548,7 +1548,7 @@ function PainelTeste() {
           </div>
           {perfilAtual === "gestor_central" && <p className="mt-3 text-xs text-emerald-100/60">Gestores Gerais só podem ser criados pela conta principal. A exclusão remove a conta de autenticação do sistema; confirme antes de excluir.</p>}
         </section>}
-        <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Ambiente isolado de teste. As permissões de criar e editar OS são validadas também pelas políticas RLS do banco de teste; o banco oficial e suas OS não são consultados por esta rota.</p>
+        <p className="mt-6 rounded-xl border border-emerald-800 bg-[#003b32] p-3 text-xs text-emerald-100/80">Sistema com banco de dados próprio, separado do Central OS original. As permissões de acesso e edição são aplicadas pelas políticas de segurança do banco.</p>
         {atualizadoEm && <p className="mt-2 text-right text-xs text-emerald-100/50">Última atualização: {formatarDataBR(atualizadoEm, true)}</p>}
           </main>
         </div>
