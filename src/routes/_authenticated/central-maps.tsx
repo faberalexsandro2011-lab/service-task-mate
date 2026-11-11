@@ -425,8 +425,8 @@ function CentralMapsPage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-5 sm:px-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <Button asChild variant="outline" className="gap-2">
-              <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Voltar ao Central OS</Link>
+            <Button asChild size="lg" className="h-12 gap-2 border-2 border-emerald-900 bg-emerald-800 px-5 font-semibold text-white shadow-lg hover:bg-emerald-900 hover:text-white focus-visible:ring-emerald-700">
+              <Link to="/dashboard"><ArrowLeft className="h-5 w-5" /> Voltar ao Central OS</Link>
             </Button>
             <div className="rounded-xl bg-emerald-900 p-3 text-white"><Map className="h-6 w-6" /></div>
             <div>
@@ -599,8 +599,8 @@ function CentralMapsPage() {
               <p className="text-xs text-muted-foreground">{viewerMap.unit_name} · {viewerMap.property_name} · v{viewerMap.version}</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild size="sm" variant="outline" className="gap-2">
-                <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Central OS</Link>
+              <Button asChild size="sm" className="gap-2 border-2 border-emerald-900 bg-emerald-800 font-semibold text-white shadow-md hover:bg-emerald-900 hover:text-white focus-visible:ring-emerald-700">
+                <Link to="/dashboard"><ArrowLeft className="h-4 w-4" /> Voltar ao Central OS</Link>
               </Button>
               <Button size="sm" variant="outline" onClick={captureLocation} className="gap-2"><Navigation className="h-4 w-4" /> Capturar GPS</Button>
               <Button size="sm" variant="outline" onClick={() => setPdfZoom((value) => Math.max(0.4, Number((value - 0.2).toFixed(2))))} disabled={!pdfDocument}><ZoomOut className="h-4 w-4" /></Button>
