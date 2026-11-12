@@ -17,23 +17,29 @@ export const Route = createFileRoute("/_authenticated")({
         _role: "gestor",
       });
 
-      if (!managerRoleError && isManager === true) {
+      const { data: isOsManager, error: osManagerRoleError } = await supabase.rpc("has_role", {
+        _user_id: data.session.user.id,
+        _role: "gestor_os",
+      });
+
+      if ((!managerRoleError && isManager === true) || (!osManagerRoleError && isOsManager === true)) {
+        // gestor_os é o perfil operacional de gestão no banco oficial.
         role = "gestor";
       } else {
         const { data: isViewer } = await supabase.rpc("has_role", { _user_id: data.session.user.id, _role: "visualizador" });
         if (isViewer === true) role = "visualizador";
         else {
-        const { data: roleRow, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.session.user.id)
-          .maybeSingle();
+          const { data: roleRow, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.session.user.id)
+            .maybeSingle();
 
-        if (!roleError && roleRow?.role === "gestor") {
-          role = "gestor";
-        } else {
-          role = "tecnico";
-        }
+          if (!roleError && (roleRow?.role === "gestor" || roleRow?.role === "gestor_os")) {
+            role = "gestor";
+          } else {
+            role = "tecnico";
+          }
         }
       }
 
