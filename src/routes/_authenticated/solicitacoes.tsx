@@ -175,108 +175,23 @@ function SolicitacoesPage() {
     if (!data.isManager || !selected || saving) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const technician = data.technicians.find((person) => person.id === selected.tecnico_id);
       if (values.mode === "reuse") {
         if (!values.os_vinculada_id) throw new Error("Selecione a OS pendente que será reaproveitada.");
-        const { data: existing, error: existingError } = await (supabase as any)
-          .from("ordens_servico")
-          .select("id,numero_os,frota,status,solicitacao_os")
-          .eq("id", values.os_vinculada_id)
-          .eq("frota", selected.frota)
-          .eq("status", "pendente")
-          .eq("solicitacao_os", false)
-          .maybeSingle();
-        if (existingError) throw existingError;
-        if (!existing?.numero_os) throw new Error("A OS selecionada não está mais pendente ou não corresponde à frota solicitada.");
-
-        const { error: assignError } = await (supabase as any)
-          .from("ordens_servico")
-          .update({
-            tecnico_id: selected.tecnico_id,
-            tecnico_email: selected.tecnico_email,
-            tecnico_nome: selected.tecnico_nome,
-            updated_at: now,
-          })
-          .eq("id", existing.id)
-          .eq("status", "pendente");
-        if (assignError) throw assignError;
-
-        const { error: requestError } = await (supabase as any)
-          .from("ordens_servico")
-          .update({
-            os_vinculada_id: existing.id,
-            numero_os_referencia: existing.numero_os,
-            status: "cancelada",
-            solicitacao_os: false,
-            solicitacao_status: "regularizada",
-            regularizada_em: now,
-            regularizada_por_email: data.email,
-          })
-          .eq("id", selected.id)
-          .eq("solicitacao_os", true);
-        if (requestError) throw requestError;
-
-        const { error: historyError } = await supabase.from("historico_edicoes").insert({
-          os_id: selected.id,
-          acao: "os_existente_encaminhada",
-          detalhe: `OS ${existing.numero_os} da frota ${selected.frota} vinculada à solicitação e encaminhada para ${selected.tecnico_nome || selected.tecnico_email}. A OS original foi preservada.`,
-          usuario_id: data.user.id,
-          usuario_email: data.email,
+        const { data: number, error } = await (supabase as any).rpc("encaminhar_solicitacao_os_existente", {
+          p_solicitacao_id: selected.id,
+          p_os_id: values.os_vinculada_id,
         });
-        if (historyError) throw historyError;
-        const { error: originalHistoryError } = await supabase.from("historico_edicoes").insert({
-          os_id: existing.id,
-          acao: "os_reaproveitada_encaminhada",
-          detalhe: `OS encaminhada ao técnico ${selected.tecnico_nome || selected.tecnico_email} por meio da solicitação ${selected.id}. Número e dados originais preservados.`,
-          usuario_id: data.user.id,
-          usuario_email: data.email,
-        });
-        if (originalHistoryError) throw originalHistoryError;
-        toast.success(`OS ${existing.numero_os} encaminhada ao técnico sem duplicar o registro.`);
+        if (error) throw error;
+        toast.success(`OS ${number} encaminhada ao técnico sem duplicar o registro.`);
       } else {
         const number = values.numero_os.trim();
         if (!number) throw new Error("Informe o número da OS.");
-        const { data: duplicate, error: duplicateError } = await (supabase as any)
-          .from("ordens_servico")
-          .select("id,frota,status")
-          .eq("numero_os", number)
-          .neq("id", selected.id)
-          .limit(1)
-          .maybeSingle();
-        if (duplicateError) throw duplicateError;
-        if (duplicate) {
-          throw new Error(duplicate.frota === selected.frota
-            ? "Esse número já existe para esta frota. Selecione a OS pendente na opção de reaproveitamento."
-            : "Esse número de OS já está cadastrado para outra frota. Confira o número antes de enviar.");
-        }
-
-        const { error: updateError } = await (supabase as any)
-          .from("ordens_servico")
-          .update({
-            numero_os: number,
-            solicitacao_os: false,
-            solicitacao_status: "regularizada",
-            regularizada_em: now,
-            regularizada_por_email: data.email,
-            tecnico_id: selected.tecnico_id,
-            tecnico_email: selected.tecnico_email || technician?.email,
-            tecnico_nome: selected.tecnico_nome || technician?.nome,
-            updated_at: now,
-          })
-          .eq("id", selected.id)
-          .eq("solicitacao_os", true);
-        if (updateError) throw updateError;
-
-        const { error: historyError } = await supabase.from("historico_edicoes").insert({
-          os_id: selected.id,
-          acao: "numero_os_informado",
-          detalhe: `O gestor informou somente o número ${number} e encaminhou a OS ao técnico, preservando os demais dados da solicitação.`,
-          usuario_id: data.user.id,
-          usuario_email: data.email,
+        const { data: forwardedNumber, error } = await (supabase as any).rpc("encaminhar_solicitacao_numero_os", {
+          p_solicitacao_id: selected.id,
+          p_numero_os: number,
         });
-        if (historyError) throw historyError;
-        toast.success(`Número da OS ${number} enviado ao técnico.`);
+        if (error) throw error;
+        toast.success(`Número da OS ${forwardedNumber} enviado ao técnico.`);
       }
       setSelected(null);
       await refresh();
