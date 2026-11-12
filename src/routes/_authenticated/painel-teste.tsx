@@ -519,7 +519,7 @@ function PainelTeste() {
     const selecionadas = ordens.filter(o => ordensSelecionadasTransferencia.includes(o.id));
     if (selecionadas.length !== ordensSelecionadasTransferencia.length) { setMensagemOS("Atualize a seleção: uma ou mais OS não foram encontradas."); return; }
     if ((perfilAtual === "admin_unidade" || perfilAtual === "gestor") && selecionadas.some(o => o.unidade_id !== unidadeAtualId)) {
-      setMensagemOS("Transferência bloqueada: como ADM, você só pode transferir OS da sua própria unidade. Desmarque as OS de outras unidades.");
+      setMensagemOS("Transferência bloqueada: gestor local e ADM só podem transferir OS da própria unidade. Desmarque as OS de outras unidades.");
       setOrdensSelecionadasTransferencia(atual => atual.filter(id => selecionadas.some(o => o.id === id && o.unidade_id === unidadeAtualId)));
       return;
     }
