@@ -35,8 +35,13 @@ export const Route = createFileRoute("/_authenticated")({
         _user_id: userId,
         _role: "gestor",
       });
+      const { data: isOsManager } = await supabase.rpc("has_role", {
+        _user_id: userId,
+        _role: "gestor_os",
+      });
 
-      if (!managerRoleError && isManager === true) {
+      // Na instalação oficial, gestor_os é o perfil de gestão operacional.
+      if ((!managerRoleError && isManager === true) || isOsManager === true) {
         role = "gestor";
       } else {
         const { data: isViewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "visualizador" });
