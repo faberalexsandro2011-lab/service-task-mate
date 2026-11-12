@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
   const adminUnidadeAtivo = !!actorProfile && !actorProfileError && actorProfile.ativo === true &&
     actorProfile.perfil === "admin_unidade" && actorProfile.unidade_id !== null;
   const gestorAtivo = !!actorProfile && !actorProfileError && actorProfile.ativo === true &&
-    actorProfile.perfil === "gestor" && actorProfile.unidade_id === null;
+    actorProfile.perfil === "gestor" && actorProfile.unidade_id !== null;
 
   // ADM de unidade pode consultar somente os técnicos ativos vinculados à própria unidade.
   // As ações de gestão de contas continuam restritas ao Gestor Central.
@@ -58,12 +58,10 @@ Deno.serve(async (req: Request) => {
     }
     let query = admin.from("usuarios_unidades")
       .select("user_id,unidade_id,perfil,ativo,created_at").order("perfil");
-    if (adminUnidadeAtivo && actorProfile) {
+    if ((adminUnidadeAtivo || gestorAtivo) && actorProfile) {
+      // ADM e gestor operacional consultam somente técnicos ativos da própria unidade.
+      // Nenhum dos dois recebe contas administrativas nem pode alterar outros usuários.
       query = query.eq("unidade_id", actorProfile.unidade_id).eq("perfil", "tecnico").eq("ativo", true);
-    } else if (gestorAtivo) {
-      // Gestor operacional só recebe a lista de técnicos ativos para atribuir OS;
-      // não recebe contas administrativas nem tem ações de gestão de usuários.
-      query = query.eq("perfil", "tecnico").eq("ativo", true);
     }
     const { data, error } = await query;
     if (error) return json({ ok: false, error: "Não foi possível listar usuários." }, 500);
@@ -83,9 +81,11 @@ Deno.serve(async (req: Request) => {
     })) });
   }
 
-  // ADM de unidade pode criar somente técnicos; a unidade será forçada no servidor.
-  if (!gestorCentralAtivo && !(adminUnidadeAtivo && action === "create" && body.perfil === "tecnico")) {
-    return json({ ok: false, error: "O Gestor Geral gerencia contas; o ADM pode cadastrar apenas técnicos da própria unidade." }, 403);
+  // Gestor operacional e ADM local podem criar somente técnicos da própria unidade.
+  // A unidade é definida pelo vínculo autenticado, nunca pelo valor enviado pelo navegador.
+  if (!gestorCentralAtivo && !(isPrimary && actorProfile?.perfil === "gestor_central") &&
+      !((adminUnidadeAtivo || gestorAtivo) && action === "create" && body.perfil === "tecnico")) {
+    return json({ ok: false, error: "Somente o Gestor Geral pode gerenciar perfis administrativos; gestores e ADMs locais podem cadastrar apenas técnicos da própria unidade." }, 403);
   }
 
   if (action === "create") {
@@ -102,9 +102,9 @@ Deno.serve(async (req: Request) => {
     if (perfil === "gestor_central" && !isPrimary) return json({ ok: false, error: "Somente o administrador principal pode criar Gestores Gerais." }, 403);
     if (perfil === "gestor" && !isPrimary) return json({ ok: false, error: "Somente a conta principal pode criar usuários Gestor." }, 403);
     let unidadeId: string | null = null;
-    if (adminUnidadeAtivo) {
+    if (adminUnidadeAtivo || gestorAtivo) {
       if (perfil !== "tecnico" || !actorProfile?.unidade_id) {
-        return json({ ok: false, error: "O ADM pode cadastrar apenas técnicos na própria unidade." }, 403);
+        return json({ ok: false, error: "Gestores e ADMs locais podem cadastrar apenas técnicos na própria unidade." }, 403);
       }
       unidadeId = actorProfile.unidade_id;
     } else if (perfil === "gestor_central" || perfil === "gestor") {
