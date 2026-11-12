@@ -60,20 +60,29 @@ export type Database = {
           criado_por_email: string | null
           data_inicio: string | null
           descricao: string | null
+          entrada: string | null
+          fechada_em: string | null
+          fechada_por_email: string | null
           frota: string
           id: string
           localizacao: string | null
           notas_fecho: string | null
-          numero_os: string
+          numero_os: string | null
           numero_os_referencia: string | null
           os_vinculada_id: string | null
           pecas_utilizadas: string | null
+          regularizada_em: string | null
+          regularizada_por_email: string | null
+          solicitacao_os: boolean
+          solicitacao_status: string | null
+          solicitada_em: string | null
           status: string
           sequencia: number | null
           setor: string | null
           tecnico_email: string | null
           tecnico_id: string | null
           tecnico_nome: string | null
+          unidade_id: string
           updated_at: string
           valor_total: number | null
         }
@@ -84,20 +93,29 @@ export type Database = {
           criado_por_email?: string | null
           data_inicio?: string | null
           descricao?: string | null
+          entrada?: string | null
+          fechada_em?: string | null
+          fechada_por_email?: string | null
           frota: string
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
-          numero_os: string
+          numero_os?: string | null
           numero_os_referencia?: string | null
           os_vinculada_id?: string | null
           pecas_utilizadas?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
+          solicitacao_os?: boolean
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
           status?: string
           sequencia?: number | null
           setor?: string | null
           tecnico_email?: string | null
           tecnico_id?: string | null
           tecnico_nome?: string | null
+          unidade_id?: string
           updated_at?: string
           valor_total?: number | null
         }
@@ -108,20 +126,29 @@ export type Database = {
           criado_por_email?: string | null
           data_inicio?: string | null
           descricao?: string | null
+          entrada?: string | null
+          fechada_em?: string | null
+          fechada_por_email?: string | null
           frota?: string
           id?: string
           localizacao?: string | null
           notas_fecho?: string | null
-          numero_os?: string
+          numero_os?: string | null
           numero_os_referencia?: string | null
           os_vinculada_id?: string | null
           pecas_utilizadas?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
+          solicitacao_os?: boolean
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
           status?: string
           sequencia?: number | null
           setor?: string | null
           tecnico_email?: string | null
           tecnico_id?: string | null
           tecnico_nome?: string | null
+          unidade_id?: string
           updated_at?: string
           valor_total?: number | null
         }
