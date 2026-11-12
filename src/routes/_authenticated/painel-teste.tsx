@@ -1198,25 +1198,31 @@ function PainelTeste() {
                 {!editando && <button type="button" onClick={() => setSolicitacaoEmEdicao({ id: ordem.id, numero_os: "", frota: ordem.frota || "", localizacao: ordem.localizacao || "", descricao: ordem.descricao || "", setor: ordem.setor || "", tecnico_nome: ordem.tecnico_nome || "" })} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950">Conferir e inserir OS</button>}
               </div>
               {editando && <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <label className="text-xs font-semibold text-emerald-100">Número oficial da OS *<input autoFocus value={solicitacaoEmEdicao.numero_os} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, numero_os:e.target.value} : v)} placeholder="Informe o número da OS" className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
-                <label className="text-xs font-semibold text-emerald-100">Frota<input value={solicitacaoEmEdicao.frota} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, frota:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
-                <label className="text-xs font-semibold text-emerald-100">Técnico<input value={solicitacaoEmEdicao.tecnico_nome} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, tecnico_nome:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
-                <label className="text-xs font-semibold text-emerald-100">Setor<input value={solicitacaoEmEdicao.setor} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, setor:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
-                <label className="text-xs font-semibold text-emerald-100">Localização<input value={solicitacaoEmEdicao.localizacao} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, localizacao:e.target.value} : v)} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
-                <label className="text-xs font-semibold text-emerald-100 sm:col-span-2 lg:col-span-3">Descrição do serviço<textarea value={solicitacaoEmEdicao.descricao} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, descricao:e.target.value} : v)} rows={2} className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <label className="text-xs font-semibold text-emerald-100 sm:col-span-2">Número oficial da OS *<input autoFocus value={solicitacaoEmEdicao.numero_os} onChange={e => setSolicitacaoEmEdicao(v => v ? {...v, numero_os:e.target.value} : v)} placeholder="Informe somente o número da OS" className="mt-1 w-full rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-white"/></label>
+                <div className="sm:col-span-2 lg:col-span-3 rounded-lg border border-emerald-700 p-3">
+                  <p className="text-xs font-semibold text-emerald-100">Ou reaproveitar uma OS pendente da mesma frota</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {ordensVisiveis.filter((candidata: any) => candidata.id !== ordem.id && candidata.status === "pendente" && !candidata.solicitacao_os && Boolean(candidata.numero_os?.trim()) && String(candidata.frota || "").trim().toLocaleLowerCase("pt-BR") === String(ordem.frota || "").trim().toLocaleLowerCase("pt-BR") && candidata.unidade_id === ordem.unidade_id).map((candidata: any) => <button key={candidata.id} type="button" disabled={salvandoOS} onClick={() => void (async () => {
+                      setSalvandoOS(true); setMensagemOS("");
+                      const { data, error } = await (supabase as any).rpc("encaminhar_solicitacao_os_existente", { p_solicitacao_id: ordem.id, p_os_id: candidata.id });
+                      setSalvandoOS(false);
+                      if (error) { setMensagemOS("Não foi possível encaminhar a OS existente: " + error.message); return; }
+                      setMensagemOS("OS " + String(data || candidata.numero_os) + " encaminhada ao técnico. A OS original foi preservada.");
+                      setSolicitacaoEmEdicao(null); await carregar();
+                    })()} className="rounded-lg border border-lime-400 px-3 py-2 text-xs font-bold text-lime-200 disabled:opacity-50">{candidata.numero_os} · Frota {candidata.frota}</button>)}
+                    {ordensVisiveis.filter((candidata: any) => candidata.id !== ordem.id && candidata.status === "pendente" && !candidata.solicitacao_os && Boolean(candidata.numero_os?.trim()) && String(candidata.frota || "").trim().toLocaleLowerCase("pt-BR") === String(ordem.frota || "").trim().toLocaleLowerCase("pt-BR") && candidata.unidade_id === ordem.unidade_id).length === 0 && <p className="text-xs text-emerald-100/60">Nenhuma OS pendente encontrada para esta frota nesta unidade.</p>}
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3"><button type="button" disabled={salvandoOS || !solicitacaoEmEdicao.numero_os.trim()} onClick={() => void (async () => {
                   if (!solicitacaoEmEdicao || !solicitacaoEmEdicao.numero_os.trim()) return;
                   setSalvandoOS(true); setMensagemOS("");
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const db = supabase as any;
-                  const { error } = await db.from("ordens_servico").update({ numero_os: solicitacaoEmEdicao.numero_os.trim(), frota: solicitacaoEmEdicao.frota.trim() || null, localizacao: solicitacaoEmEdicao.localizacao.trim() || null, descricao: solicitacaoEmEdicao.descricao.trim(), setor: solicitacaoEmEdicao.setor.trim() || null, tecnico_nome: solicitacaoEmEdicao.tecnico_nome.trim() || null }).eq("id", ordem.id).eq("unidade_id", ordem.unidade_id);
+                  const { data, error } = await (supabase as any).rpc("encaminhar_solicitacao_numero_os", { p_solicitacao_id: ordem.id, p_numero_os: solicitacaoEmEdicao.numero_os.trim() });
                   setSalvandoOS(false);
-                  if (error) { setMensagemOS("Não foi possível inserir a OS: " + error.message); return; }
-                  setMensagemOS("Número da OS registrado. A solicitação original foi atualizada e retornou ao fluxo normal, sem duplicar o registro.");
+                  if (error) { setMensagemOS("Não foi possível encaminhar a solicitação: " + error.message); return; }
+                  setMensagemOS("Número " + String(data || solicitacaoEmEdicao.numero_os.trim()) + " registrado e enviado ao técnico, sem duplicar a solicitação.");
                   setSolicitacaoEmEdicao(null); await carregar();
-                })()} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Salvando..." : "Inserir OS e enviar ao técnico"}</button><button type="button" onClick={() => setSolicitacaoEmEdicao(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm">Cancelar</button></div>
+                })()} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Encaminhando..." : "Informar número e enviar ao técnico"}</button><button type="button" onClick={() => setSolicitacaoEmEdicao(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm">Cancelar</button></div>
               </div>}
-            </article>;
           })}
         </section>}
         {aba === "gestao_os" && modoGestao !== "solicitacoes" && <>
