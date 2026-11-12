@@ -55,13 +55,14 @@ async function getPageData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: manager, error: managerError } = await supabase.rpc("has_role", {
-    _user_id: authData.user.id,
-    _role: "gestor",
-  });
+  const [{ data: manager, error: managerError }, { data: osManager, error: osManagerError }] = await Promise.all([
+    supabase.rpc("has_role", { _user_id: authData.user.id, _role: "gestor" }),
+    supabase.rpc("has_role", { _user_id: authData.user.id, _role: "gestor_os" }),
+  ]);
   if (managerError) throw managerError;
+  if (osManagerError) throw osManagerError;
 
-  const isManager = manager === true;
+  const isManager = manager === true || osManager === true;
   const email = (authData.user.email ?? "").trim().toLowerCase();
 
   const requestsQuery = supabase
@@ -177,24 +178,46 @@ function SolicitacoesPage() {
 
     try {
       const number = values.numero_os.trim();
-      const { data: duplicate, error: duplicateError } = await supabase
+      const { data: duplicate, error: duplicateError } = await (supabase as any)
         .from("ordens_servico")
-        .select("id")
+        .select("*")
         .eq("numero_os", number)
         .neq("id", selected.id)
         .limit(1)
         .maybeSingle();
 
       if (duplicateError) throw duplicateError;
-      if (duplicate) {
-        toast.error("Já existe uma OS com este número. Para não duplicar, informe outro número.");
-        return;
-      }
 
       const technician = data.technicians.find((person) => person.id === values.tecnico_id);
       const now = new Date().toISOString();
-
       const isPendingRequest = selected.solicitacao_os === true;
+
+      // Se o número já pertence a uma OS pendente da mesma frota, reaproveita
+      // esse registro e transfere somente o técnico responsável. Nunca duplica a OS.
+      if (duplicate) {
+        const sameFleet = String(duplicate.frota ?? "").trim().toLowerCase() === values.frota.trim().toLowerCase();
+        if (!isPendingRequest || !sameFleet || duplicate.status !== "pendente") {
+          toast.error("Esse número já está em uso. Só é possível reaproveitar uma OS pendente da mesma frota.");
+          return;
+        }
+        if (!technician) {
+          toast.error("Selecione o técnico que receberá a OS.");
+          return;
+        }
+
+        const { error: transferError } = await (supabase as any).rpc("encaminhar_solicitacao_os_existente", {
+          p_solicitacao_id: selected.id,
+          p_os_id: duplicate.id,
+          p_tecnico_id: technician.id,
+        });
+        if (transferError) throw transferError;
+
+        toast.success(`OS ${number} transferida para ${technician.nome || technician.email}.`);
+        setSelected(null);
+        await refresh();
+        return;
+      }
+
       const editableFields = {
         numero_os: number,
         frota: values.frota.trim(),
@@ -474,7 +497,7 @@ function ManagerRequests({ requests, history, onSelect }: { requests: Ordem[]; h
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold">{request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
+                  <span className="text-sm font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
                   <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
                   {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando número da OS</span>}
                 </div>
@@ -507,7 +530,7 @@ function TechnicianRequests({ requests, history }: { requests: Ordem[]; history:
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold">{request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
+                <span className="font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
                 <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
               </div>
               <div className="mt-1 text-xs text-muted-foreground">

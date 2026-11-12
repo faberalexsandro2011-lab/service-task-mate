@@ -606,12 +606,17 @@ function TechnicianPage() {
 
         const receivedNewOrder = payload.eventType === "INSERT" || (assignedToTechnician && previous.tecnico_id !== actorId && previousEmail !== actorEmail);
         const requestReceivedOfficialNumber = assignedToTechnician && !String(previous.numero_os || "").trim() && !!String(next.numero_os || "").trim() && (next.solicitacao_status === "regularizada" || previous.solicitacao_os === true);
+        const receivedTransfer = payload.eventType === "UPDATE" && assignedToTechnician &&
+          (previous.tecnico_id !== actorId || previousEmail !== actorEmail) &&
+          !!String(next.numero_os || "").trim();
 
-        if (receivedNewOrder || requestReceivedOfficialNumber) {
-          const title = requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
+        if (receivedNewOrder || requestReceivedOfficialNumber || receivedTransfer) {
+          const title = requestReceivedOfficialNumber ? "OS regularizada" : receivedTransfer ? "OS transferida" : "Nova OS recebida";
           const body = requestReceivedOfficialNumber
             ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
-            : "Uma nova ordem de serviço foi enviada para você.";
+            : receivedTransfer
+              ? "A OS " + String(next.numero_os || "") + " foi transferida para você."
+              : "Uma nova ordem de serviço foi enviada para você.";
           toast.success(body);
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
