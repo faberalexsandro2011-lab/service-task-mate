@@ -315,7 +315,7 @@ function PainelTeste() {
 
   const cadastrarPeca = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId;
+    const unidadeId = perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId;
     if (!unidadeId || !nomePeca.trim()) { setMensagemEstoque("Selecione a unidade e informe o nome da peça."); return; }
     const inicial = Number(quantidadeInicial);
     const minimo = Number(estoqueMinimo);
@@ -355,7 +355,7 @@ function PainelTeste() {
   const criarOS = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (perfilAtual !== "admin_unidade" && perfilAtual !== "gestor" && perfilAtual !== "gestor_central") return;
-    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    const unidadeId = perfilAtual === "gestor_central" ? formUnidadeCentral : unidadeAtualId;
     if (!unidadeId) { setMensagemOS("Selecione a unidade para abrir a OS."); return; }
     setSalvandoNovaOS(true);
     setMensagemOS("");
@@ -458,7 +458,7 @@ function PainelTeste() {
       const i = exactTechnicianIndex >= 0 ? exactTechnicianIndex : header.indexOf(key);
       return i >= 0 ? clean(row[i]) : "";
     };
-    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    const unidadeId = perfilAtual === "gestor_central" ? formUnidadeCentral : unidadeAtualId;
     const parsed = data.filter(r => r.some(c => clean(c))).map((row, rowIndex) => {
       const seqRaw = get(row, "sequencia"); const seqParsed = Number(seqRaw);
       const numero = get(row, "numero_os").replace(/\s+/g, "").trim();
@@ -479,7 +479,7 @@ function PainelTeste() {
       setMensagemOS("Importação não permitida para este perfil (" + String(perfilAtual || "não identificado") + "). Entre com o Gestor Central ou ADM da unidade neste sistema.");
       return;
     }
-    const unidadeId = perfilAtual === "admin_unidade" ? unidadeAtualId : formUnidadeCentral;
+    const unidadeId = perfilAtual === "gestor_central" ? formUnidadeCentral : unidadeAtualId;
     if (!unidadeId) { setMensagemOS("Selecione a unidade para importar."); return; }
     const semVinculo = linhasImportacao.filter(l => Boolean(l.tecnico_original) && !l.tecnico_valido);
     if (semVinculo.length) {
@@ -518,12 +518,12 @@ function PainelTeste() {
     if (!tecnico) { setMensagemOS("Selecione um técnico ativo."); return; }
     const selecionadas = ordens.filter(o => ordensSelecionadasTransferencia.includes(o.id));
     if (selecionadas.length !== ordensSelecionadasTransferencia.length) { setMensagemOS("Atualize a seleção: uma ou mais OS não foram encontradas."); return; }
-    if (perfilAtual === "admin_unidade" && selecionadas.some(o => o.unidade_id !== unidadeAtualId)) {
-      setMensagemOS("Transferência bloqueada: como ADM, você só pode transferir OS da sua própria unidade. Desmarque as OS de outras unidades.");
+    if (perfilAtual !== "gestor_central" && selecionadas.some(o => o.unidade_id !== unidadeAtualId)) {
+      setMensagemOS("Transferência bloqueada: gestores locais e ADMs só podem transferir OS da própria unidade. Desmarque as OS de outras unidades.");
       setOrdensSelecionadasTransferencia(atual => atual.filter(id => selecionadas.some(o => o.id === id && o.unidade_id === unidadeAtualId)));
       return;
     }
-    if (perfilAtual === "admin_unidade" && tecnico.unidade_id !== unidadeAtualId) {
+    if (perfilAtual !== "gestor_central" && tecnico.unidade_id !== unidadeAtualId) {
       setMensagemOS("Transferência bloqueada: o técnico de destino precisa pertencer à sua unidade.");
       return;
     }
@@ -597,7 +597,7 @@ function PainelTeste() {
       setMensagemOS("Seu perfil não tem permissão para fechar OS no PIMS.");
       return;
     }
-    if (ordem.status !== "concluida" || ordem.fechada_em) {
+    if (perfilAtual !== "gestor_central" && ordem.unidade_id !== unidadeAtualId) {\n      setMensagemOS("Você só pode fechar no PIMS OS da sua própria unidade.");\n      return;\n    }\n    if (ordem.status !== "concluida" || ordem.fechada_em) {
       setMensagemOS("Esta OS não está aguardando fechamento oficial.");
       return;
     }
@@ -679,7 +679,7 @@ function PainelTeste() {
       await executarAcaoUsuario({
         action: "create", nome: nomeNovo, email: emailNovo, password: senhaNova,
         perfil: perfilCriado,
-        unidade_codigo: (perfilCriado === "gestor_central" || perfilCriado === "gestor") ? "" : perfilAtual === "admin_unidade" ? codigoUnidadeADM : unidadeNova,
+        unidade_codigo: (perfilCriado === "gestor_central" || perfilCriado === "gestor") ? "" : (perfilAtual === "admin_unidade" || perfilAtual === "gestor") ? codigoUnidadeADM : unidadeNova,
       });
       setMensagemUsuarios("Usuário criado e vinculado ao sistema.");
       setNomeNovo(""); setEmailNovo(""); setSenhaNova("");
@@ -1038,10 +1038,10 @@ function PainelTeste() {
             <button type="button" onClick={() => {setAba("gestao_os");setGestaoOSAberta(true);setModoGestao("menu");setSolicitacaoEmEdicao(null);}} aria-current={aba === "gestao_os" && modoGestao !== "solicitacoes" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "gestao_os" && modoGestao !== "solicitacoes" ? "bg-lime-300 text-emerald-950 shadow-lg shadow-black/10" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Gestão de OS<span className="ml-auto rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-extrabold text-emerald-950">{ordensVisiveis.filter(o => !o.numero_os?.trim() && o.status !== "cancelada").length}</span></button>
             <button type="button" onClick={() => setAba("historico")} aria-current={aba === "historico" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "historico" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><FileSpreadsheet size={18}/>Histórico de OS</button>
             <button type="button" onClick={() => setAba("analise")} aria-current={aba === "analise" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "analise" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ShieldAlert size={18}/>Análise Técnica</button>
-            {(perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Estoque de Peças</button>}
+            {(perfilAtual === "gestor" || perfilAtual === "gestor_central") && <button type="button" onClick={() => setAba("estoque")} aria-current={aba === "estoque" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "estoque" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><ClipboardList size={18}/>Estoque de Peças</button>}
             {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("dispositivos")} aria-current={aba === "dispositivos" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "dispositivos" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><MonitorSmartphone size={18}/>Dispositivos</button>}
             {perfilAtual === "gestor_central" && <button type="button" onClick={() => setAba("unidades")} aria-current={aba === "unidades" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "unidades" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Building2 size={18}/>Gestão de Unidades</button>}
-            {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Users size={18}/>{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</button>}
+            {(perfilAtual === "gestor_central" || perfilAtual === "admin_unidade" || perfilAtual === "gestor") && <button type="button" onClick={() => setAba("usuarios")} aria-current={aba === "usuarios" ? "page" : undefined} className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition md:w-full ${aba === "usuarios" ? "bg-lime-300 text-emerald-950" : "text-emerald-100/80 hover:bg-emerald-900/70 hover:text-white"}`}><Users size={18}/>{perfilAtual === "gestor_central" ? "Gestão de Usuários" : "Técnicos da Unidade"}</button>}
           </nav>
           
         </aside>
@@ -1444,7 +1444,7 @@ function PainelTeste() {
             </>;
           })()}
         </section>}
-        {aba === "estoque" && (perfilAtual === "admin_unidade" || perfilAtual === "gestor_central") && <section className="mt-8">
+        {aba === "estoque" && (perfilAtual === "gestor" || perfilAtual === "gestor_central") && <section className="mt-8">
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">Controle administrativo</p><h2 className="mt-1 text-2xl font-extrabold">Estoque de Peças</h2><p className="mt-1 text-sm text-emerald-100/70">Cadastro, saldo por unidade e histórico de movimentações. A baixa por consumo será registrada ao finalizar uma OS.</p></div>
             {perfilAtual === "gestor_central" && <label className="grid gap-1 text-sm">Unidade do estoque<select value={unidadeEstoqueId} onChange={e=>setUnidadeEstoqueId(e.target.value)} className="min-w-56 rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione uma unidade</option>{unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}</select></label>}
@@ -1455,11 +1455,11 @@ function PainelTeste() {
               <div><h3 className="font-bold">Cadastrar peça</h3><p className="text-xs text-emerald-100/70">O item pertence ao estoque da unidade selecionada.</p></div>
               <label className="grid gap-1 text-sm">Nome da peça<input required maxLength={120} value={nomePeca} onChange={e=>setNomePeca(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label>
               <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">Saldo inicial<input type="number" min="0" step="1" required value={quantidadeInicial} onChange={e=>setQuantidadeInicial(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label><label className="grid gap-1 text-sm">Estoque mínimo<input type="number" min="0" step="1" required value={estoqueMinimo} onChange={e=>setEstoqueMinimo(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label></div>
-              <button disabled={salvandoEstoque || !(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId) || !nomePeca.trim()} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoEstoque ? "Salvando..." : "Cadastrar peça"}</button>
+              <button disabled={salvandoEstoque || !(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId) || !nomePeca.trim()} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoEstoque ? "Salvando..." : "Cadastrar peça"}</button>
             </form>
             <form onSubmit={registrarEntrada} className="grid gap-3 rounded-2xl border border-emerald-800 bg-[#003b32] p-4">
               <div><h3 className="font-bold">Registrar entrada</h3><p className="text-xs text-emerald-100/70">A entrada é registrada no histórico com o saldo anterior e o novo saldo.</p></div>
-              <label className="grid gap-1 text-sm">Peça<select required value={pecaEntradaId} onChange={e=>setPecaEntradaId(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione a peça</option>{pecasEstoque.filter(p=>p.ativo && p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><option key={p.id} value={p.id}>{p.nome} · saldo {p.estoque_atual}</option>)}</select></label>
+              <label className="grid gap-1 text-sm">Peça<select required value={pecaEntradaId} onChange={e=>setPecaEntradaId(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"><option value="">Selecione a peça</option>{pecasEstoque.filter(p=>p.ativo && p.unidade_id===(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId)).map(p=><option key={p.id} value={p.id}>{p.nome} · saldo {p.estoque_atual}</option>)}</select></label>
               <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1 text-sm">Quantidade recebida<input type="number" min="1" step="1" required value={quantidadeEntrada} onChange={e=>setQuantidadeEntrada(e.target.value)} className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label><label className="grid gap-1 text-sm">Observação<input value={observacaoEntrada} onChange={e=>setObservacaoEntrada(e.target.value)} placeholder="Ex.: reposição mensal" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white" /></label></div>
               <button disabled={salvandoEstoque || !pecaEntradaId} className="rounded-lg border border-lime-400 px-4 py-2.5 font-bold text-lime-200 disabled:opacity-50">{salvandoEstoque ? "Registrando..." : "Registrar entrada"}</button>
             </form>
@@ -1467,15 +1467,15 @@ function PainelTeste() {
           <div className="mb-5 overflow-x-auto rounded-2xl border border-emerald-800">
             <div className="border-b border-emerald-800 bg-[#003b32] p-4"><h3 className="font-bold">Saldo atual por peça</h3><p className="text-xs text-emerald-100/70">Itens em nível mínimo ficam destacados para reposição.</p></div>
             <table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Peça</th><th className="p-3">Unidade</th><th className="p-3">Saldo</th><th className="p-3">Mínimo</th><th className="p-3">Situação</th>{perfilAtual === "gestor_central" && <th className="p-3">Ações</th>}</tr></thead><tbody>
-              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(p=><tr key={p.id} className="border-t border-emerald-900"><td className="p-3 font-semibold">{p.nome}</td><td className="p-3">{unidades.find(u=>u.id===p.unidade_id)?.nome || "—"}</td><td className="p-3 text-lg font-extrabold">{p.estoque_atual}</td><td className="p-3">{p.estoque_minimo}</td><td className="p-3"><span className={p.estoque_atual<=p.estoque_minimo ? "rounded-md bg-amber-950 px-2 py-1 text-amber-200" : "rounded-md bg-emerald-950 px-2 py-1 text-emerald-200"}>{p.estoque_atual<=p.estoque_minimo ? "Repor estoque" : "Disponível"}</span></td>{perfilAtual === "gestor_central" && <td className="p-3"><button type="button" disabled={salvandoEstoque} onClick={()=>void excluirPecaEstoqueTeste(p)} className="inline-flex items-center gap-1 rounded-lg border border-red-700 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:opacity-50"><Trash2 size={14}/> Excluir peça</button></td>}</tr>)}
-              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={perfilAtual === "gestor_central" ? 6 : 5} className="p-5 text-center text-emerald-100/60">{unidadeEstoqueId || perfilAtual === "admin_unidade" ? "Nenhuma peça cadastrada nesta unidade." : "Selecione uma unidade para consultar o estoque."}</td></tr>}
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId)).map(p=><tr key={p.id} className="border-t border-emerald-900"><td className="p-3 font-semibold">{p.nome}</td><td className="p-3">{unidades.find(u=>u.id===p.unidade_id)?.nome || "—"}</td><td className="p-3 text-lg font-extrabold">{p.estoque_atual}</td><td className="p-3">{p.estoque_minimo}</td><td className="p-3"><span className={p.estoque_atual<=p.estoque_minimo ? "rounded-md bg-amber-950 px-2 py-1 text-amber-200" : "rounded-md bg-emerald-950 px-2 py-1 text-emerald-200"}>{p.estoque_atual<=p.estoque_minimo ? "Repor estoque" : "Disponível"}</span></td>{perfilAtual === "gestor_central" && <td className="p-3"><button type="button" disabled={salvandoEstoque} onClick={()=>void excluirPecaEstoqueTeste(p)} className="inline-flex items-center gap-1 rounded-lg border border-red-700 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:opacity-50"><Trash2 size={14}/> Excluir peça</button></td>}</tr>)}
+              {pecasEstoque.filter(p=>p.unidade_id===(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId)).length===0 && <tr><td colSpan={perfilAtual === "gestor_central" ? 6 : 5} className="p-5 text-center text-emerald-100/60">{unidadeEstoqueId || perfilAtual === "admin_unidade" ? "Nenhuma peça cadastrada nesta unidade." : "Selecione uma unidade para consultar o estoque."}</td></tr>}
             </tbody></table>
           </div>
           <div className="overflow-x-auto rounded-2xl border border-emerald-800">
             <div className="border-b border-emerald-800 bg-[#003b32] p-4"><h3 className="font-bold">Últimas movimentações</h3><p className="text-xs text-emerald-100/70">Entradas e consumo vinculado às OS.</p></div>
             <table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-emerald-950/70 text-emerald-100"><tr><th className="p-3">Data</th><th className="p-3">Peça</th><th className="p-3">Movimentação</th><th className="p-3">Quantidade</th><th className="p-3">Saldo</th><th className="p-3">Observação</th></tr></thead><tbody>
-              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).map(m=><tr key={m.id} className="border-t border-emerald-900"><td className="p-3 whitespace-nowrap">{formatarDataBR(m.created_at, true)}</td><td className="p-3">{m.pecas_catalogo?.nome || "Peça"}</td><td className="p-3">{m.tipo==="entrada" ? "Entrada" : m.tipo==="consumo_os" ? "Consumo em OS" : "Ajuste"}</td><td className="p-3">{m.quantidade}</td><td className="p-3">{m.saldo_anterior} → {m.saldo_posterior}</td><td className="p-3">{m.observacao || (m.ordens_servico?.numero_os ? "OS " + m.ordens_servico.numero_os : "—")}</td></tr>)}
-              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "admin_unidade" ? unidadeAtualId : unidadeEstoqueId)).length===0 && <tr><td colSpan={6} className="p-5 text-center text-emerald-100/60">Nenhuma movimentação registrada.</td></tr>}
+              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId)).map(m=><tr key={m.id} className="border-t border-emerald-900"><td className="p-3 whitespace-nowrap">{formatarDataBR(m.created_at, true)}</td><td className="p-3">{m.pecas_catalogo?.nome || "Peça"}</td><td className="p-3">{m.tipo==="entrada" ? "Entrada" : m.tipo==="consumo_os" ? "Consumo em OS" : "Ajuste"}</td><td className="p-3">{m.quantidade}</td><td className="p-3">{m.saldo_anterior} → {m.saldo_posterior}</td><td className="p-3">{m.observacao || (m.ordens_servico?.numero_os ? "OS " + m.ordens_servico.numero_os : "—")}</td></tr>)}
+              {movimentacoesEstoque.filter(m=>m.unidade_id===(perfilAtual === "gestor_central" ? unidadeEstoqueId : unidadeAtualId)).length===0 && <tr><td colSpan={6} className="p-5 text-center text-emerald-100/60">Nenhuma movimentação registrada.</td></tr>}
             </tbody></table>
           </div>
         </section>}
@@ -1515,9 +1515,9 @@ function PainelTeste() {
           </div>
           <p className="text-xs text-emerald-100/55">Observação: o site identifica o navegador/dispositivo e seu identificador local; não consegue ler com segurança o nome real do computador. Se o usuário limpar os dados do navegador ou usar outro navegador, poderá aparecer como um novo dispositivo.</p>
         </section>}
-        {aba === "usuarios" && (perfilAtual === "gestor_central" || perfilAtual === "admin_unidade") && <section className="mt-8">
-          <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "admin_unidade" ? "Técnicos da Unidade" : "Gestão de Usuários"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "admin_unidade" ? "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas." : "Cadastro e gerenciamento de contas somente no banco operacional multiunidade."}</p></div>
-          <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "admin_unidade" ? "O servidor vincula automaticamente cada técnico à sua própria unidade." : "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação."} Senhas existentes nunca são exibidas; somente a conta principal pode redefini-las.</p></div>
+        {aba === "usuarios" && (perfilAtual === "gestor_central" || perfilAtual === "admin_unidade" || perfilAtual === "gestor") && <section className="mt-8">
+          <div className="mb-4"><h2 className="text-2xl font-extrabold">{perfilAtual === "gestor_central" ? "Gestão de Usuários" : "Técnicos da Unidade"}</h2><p className="mt-1 text-sm text-emerald-100/70">{perfilAtual === "gestor_central" ? "Cadastro e gerenciamento de contas somente no banco operacional multiunidade." : "Cadastre técnicos somente para a sua unidade. Você não pode criar ADMs nem alterar contas administrativas."}</p></div>
+          <div className="mb-5 rounded-xl border border-emerald-700 bg-emerald-950/40 p-4 text-sm text-emerald-100"><strong>Área administrativa protegida.</strong><p className="mt-1">{perfilAtual === "gestor_central" ? "O servidor confirma o perfil Gestor Geral ativo antes de executar qualquer operação." : "O servidor vincula automaticamente cada técnico à sua própria unidade."} Senhas existentes nunca são exibidas; somente a conta principal pode redefini-las.</p></div>
           {erroUsuarios && <div role="alert" className="mb-4 rounded-xl border border-red-700 bg-red-950/40 p-3 text-sm text-red-100">{erroUsuarios}</div>}
           {mensagemUsuarios && <div role="status" className="mb-4 rounded-xl border border-lime-700 bg-lime-950/30 p-3 text-sm text-lime-100">{mensagemUsuarios}</div>}
           {perfilAtual === "gestor_central" && <form onSubmit={salvarNomePerfil} className="mb-5 grid gap-3 rounded-2xl border border-lime-700/70 bg-lime-950/20 p-4 sm:grid-cols-[1fr_auto] sm:items-end"><div><h3 className="font-bold">Nome do seu perfil</h3><p className="mt-1 text-xs text-emerald-100/70">Atualize somente o nome exibido da sua conta principal. E-mail, senha e permissões não serão alterados.</p><label className="mt-3 grid gap-1 text-sm">Nome completo<input required minLength={2} maxLength={120} value={nomePerfil} onChange={e=>setNomePerfil(e.target.value)} placeholder="Digite seu nome completo" className="rounded-lg border border-emerald-700 bg-emerald-950 px-3 py-2 text-white"/></label></div><button type="submit" disabled={salvandoNomePerfil || nomePerfil.trim().length<2 || !usuarioAtualId} className="rounded-lg bg-lime-300 px-4 py-2.5 font-bold text-emerald-950 disabled:opacity-50">{salvandoNomePerfil ? "Salvando…" : "Salvar meu nome"}</button></form>}
