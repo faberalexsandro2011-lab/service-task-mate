@@ -177,24 +177,86 @@ function SolicitacoesPage() {
 
     try {
       const number = values.numero_os.trim();
-      const { data: duplicate, error: duplicateError } = await supabase
+      const { data: duplicate, error: duplicateError } = await (supabase as any)
         .from("ordens_servico")
-        .select("id")
+        .select("*")
         .eq("numero_os", number)
         .neq("id", selected.id)
         .limit(1)
         .maybeSingle();
 
       if (duplicateError) throw duplicateError;
-      if (duplicate) {
-        toast.error("Já existe uma OS com este número. Para não duplicar, informe outro número.");
-        return;
-      }
 
       const technician = data.technicians.find((person) => person.id === values.tecnico_id);
       const now = new Date().toISOString();
-
       const isPendingRequest = selected.solicitacao_os === true;
+
+      // Se o número já pertence a uma OS pendente da mesma frota, reaproveita
+      // esse registro e transfere somente o técnico responsável. Nunca duplica a OS.
+      if (duplicate) {
+        const sameFleet = String(duplicate.frota ?? "").trim().toLowerCase() === values.frota.trim().toLowerCase();
+        if (!isPendingRequest || !sameFleet || duplicate.status !== "pendente") {
+          toast.error("Esse número já está em uso. Só é possível reaproveitar uma OS pendente da mesma frota.");
+          return;
+        }
+        if (!technician) {
+          toast.error("Selecione o técnico que receberá a OS.");
+          return;
+        }
+
+        const { data: transferred, error: transferError } = await (supabase as any)
+          .from("ordens_servico")
+          .update({
+            tecnico_id: technician.id,
+            tecnico_email: technician.email,
+            tecnico_nome: technician.nome,
+            updated_at: now,
+          })
+          .eq("id", duplicate.id)
+          .eq("status", "pendente")
+          .select("id")
+          .maybeSingle();
+        if (transferError) throw transferError;
+        if (!transferred) throw new Error("A OS deixou de estar pendente. Atualize a tela e tente novamente.");
+
+        const { error: requestError } = await (supabase as any)
+          .from("ordens_servico")
+          .update({
+            numero_os: number,
+            solicitacao_os: false,
+            solicitacao_status: "regularizada",
+            regularizada_em: now,
+            regularizada_por_email: data.email,
+            updated_at: now,
+          })
+          .eq("id", selected.id)
+          .eq("solicitacao_status", "aguardando_os");
+        if (requestError) throw requestError;
+
+        const { error: historyError } = await supabase.from("historico_edicoes").insert([
+          {
+            os_id: duplicate.id,
+            acao: "transferencia_tecnico",
+            detalhe: `OS ${number} transferida para ${technician.nome || technician.email} após solicitação da frota ${values.frota}. Responsável anterior preservado no histórico.`,
+            usuario_id: data.user.id,
+            usuario_email: data.email,
+          },
+          {
+            os_id: selected.id,
+            acao: "regularizada",
+            detalhe: `Solicitação atendida com a OS existente ${number}; técnico responsável transferido para ${technician.nome || technician.email}.`,
+            usuario_id: data.user.id,
+            usuario_email: data.email,
+          },
+        ]);
+        if (historyError) throw historyError;
+
+        toast.success(`OS ${number} transferida para ${technician.nome || technician.email}.`);
+        setSelected(null);
+        await refresh();
+        return;
+      }
+
       const editableFields = {
         numero_os: number,
         frota: values.frota.trim(),
