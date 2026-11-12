@@ -204,52 +204,12 @@ function SolicitacoesPage() {
           return;
         }
 
-        const { data: transferred, error: transferError } = await (supabase as any)
-          .from("ordens_servico")
-          .update({
-            tecnico_id: technician.id,
-            tecnico_email: technician.email,
-            tecnico_nome: technician.nome,
-            updated_at: now,
-          })
-          .eq("id", duplicate.id)
-          .eq("status", "pendente")
-          .select("id")
-          .maybeSingle();
+        const { error: transferError } = await (supabase as any).rpc("encaminhar_solicitacao_os_existente", {
+          p_solicitacao_id: selected.id,
+          p_os_id: duplicate.id,
+          p_tecnico_id: technician.id,
+        });
         if (transferError) throw transferError;
-        if (!transferred) throw new Error("A OS deixou de estar pendente. Atualize a tela e tente novamente.");
-
-        const { error: requestError } = await (supabase as any)
-          .from("ordens_servico")
-          .update({
-            numero_os: number,
-            solicitacao_os: false,
-            solicitacao_status: "regularizada",
-            regularizada_em: now,
-            regularizada_por_email: data.email,
-            updated_at: now,
-          })
-          .eq("id", selected.id)
-          .eq("solicitacao_status", "aguardando_os");
-        if (requestError) throw requestError;
-
-        const { error: historyError } = await supabase.from("historico_edicoes").insert([
-          {
-            os_id: duplicate.id,
-            acao: "transferencia_tecnico",
-            detalhe: `OS ${number} transferida para ${technician.nome || technician.email} após solicitação da frota ${values.frota}. Responsável anterior preservado no histórico.`,
-            usuario_id: data.user.id,
-            usuario_email: data.email,
-          },
-          {
-            os_id: selected.id,
-            acao: "regularizada",
-            detalhe: `Solicitação atendida com a OS existente ${number}; técnico responsável transferido para ${technician.nome || technician.email}.`,
-            usuario_id: data.user.id,
-            usuario_email: data.email,
-          },
-        ]);
-        if (historyError) throw historyError;
 
         toast.success(`OS ${number} transferida para ${technician.nome || technician.email}.`);
         setSelected(null);
@@ -536,7 +496,7 @@ function ManagerRequests({ requests, history, onSelect }: { requests: Ordem[]; h
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold">{request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
+                  <span className="text-sm font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
                   <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
                   {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando número da OS</span>}
                 </div>
@@ -569,7 +529,7 @@ function TechnicianRequests({ requests, history }: { requests: Ordem[]; history:
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold">{request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
+                <span className="font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
                 <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
