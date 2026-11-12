@@ -38,7 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Perfil = Tables<"profiles">;
 type Ordem = Tables<"ordens_servico">;
 
 export const Route = createFileRoute("/_authenticated/solicitacoes")({
@@ -55,13 +54,17 @@ async function getPageData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: manager, error: managerError } = await supabase.rpc("has_role", {
-    _user_id: authData.user.id,
-    _role: "gestor",
-  });
-  if (managerError) throw managerError;
+  const userId = authData.user.id;
+  const [managerResult, adminResult, centralResult] = await Promise.all([
+    supabase.rpc("has_role", { _user_id: userId, _role: "gestor" }),
+    supabase.rpc("has_role", { _user_id: userId, _role: "admin_unidade" }),
+    supabase.rpc("has_role", { _user_id: userId, _role: "gestor_central" }),
+  ]);
+  if (managerResult.error) throw managerResult.error;
+  if (adminResult.error) throw adminResult.error;
+  if (centralResult.error) throw centralResult.error;
 
-  const isManager = manager === true;
+  const isManager = managerResult.data === true || adminResult.data === true || centralResult.data === true;
   const email = (authData.user.email ?? "").trim().toLowerCase();
 
   const requestsQuery = supabase
@@ -73,8 +76,7 @@ async function getPageData() {
 
   const requestsResult = isManager
     ? await requestsQuery
-    : await requestsQuery.eq("tecnico_id", authData.user.id);
-
+    : await requestsQuery.eq("tecnico_id", userId);
   if (requestsResult.error) throw requestsResult.error;
 
   const requestIds = (requestsResult.data ?? []).map((item) => item.id);
@@ -87,29 +89,8 @@ async function getPageData() {
     : { data: [], error: null };
   if (historyResult.error) throw historyResult.error;
 
-  const techniciansResult = isManager
-    ? await supabase.from("profiles").select("*").order("nome", { ascending: true })
-    : { data: [] as Perfil[], error: null };
-
-  if (techniciansResult.error) throw techniciansResult.error;
-
-  let technicians = techniciansResult.data ?? [];
-  if (isManager) {
-    const { data: roles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("user_id, role")
-      .eq("role", "tecnico");
-    if (rolesError) throw rolesError;
-
-    const technicianIds = new Set((roles ?? []).map((row) => row.user_id));
-    technicians = technicians.filter((person) => technicianIds.has(person.id));
-  }
-
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("id,nome,email")
-    .eq("id", authData.user.id)
-    .maybeSingle();
+  const metadataName = String(authData.user.user_metadata?.["nome"] ?? authData.user.user_metadata?.["name"] ?? "").trim();
+  const me = { id: userId, nome: metadataName || null, email: authData.user.email ?? "" };
 
   return {
     user: authData.user,
@@ -117,11 +98,9 @@ async function getPageData() {
     isManager,
     requests: (requestsResult.data ?? []) as Ordem[],
     history: historyResult.data ?? [],
-    technicians,
     me,
   };
 }
-
 function SolicitacoesPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -279,7 +258,6 @@ function SolicitacoesPage() {
       {data.isManager && selected && (
         <ManagerRequestDialog
           request={selected}
-          technicians={data.technicians}
           open={Boolean(selected)}
           onOpenChange={(open) => !open && setSelected(null)}
           saving={saving}
@@ -306,7 +284,7 @@ function RequestForm({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   user: { id: string; email?: string };
-  profile: Pick<Perfil, "id" | "nome" | "email"> | null;
+  profile: { id: string; nome: string | null; email: string } | null;
   onCreated: () => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
@@ -485,14 +463,12 @@ function TechnicianRequests({ requests, history }: { requests: Ordem[]; history:
 
 function ManagerRequestDialog({
   request,
-  technicians,
   open,
   onOpenChange,
   saving,
   onRegister,
 }: {
   request: Ordem;
-  technicians: Perfil[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   saving: boolean;
