@@ -857,6 +857,7 @@ function TechnicianPage() {
     { label: "OS finalizada", href: "/tecnico", icon: ClipboardList },
     { label: "Solicitar OS", href: "/solicitacoes", icon: FilePlus2 },
     { label: "Histórico", href: "/historico", icon: History },
+    { label: "Central Maps", href: "/central-maps", icon: MapPin },
   ];
 
   return (<><main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
@@ -870,7 +871,7 @@ function TechnicianPage() {
         <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
       </div>
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "OS finalizada" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "OS finalizada") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
+        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "OS finalizada" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS" || item.label === "Central Maps") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "OS finalizada") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
         <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
