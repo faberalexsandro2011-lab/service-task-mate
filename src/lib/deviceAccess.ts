@@ -56,10 +56,10 @@ export function getCentralOSDeviceId(): string {
 
 export function getCentralOSDeviceLabel(): string {
   const ua = navigator.userAgent;
-  const browser = /Edg\\//.test(ua) ? "Microsoft Edge"
-    : /Chrome\\//.test(ua) ? "Google Chrome"
-    : /Firefox\\//.test(ua) ? "Mozilla Firefox"
-    : /Safari\\//.test(ua) && !/Chrome\\//.test(ua) ? "Safari"
+  const browser = /Edg\//.test(ua) ? "Microsoft Edge"
+    : /Chrome\//.test(ua) ? "Google Chrome"
+    : /Firefox\//.test(ua) ? "Mozilla Firefox"
+    : /Safari\//.test(ua) && !/Chrome\//.test(ua) ? "Safari"
     : "Navegador";
   const device = /Android/i.test(ua) ? "Celular/tablet Android"
     : /iPhone|iPad|iPod/i.test(ua) ? "iPhone/iPad"
