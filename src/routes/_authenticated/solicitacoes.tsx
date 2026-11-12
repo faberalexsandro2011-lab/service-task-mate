@@ -55,16 +55,20 @@ async function getPageData() {
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
   const userId = authData.user.id;
-  const [managerResult, adminResult, centralResult] = await Promise.all([
+  const [managerResult, osManagerResult, adminResult, centralResult] = await Promise.all([
     supabase.rpc("has_role", { _user_id: userId, _role: "gestor" }),
+    supabase.rpc("has_role", { _user_id: userId, _role: "gestor_os" }),
     supabase.rpc("has_role", { _user_id: userId, _role: "admin_unidade" }),
     supabase.rpc("has_role", { _user_id: userId, _role: "gestor_central" }),
   ]);
   if (managerResult.error) throw managerResult.error;
-  if (adminResult.error) throw adminResult.error;
-  if (centralResult.error) throw centralResult.error;
-
-  const isManager = managerResult.data === true || adminResult.data === true || centralResult.data === true;
+  // Algumas instalações usam app_role (gestor/gestor_os), enquanto o
+  // ambiente multiunidade usa perfis admin_unidade/gestor_central.
+  // Erros de papéis que não existem no enum local não devem bloquear a tela.
+  const isManager = managerResult.data === true
+    || osManagerResult.data === true
+    || adminResult.data === true
+    || centralResult.data === true;
   const email = (authData.user.email ?? "").trim().toLowerCase();
 
   const requestsQuery = supabase
