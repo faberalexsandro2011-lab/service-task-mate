@@ -596,7 +596,7 @@ function PainelTeste() {
       setMensagemOS("Seu perfil não tem permissão para fechar OS no PIMS.");
       return;
     }
-    if (perfilAtual !== "gestor_central" && ordem.unidade_id !== unidadeAtualId) {\n      setMensagemOS("Você só pode fechar no PIMS OS da sua própria unidade.");\n      return;\n    }\n    if (perfilAtual !== "gestor_central" && ordem.unidade_id !== unidadeAtualId) {
+    if (perfilAtual !== "gestor_central" && ordem.unidade_id !== unidadeAtualId) {
       setMensagemOS("Você só pode fechar no PIMS OS da sua própria unidade.");
       return;
     }
