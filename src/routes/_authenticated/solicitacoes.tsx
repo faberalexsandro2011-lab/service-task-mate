@@ -174,72 +174,106 @@ function SolicitacoesPage() {
   async function regularize(values: RegisterValues) {
     if (!data.isManager || !selected || saving) return;
     setSaving(true);
-
     try {
-      const number = values.numero_os.trim();
-      const { data: duplicate, error: duplicateError } = await supabase
-        .from("ordens_servico")
-        .select("id")
-        .eq("numero_os", number)
-        .neq("id", selected.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (duplicateError) throw duplicateError;
-      if (duplicate) {
-        toast.error("Já existe uma OS com este número. Para não duplicar, informe outro número.");
-        return;
-      }
-
-      const technician = data.technicians.find((person) => person.id === values.tecnico_id);
       const now = new Date().toISOString();
+      const technician = data.technicians.find((person) => person.id === selected.tecnico_id);
+      if (values.mode === "reuse") {
+        if (!values.os_vinculada_id) throw new Error("Selecione a OS pendente que será reaproveitada.");
+        const { data: existing, error: existingError } = await (supabase as any)
+          .from("ordens_servico")
+          .select("id,numero_os,frota,status,solicitacao_os")
+          .eq("id", values.os_vinculada_id)
+          .eq("frota", selected.frota)
+          .eq("status", "pendente")
+          .eq("solicitacao_os", false)
+          .maybeSingle();
+        if (existingError) throw existingError;
+        if (!existing?.numero_os) throw new Error("A OS selecionada não está mais pendente ou não corresponde à frota solicitada.");
 
-      const isPendingRequest = selected.solicitacao_os === true;
-      const editableFields = {
-        numero_os: number,
-        frota: values.frota.trim(),
-        localizacao: values.localizacao.trim() || null,
-        setor: values.setor.trim() || null,
-        descricao: values.descricao.trim() || null,
-        tecnico_id: technician?.id ?? selected.tecnico_id,
-        tecnico_email: technician?.email ?? selected.tecnico_email,
-        tecnico_nome: technician?.nome ?? selected.tecnico_nome,
-      };
-      const { data: updated, error } = await supabase
-        .from("ordens_servico")
-        .update(isPendingRequest ? {
-          ...editableFields,
-          status: selected.status === "em_andamento" ? "em_andamento" : "pendente",
-          solicitacao_os: false,
-          solicitacao_status: "regularizada",
-          regularizada_em: now,
-          regularizada_por_email: data.email,
-        } : editableFields)
-        .eq("id", selected.id)
-        .select("*")
-        .single();
+        const { error: assignError } = await (supabase as any)
+          .from("ordens_servico")
+          .update({
+            tecnico_id: selected.tecnico_id,
+            tecnico_email: selected.tecnico_email,
+            tecnico_nome: selected.tecnico_nome,
+            updated_at: now,
+          })
+          .eq("id", existing.id)
+          .eq("status", "pendente");
+        if (assignError) throw assignError;
 
-      if (error) throw error;
+        const { error: requestError } = await (supabase as any)
+          .from("ordens_servico")
+          .update({
+            os_vinculada_id: existing.id,
+            numero_os_referencia: existing.numero_os,
+            status: "cancelada",
+            solicitacao_os: false,
+            solicitacao_status: "regularizada",
+            regularizada_em: now,
+            regularizada_por_email: data.email,
+          })
+          .eq("id", selected.id)
+          .eq("solicitacao_os", true);
+        if (requestError) throw requestError;
 
-      await supabase.from("historico_edicoes").insert({
-        os_id: updated.id,
-        acao: isPendingRequest ? "regularizada" : "solicitacao_editada",
-        detalhe: isPendingRequest
-          ? "Solicitação de OS regularizada pelo gestor."
-          : "Dados da solicitação de OS atualizados pelo gestor.",
-        usuario_id: data.user.id,
-        usuario_email: data.email,
-      });
-
-      if (isPendingRequest) {
-        toast.success("OS " + number + " regularizada e enviada ao técnico.");
+        const { error: historyError } = await supabase.from("historico_edicoes").insert({
+          os_id: selected.id,
+          acao: "os_existente_encaminhada",
+          detalhe: `OS ${existing.numero_os} da frota ${selected.frota} vinculada à solicitação e encaminhada para ${selected.tecnico_nome || selected.tecnico_email}. A OS original foi preservada.`,
+          usuario_id: data.user.id,
+          usuario_email: data.email,
+        });
+        if (historyError) throw historyError;
+        toast.success(`OS ${existing.numero_os} encaminhada ao técnico sem duplicar o registro.`);
       } else {
-        toast.success("OS " + number + " atualizada com sucesso.");
+        const number = values.numero_os.trim();
+        if (!number) throw new Error("Informe o número da OS.");
+        const { data: duplicate, error: duplicateError } = await (supabase as any)
+          .from("ordens_servico")
+          .select("id,frota,status")
+          .eq("numero_os", number)
+          .neq("id", selected.id)
+          .limit(1)
+          .maybeSingle();
+        if (duplicateError) throw duplicateError;
+        if (duplicate) {
+          throw new Error(duplicate.frota === selected.frota
+            ? "Esse número já existe para esta frota. Selecione a OS pendente na opção de reaproveitamento."
+            : "Esse número de OS já está cadastrado para outra frota. Confira o número antes de enviar.");
+        }
+
+        const { error: updateError } = await (supabase as any)
+          .from("ordens_servico")
+          .update({
+            numero_os: number,
+            solicitacao_os: false,
+            solicitacao_status: "regularizada",
+            regularizada_em: now,
+            regularizada_por_email: data.email,
+            tecnico_id: selected.tecnico_id,
+            tecnico_email: selected.tecnico_email || technician?.email,
+            tecnico_nome: selected.tecnico_nome || technician?.nome,
+            updated_at: now,
+          })
+          .eq("id", selected.id)
+          .eq("solicitacao_os", true);
+        if (updateError) throw updateError;
+
+        const { error: historyError } = await supabase.from("historico_edicoes").insert({
+          os_id: selected.id,
+          acao: "numero_os_informado",
+          detalhe: `O gestor informou somente o número ${number} e encaminhou a OS ao técnico, preservando os demais dados da solicitação.`,
+          usuario_id: data.user.id,
+          usuario_email: data.email,
+        });
+        if (historyError) throw historyError;
+        toast.success(`Número da OS ${number} enviado ao técnico.`);
       }
       setSelected(null);
       await refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível regularizar a solicitação.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível encaminhar a OS.");
     } finally {
       setSaving(false);
     }
@@ -334,12 +368,9 @@ function SolicitacoesPage() {
 }
 
 type RegisterValues = {
+  mode: "reuse" | "manual";
   numero_os: string;
-  frota: string;
-  localizacao: string;
-  setor: string;
-  descricao: string;
-  tecnico_id: string;
+  os_vinculada_id?: string;
 };
 
 function RequestForm({
@@ -475,7 +506,7 @@ function ManagerRequests({ requests, history, onSelect }: { requests: Ordem[]; h
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold">{request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
+                  <span className="text-sm font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS sem número"}</span>
                   <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
                   {pending && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">Aguardando número da OS</span>}
                 </div>
@@ -508,7 +539,7 @@ function TechnicianRequests({ requests, history }: { requests: Ordem[]; history:
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-bold">{request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
+                <span className="font-bold">{request.numero_os_referencia ? "OS " + request.numero_os_referencia : request.numero_os ? "OS " + request.numero_os : "OS aguardando número"}</span>
                 <RequestStatus status={request.status === "em_andamento" && !request.numero_os ? "em_andamento" : request.solicitacao_status} />
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
@@ -544,92 +575,127 @@ function ManagerRequestDialog({
   saving: boolean;
   onRegister: (values: RegisterValues) => Promise<void>;
 }) {
-  const [numeroOs, setNumeroOs] = useState(request.numero_os || "");
-  const [frota, setFrota] = useState(request.frota);
-  const [localizacao, setLocalizacao] = useState(request.localizacao || "");
-  const [setor, setSetor] = useState(request.setor || "");
-  const [descricao, setDescricao] = useState(request.descricao || "");
-  const [technicianId, setTechnicianId] = useState(request.tecnico_id || technicians[0]?.id || "");
-  const isPendingRequest = request.solicitacao_os === true;
+  const [mode, setMode] = useState<"reuse" | "manual">("reuse");
+  const [numeroOs, setNumeroOs] = useState("");
+  const [existingOrders, setExistingOrders] = useState<Array<{ id: string; numero_os: string; frota: string; status: string }>>([]);
+  const [existingId, setExistingId] = useState("");
+  const [loadingExisting, setLoadingExisting] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setNumeroOs(request.numero_os || "");
-    setFrota(request.frota || "");
-    setLocalizacao(request.localizacao || "");
-    setSetor(request.setor || "");
-    setDescricao(request.descricao || "");
-    setTechnicianId(request.tecnico_id || technicians[0]?.id || "");
-  }, [open, request.id, request.numero_os, request.frota, request.localizacao, request.setor, request.descricao, request.tecnico_id, technicians]);
+    let active = true;
+    setNumeroOs("");
+    setExistingOrders([]);
+    setExistingId("");
+    setMode("reuse");
+    setLoadingExisting(true);
+    void (async () => {
+      const { data, error } = await (supabase as any)
+        .from("ordens_servico")
+        .select("id,numero_os,frota,status")
+        .eq("frota", request.frota)
+        .eq("status", "pendente")
+        .eq("solicitacao_os", false)
+        .not("numero_os", "is", null)
+        .neq("id", request.id)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (!active) return;
+      if (error) {
+        console.warn("Não foi possível localizar OS pendentes da frota:", error);
+        setMode("manual");
+      } else {
+        const found = (data ?? []) as Array<{ id: string; numero_os: string; frota: string; status: string }>;
+        setExistingOrders(found);
+        if (found.length) setExistingId(found[0].id);
+        else setMode("manual");
+      }
+      setLoadingExisting(false);
+    })();
+    return () => { active = false; };
+  }, [open, request.id, request.frota]);
 
-  const technician = technicians.find((item) => item.id === technicianId);
+  const isPendingRequest = request.solicitacao_os === true;
+  const selectedExisting = existingOrders.find((item) => item.id === existingId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isPendingRequest ? "Regularizar solicitação de OS" : "Editar solicitação de OS"}</DialogTitle>
+          <DialogTitle>{isPendingRequest ? "Encaminhar OS ao técnico" : "Detalhes da solicitação"}</DialogTitle>
           <DialogDescription>
-            {isPendingRequest
-              ? "Confira os dados, informe o número oficial e envie a mesma OS ao técnico. Não será criada uma segunda OS."
-              : "Edite os dados desta OS. As alterações serão salvas no mesmo registro, sem duplicar a ordem nem reiniciar seu atendimento."}
+            O sistema procura uma OS pendente da mesma frota. Você pode reaproveitá-la ou informar somente o número, sem alterar os demais dados.
           </DialogDescription>
         </DialogHeader>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!numeroOs.trim() || !frota.trim() || !descricao.trim() || !technicianId) {
-              toast.error("Preencha Número da OS, Frota, serviço e técnico.");
-              return;
-            }
-            void onRegister({
-              numero_os: numeroOs,
-              frota,
-              localizacao,
-              setor,
-              descricao,
-              tecnico_id: technicianId,
-            });
-          }}
-          className="grid gap-4"
-        >
-          <div className="rounded-xl border bg-muted/35 p-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2 font-semibold text-foreground">
-              <UserCircle className="size-4" /> Solicitação de {request.tecnico_nome || request.tecnico_email}
+
+        <div className="rounded-xl border bg-muted/35 p-3 text-sm">
+          <div className="flex items-center gap-2 font-semibold"><UserCircle className="size-4" /> {request.tecnico_nome || request.tecnico_email}</div>
+          <div className="mt-1 text-xs text-muted-foreground">Frota {request.frota} · recebida em {formatDate(request.solicitada_em || request.created_at)}</div>
+          <p className="mt-2">{request.descricao || "Sem descrição informada."}</p>
+        </div>
+
+        {isPendingRequest ? (
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant={mode === "reuse" ? "default" : "outline"} disabled={!existingOrders.length || loadingExisting} onClick={() => setMode("reuse")}>Reaproveitar OS</Button>
+              <Button type="button" variant={mode === "manual" ? "default" : "outline"} onClick={() => setMode("manual")}>Informar número</Button>
             </div>
-            <div className="mt-1">Recebida em {formatDate(request.solicitada_em || request.created_at)}</div>
-          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Número da OS"><Input value={numeroOs} onChange={(event) => setNumeroOs(event.target.value)} required /></Field>
-            <Field label="Frota"><Input value={frota} onChange={(event) => setFrota(event.target.value)} required /></Field>
+            {mode === "reuse" ? (
+              <div className="grid gap-2">
+                {loadingExisting ? (
+                  <p className="text-sm text-muted-foreground">Procurando OS pendentes para a frota {request.frota}...</p>
+                ) : existingOrders.length ? (
+                  <>
+                    <Field label="OS pendente encontrada para esta frota">
+                      <Select value={existingId} onValueChange={setExistingId}>
+                        <SelectTrigger><SelectValue placeholder="Selecione a OS existente" /></SelectTrigger>
+                        <SelectContent>
+                          {existingOrders.map((item) => (
+                            <SelectItem key={item.id} value={item.id}>OS {item.numero_os} · Frota {item.frota}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    {selectedExisting && <p className="text-xs text-muted-foreground">A OS original será atribuída ao técnico. Número, frota, descrição, histórico e demais dados originais serão preservados.</p>}
+                  </>
+                ) : (
+                  <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Nenhuma OS pendente foi encontrada para esta frota. Escolha “Informar número” se o ADM precisar encaminhar somente o número.</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Field label="Número da OS">
+                  <Input value={numeroOs} onChange={(event) => setNumeroOs(event.target.value)} placeholder="Digite somente o número da OS" inputMode="numeric" />
+                </Field>
+                <p className="text-xs text-muted-foreground">Somente o número será preenchido. Os dados da solicitação e o técnico original serão mantidos. Se o número já existir no sistema, use a opção de reaproveitamento para evitar duplicidade.</p>
+              </div>
+            )}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Localização"><Input value={localizacao} onChange={(event) => setLocalizacao(event.target.value)} /></Field>
-            <Field label="Setor"><Input value={setor} onChange={(event) => setSetor(event.target.value)} placeholder="Digite o setor onde o serviço foi realizado" /></Field>
-          </div>
-          <Field label="Serviço realizado"><Textarea value={descricao} onChange={(event) => setDescricao(event.target.value)} required rows={5} /></Field>
-          <Field label={isPendingRequest ? "Enviar para técnico" : "Técnico responsável"}>
-            <Select value={technicianId} onValueChange={setTechnicianId}>
-              <SelectTrigger><SelectValue placeholder="Selecionar técnico" /></SelectTrigger>
-              <SelectContent>
-                {technicians.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>{(person.nome || person.email) + " · " + person.email}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+        ) : (
+          <p className="text-sm text-muted-foreground">Esta solicitação já foi tratada.</p>
+        )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving} className="gap-2"><Send className="size-4" /> {saving ? "Salvando..." : isPendingRequest ? "Inserir OS e enviar" : "Salvar alterações"}</Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          {isPendingRequest && (
+            <Button
+              type="button"
+              disabled={saving || loadingExisting || (mode === "reuse" ? !selectedExisting : !numeroOs.trim())}
+              className="gap-2"
+              onClick={() => void onRegister(mode === "reuse"
+                ? { mode, numero_os: selectedExisting?.numero_os || "", os_vinculada_id: selectedExisting?.id }
+                : { mode, numero_os: numeroOs })}
+            >
+              <Send className="size-4" />
+              {saving ? "Enviando..." : mode === "reuse" ? "Vincular e enviar ao técnico" : "Enviar somente o número"}
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
 function RequestStatus({ status }: { status: string | null },) {
   if (status === "regularizada") {
     return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 className="size-3.5" /> Regularizada</span>;
