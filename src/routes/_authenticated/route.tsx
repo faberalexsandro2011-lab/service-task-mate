@@ -144,14 +144,18 @@ function AuthenticatedLayout() {
           p_nome_dispositivo: getCentralOSDeviceLabel(),
           p_user_agent: getCentralOSUserAgent(),
         });
-        if (error || data?.permitido !== true) {
+        // Falhas transitórias de rede ao voltar do background não encerram a sessão.
+        if (error) return;
+        if (data?.permitido === false) {
           await supabase.auth.signOut();
           window.location.assign("/");
+          return;
         }
         const { data: exclusiveAllowed, error: exclusiveError } = await supabase.rpc("verificar_sessao_dispositivo", {
           p_device_id: getCentralOSDeviceId(),
         });
-        if (exclusiveError || exclusiveAllowed !== true) {
+        if (exclusiveError) return;
+        if (exclusiveAllowed === false) {
           await supabase.auth.signOut();
           window.location.assign("/");
         }
