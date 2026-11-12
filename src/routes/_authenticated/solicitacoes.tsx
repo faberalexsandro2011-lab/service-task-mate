@@ -225,6 +225,14 @@ function SolicitacoesPage() {
           usuario_email: data.email,
         });
         if (historyError) throw historyError;
+        const { error: originalHistoryError } = await supabase.from("historico_edicoes").insert({
+          os_id: existing.id,
+          acao: "os_reaproveitada_encaminhada",
+          detalhe: `OS encaminhada ao técnico ${selected.tecnico_nome || selected.tecnico_email} por meio da solicitação ${selected.id}. Número e dados originais preservados.`,
+          usuario_id: data.user.id,
+          usuario_email: data.email,
+        });
+        if (originalHistoryError) throw originalHistoryError;
         toast.success(`OS ${existing.numero_os} encaminhada ao técnico sem duplicar o registro.`);
       } else {
         const number = values.numero_os.trim();
