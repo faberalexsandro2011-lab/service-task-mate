@@ -65,6 +65,8 @@ export type Database = {
           localizacao: string | null
           notas_fecho: string | null
           numero_os: string
+          numero_os_referencia: string | null
+          os_vinculada_id: string | null
           pecas_utilizadas: string | null
           status: string
           sequencia: number | null
@@ -87,6 +89,8 @@ export type Database = {
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os: string
+          numero_os_referencia?: string | null
+          os_vinculada_id?: string | null
           pecas_utilizadas?: string | null
           status?: string
           sequencia?: number | null
@@ -109,6 +113,8 @@ export type Database = {
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os?: string
+          numero_os_referencia?: string | null
+          os_vinculada_id?: string | null
           pecas_utilizadas?: string | null
           status?: string
           sequencia?: number | null
