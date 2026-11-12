@@ -563,12 +563,15 @@ function TechnicianPage() {
 
         const receivedNewOrder = payload.eventType === "INSERT" || (assignedToTechnician && previous.tecnico_id !== actorId && previousEmail !== actorEmail);
         const requestReceivedOfficialNumber = assignedToTechnician && !String(previous.numero_os || "").trim() && !!String(next.numero_os || "").trim() && (next.solicitacao_status === "regularizada" || previous.solicitacao_os === true);
+        const requestReceivedExistingOrder = assignedToTechnician && !!next.os_vinculada_id && previous.os_vinculada_id !== next.os_vinculada_id;
 
-        if (receivedNewOrder || requestReceivedOfficialNumber) {
-          const title = requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
-          const body = requestReceivedOfficialNumber
-            ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
-            : "Uma nova ordem de serviço foi enviada para você.";
+        if (receivedNewOrder || requestReceivedOfficialNumber || requestReceivedExistingOrder) {
+          const title = requestReceivedExistingOrder ? "OS existente encaminhada" : requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
+          const body = requestReceivedExistingOrder
+            ? "A OS " + String(next.numero_os_referencia || "já existente") + " foi vinculada e está disponível na sua fila."
+            : requestReceivedOfficialNumber
+              ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
+              : "Uma nova ordem de serviço foi enviada para você.";
           toast.success(body);
           try { playFieldAlert(); } catch {}
           if (navigator.vibrate) navigator.vibrate([180, 100, 180]);
