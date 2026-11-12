@@ -65,6 +65,12 @@ export type Database = {
           localizacao: string | null
           notas_fecho: string | null
           numero_os: string
+          numero_os_referencia: string | null
+          solicitacao_os: boolean | null
+          solicitacao_status: string | null
+          solicitada_em: string | null
+          regularizada_em: string | null
+          regularizada_por_email: string | null
           pecas_utilizadas: string | null
           status: string
           sequencia: number | null
@@ -87,6 +93,12 @@ export type Database = {
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os: string
+          numero_os_referencia?: string | null
+          solicitacao_os?: boolean | null
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
           pecas_utilizadas?: string | null
           status?: string
           sequencia?: number | null
@@ -109,6 +121,12 @@ export type Database = {
           localizacao?: string | null
           notas_fecho?: string | null
           numero_os?: string
+          numero_os_referencia?: string | null
+          solicitacao_os?: boolean | null
+          solicitacao_status?: string | null
+          solicitada_em?: string | null
+          regularizada_em?: string | null
+          regularizada_por_email?: string | null
           pecas_utilizadas?: string | null
           status?: string
           sequencia?: number | null
