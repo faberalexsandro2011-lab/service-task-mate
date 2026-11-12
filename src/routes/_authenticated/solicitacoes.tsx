@@ -55,13 +55,14 @@ async function getPageData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: manager, error: managerError } = await supabase.rpc("has_role", {
-    _user_id: authData.user.id,
-    _role: "gestor",
-  });
+  const [{ data: manager, error: managerError }, { data: osManager, error: osManagerError }] = await Promise.all([
+    supabase.rpc("has_role", { _user_id: authData.user.id, _role: "gestor" }),
+    supabase.rpc("has_role", { _user_id: authData.user.id, _role: "gestor_os" }),
+  ]);
   if (managerError) throw managerError;
+  if (osManagerError) throw osManagerError;
 
-  const isManager = manager === true;
+  const isManager = manager === true || osManager === true;
   const email = (authData.user.email ?? "").trim().toLowerCase();
 
   const requestsQuery = supabase
