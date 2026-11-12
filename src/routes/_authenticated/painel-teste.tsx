@@ -1223,6 +1223,7 @@ function PainelTeste() {
                   setSolicitacaoEmEdicao(null); await carregar();
                 })()} className="rounded-lg bg-lime-300 px-4 py-2 text-sm font-bold text-emerald-950 disabled:opacity-50">{salvandoOS ? "Encaminhando..." : "Informar número e enviar ao técnico"}</button><button type="button" onClick={() => setSolicitacaoEmEdicao(null)} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm">Cancelar</button></div>
               </div>}
+            </article>;
           })}
         </section>}
         {aba === "gestao_os" && modoGestao !== "solicitacoes" && <>
