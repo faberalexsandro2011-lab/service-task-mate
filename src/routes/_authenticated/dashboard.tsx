@@ -95,27 +95,69 @@ async function getDashboardData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const [ordersResult, profileResult, roleResult] = await Promise.all([
+  const [ordersResult, membershipResult] = await Promise.all([
     supabase.from("ordens_servico").select("*").order("created_at", { ascending: false }),
-    supabase.from("profiles").select("*").order("nome", { ascending: true }),
-    supabase.from("user_roles").select("user_id, role"),
+    (supabase as any).from("usuarios_unidades")
+      .select("perfil, unidade_id, ativo")
+      .eq("user_id", authData.user.id)
+      .maybeSingle(),
   ]);
   if (ordersResult.error) throw ordersResult.error;
-  if (profileResult.error) throw profileResult.error;
-  if (roleResult.error) throw roleResult.error;
 
-  const role = roleResult.data.find((item) => item.user_id === authData.user.id)?.role ?? "tecnico";
-  const technicians = profileResult.data
-    .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
-    .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
-  const meRaw = profileResult.data.find((profile) => profile.id === authData.user.id);
-  const me = meRaw && meRaw.nome?.trim().toLowerCase() === "alex" ? { ...meRaw, nome: "Alexsandro Faber" } : meRaw;
-  const team = profileResult.data
-    .map((rawProfile) => {
-      const profile = rawProfile.nome?.trim().toLowerCase() === "alex" ? { ...rawProfile, nome: "Alexsandro Faber" } : rawProfile;
-      return { profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" };
-    })
-    .filter((item) => item.profile.id !== authData.user.id);
+  let role: string;
+  let me: Perfil | null;
+  let technicians: Perfil[];
+  let team: TeamMember[];
+
+  if (!membershipResult.error && membershipResult.data?.ativo) {
+    // O ambiente multiunidade usa usuarios_unidades; não depende das tabelas
+    // profiles/user_roles, que não existem nesse banco.
+    role = membershipResult.data.perfil;
+    const metadataName = String(
+      authData.user.user_metadata?.["nome"] ??
+      authData.user.user_metadata?.["name"] ??
+      ""
+    ).trim();
+    me = {
+      id: authData.user.id,
+      nome: metadataName || authData.user.email || "Usuário",
+      email: authData.user.email ?? "",
+    } as Perfil;
+
+    // A lista local é derivada apenas das OS visíveis pela RLS da unidade.
+    const assigned = new Map<string, Perfil>();
+    for (const order of ordersResult.data ?? []) {
+      if (!order.tecnico_id) continue;
+      assigned.set(order.tecnico_id, {
+        id: order.tecnico_id,
+        nome: order.tecnico_nome || order.tecnico_email || "Técnico",
+        email: order.tecnico_email || "",
+      } as Perfil);
+    }
+    technicians = [...assigned.values()];
+    team = [];
+  } else {
+    // Compatibilidade com instalações legadas que ainda usam profiles/user_roles.
+    const [profileResult, roleResult] = await Promise.all([
+      supabase.from("profiles").select("*").order("nome", { ascending: true }),
+      supabase.from("user_roles").select("user_id, role"),
+    ]);
+    if (profileResult.error) throw profileResult.error;
+    if (roleResult.error) throw roleResult.error;
+
+    role = roleResult.data.find((item) => item.user_id === authData.user.id)?.role ?? "tecnico";
+    technicians = profileResult.data
+      .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
+      .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
+    const meRaw = profileResult.data.find((profile) => profile.id === authData.user.id);
+    me = meRaw && meRaw.nome?.trim().toLowerCase() === "alex" ? { ...meRaw, nome: "Alexsandro Faber" } : meRaw;
+    team = profileResult.data
+      .map((rawProfile) => {
+        const profile = rawProfile.nome?.trim().toLowerCase() === "alex" ? { ...rawProfile, nome: "Alexsandro Faber" } : rawProfile;
+        return { profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" };
+      })
+      .filter((item) => item.profile.id !== authData.user.id);
+  }
 
   return {
     user: authData.user,
@@ -139,7 +181,7 @@ const STATUS_LABEL: Record<Status, string> = {
   concluida: "Finalizada",
   cancelada: "Cancelada",
 };
-type Actor = { id: string; email: string; name: string; isManager: boolean };
+type Actor = { id: string; email: string; name: string; isManager: boolean; role: string };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" | "visualizador" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
@@ -311,7 +353,7 @@ function Dashboard() {
   }, [queryClient]);
 
   const data = dashboardQuery.data;
-  const isManager = data?.role === "gestor";
+  const isManager = ["gestor", "gestor_central", "admin_unidade"].includes(data?.role ?? "");
   const userId = data?.user.id;
   const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
@@ -1182,7 +1224,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
-  const canClose = actor.isManager && status === "concluida" && !isClosed;
+  const canClose = actor.role === "admin_unidade" && status === "concluida" && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
@@ -1285,27 +1327,21 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   }
 
   async function closeOrder() {
-    if (!actor.isManager || status !== "concluida" || isClosed) return;
-    if (!confirm(`Fechar oficialmente a OS ${order.numero_os}? Depois disso, o técnico não poderá mais editá-la.`)) return;
+    if (actor.role !== "admin_unidade" || status !== "concluida" || isClosed) return;
+    if (!confirm(`Confirmar o fechamento administrativo da OS ${order.numero_os}? O sistema registrará seu usuário e horário.`)) return;
     setBusy(true);
-    const closedAt = new Date().toISOString();
-    const { data: closedRows, error } = await (supabase as any).from("ordens_servico").update({
-      fechada_em: closedAt,
-      fechada_por_email: actor.email,
-    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null).select("id");
-    if (error || !closedRows?.length) {
-      setBusy(false);
-      toast.error(error ? friendlyError(error, "Não foi possível fechar a OS.") : "Esta OS já foi fechada ou alterada. Atualize o painel.");
+    const { error } = await (supabase as any).rpc("fechar_os_pelo_adm", {
+      p_os_id: order.id,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(friendlyError(error, error.message || "Não foi possível fechar a OS."));
       await onChanged();
       return;
     }
-    try {
-      await logHistory(order.id, actor, "fechada", `OS fechada oficialmente por ${actor.email}`);
-    } catch (historyError) {
-      console.error("[OS] Falha ao registrar fechamento no histórico:", historyError);
-    }
-    setBusy(false);
-    toast.success(`OS ${order.numero_os} fechada. O técnico não poderá mais editá-la.`);
+    // A função do banco grava atomicamente fechada_em, fechada_por_id,
+    // fechada_por_email e o evento fechada_pelo_adm no histórico.
+    toast.success(`OS ${order.numero_os} fechada pelo ADM da unidade.`);
     await onChanged();
   }
 
@@ -1359,7 +1395,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       )}
       {canClose && (
         <Button size="sm" className="h-9 w-full min-w-0 border-[#EA580C] bg-[#EA580C] px-2 text-white hover:bg-[#C2410C]" disabled={busy} onClick={(event) => { event.stopPropagation(); void closeOrder(); }}>
-          <CheckCircle2 /> Fechar no PIMS
+          <CheckCircle2 /> Fechar como ADM
         </Button>
       )}
       {canFinish && (
