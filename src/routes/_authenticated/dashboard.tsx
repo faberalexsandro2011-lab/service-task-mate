@@ -536,6 +536,7 @@ function Dashboard() {
     email: data.user.email ?? "",
     name: data.me?.nome?.trim().toLowerCase() === "alex" ? "Alexsandro Faber" : (data.me?.nome ?? data.user.email ?? ""),
     isManager,
+    role: data.role,
   };
   const connected = online && live;
 
