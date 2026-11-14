@@ -1340,7 +1340,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       await onChanged();
       return;
     }
-    // A função do banco grava atomicamente fechada_em, fechada_por_id,
+    // A RPC valida o vínculo de unidade e grava atomicamente fechada_em, fechada_por_id,
     // fechada_por_email e o evento fechada_pelo_adm no histórico.
     toast.success(`OS ${order.numero_os} fechada pelo ADM da unidade.`);
     await onChanged();
