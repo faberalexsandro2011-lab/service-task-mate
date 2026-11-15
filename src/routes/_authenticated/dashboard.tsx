@@ -1223,9 +1223,9 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
   const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const canFinish = status === "em_andamento" && actor.role !== "admin_unidade" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
-  const canClose = actor.role === "admin_unidade" && status === "concluida" && !isClosed;
+  const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
@@ -1329,7 +1329,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
 
   async function closeOrder() {
     if (actor.role !== "admin_unidade" || status !== "concluida" || isClosed) return;
-    if (!confirm(`Confirmar o fechamento administrativo da OS ${order.numero_os}? O sistema registrará seu usuário e horário.`)) return;
+    if (!confirm(`Confirmar a finalização administrativa da OS ${order.numero_os}? O sistema concluirá a OS e registrará seu usuário e horário.`)) return;
     setBusy(true);
     const { error } = await (supabase as any).rpc("fechar_os_pelo_adm", {
       p_os_id: order.id,
@@ -1342,7 +1342,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
     }
     // A RPC valida o vínculo de unidade e grava atomicamente fechada_em, fechada_por_id,
     // fechada_por_email e o evento fechada_pelo_adm no histórico.
-    toast.success(`OS ${order.numero_os} fechada pelo ADM da unidade.`);
+    toast.success(`OS ${order.numero_os} finalizada pelo ADM da unidade.`);
     await onChanged();
   }
 
@@ -1396,7 +1396,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
       )}
       {canClose && (
         <Button size="sm" className="h-9 w-full min-w-0 border-[#EA580C] bg-[#EA580C] px-2 text-white hover:bg-[#C2410C]" disabled={busy} onClick={(event) => { event.stopPropagation(); void closeOrder(); }}>
-          <CheckCircle2 /> Fechar como ADM
+          <CheckCircle2 /> {status === "em_andamento" ? "Finalizar como ADM" : "Fechar como ADM"}
         </Button>
       )}
       {canFinish && (
