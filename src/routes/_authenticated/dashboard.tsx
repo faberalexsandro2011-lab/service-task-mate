@@ -1304,6 +1304,18 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
 
   async function start() {
     setBusy(true);
+    if (actor.role === "admin_unidade") {
+      const { error } = await (supabase as any).rpc("iniciar_os_pelo_adm", { p_os_id: order.id });
+      setBusy(false);
+      if (error) {
+        toast.error(friendlyError(error, error.message || "Não foi possível iniciar a OS como ADM."));
+        await onChanged();
+        return;
+      }
+      toast.success(`OS ${order.numero_os} iniciada pelo ADM da unidade.`);
+      await onChanged();
+      return;
+    }
     const { data, error } = await supabase
       .from("ordens_servico")
       .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
@@ -1524,11 +1536,9 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          {!actor.isManager && (
-            <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
-              {actionButtons}
-            </div>
-          )}
+          <div className={actor.isManager ? "col-span-2 w-full lg:col-span-1 lg:col-start-9" : "ml-auto w-full sm:w-auto sm:min-w-[160px]"} onClick={(event) => event.stopPropagation()}>
+            {actionButtons}
+          </div>
         </div>
       </article>
 
