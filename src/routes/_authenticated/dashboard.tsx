@@ -1222,7 +1222,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
+  const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || (!actor.isManager && (!order.tecnico_id || isMine)));
   const canFinish = status === "em_andamento" && actor.role !== "admin_unidade" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
@@ -1328,8 +1328,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   }
 
   async function closeOrder() {
-    if (actor.role !== "admin_unidade" || status !== "concluida" || isClosed) return;
-    if (!confirm(`Confirmar a finalização administrativa da OS ${order.numero_os}? O sistema concluirá a OS e registrará seu usuário e horário.`)) return;
+    if (actor.role !== "admin_unidade" || (status !== "em_andamento" && status !== "concluida") || isClosed) return;
+    if (!confirm(`Confirmar a finalização administrativa da OS ${order.numero_os}? O sistema registrará seu usuário e horário.`)) return;
     setBusy(true);
     const { error } = await (supabase as any).rpc("fechar_os_pelo_adm", {
       p_os_id: order.id,
