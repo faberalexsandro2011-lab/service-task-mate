@@ -1179,7 +1179,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
+  const canStart = status === "pendente" && (actor.isManager || isPrimaryAdmin || (!order.tecnico_id || isMine));
   const canFinish = status === "em_andamento" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.isManager && status === "concluida" && !isClosed;
@@ -1261,9 +1261,12 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
 
   async function start() {
     setBusy(true);
+    const startPayload = actor.isManager
+      ? { status: "em_andamento", data_inicio: new Date().toISOString() }
+      : { status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name };
     const { data, error } = await supabase
       .from("ordens_servico")
-      .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
+      .update(startPayload)
       .eq("id", order.id)
       .eq("status", "pendente")
       .select("id");
@@ -1487,11 +1490,9 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          {!actor.isManager && (
-            <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
-              {actionButtons}
-            </div>
-          )}
+          <div className={actor.isManager ? "ml-auto w-full sm:w-auto sm:min-w-[220px]" : "ml-auto w-full sm:w-auto sm:min-w-[160px]"} onClick={(event) => event.stopPropagation()}>
+            {actionButtons}
+          </div>
         </div>
       </article>
 
