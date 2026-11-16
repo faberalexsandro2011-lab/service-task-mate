@@ -34,6 +34,8 @@ const tiposComponente = [
 
 function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onCaptureRef = useRef(onCapture);
+  onCaptureRef.current = onCapture;
   const [error, setError] = useState("");
   const [supported, setSupported] = useState(true);
   const [ocrBusy, setOcrBusy] = useState(false);
@@ -69,7 +71,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
             try {
               const codes = await detector.detect(videoRef.current);
               const value = codes?.[0]?.rawValue?.trim();
-              if (value) { active = false; onCapture(value); return; }
+              if (value) { active = false; onCaptureRef.current(value); return; }
             } catch { /* tenta novamente no próximo quadro */ }
           }
           if (active) frame = requestAnimationFrame(scan);
@@ -81,7 +83,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
     }
     void start();
     return () => { active = false; cancelAnimationFrame(frame); stream?.getTracks().forEach(track => track.stop()); };
-  }, [onCapture]);
+  }, []);
 
   async function readPrintedText() {
     const video = videoRef.current;
