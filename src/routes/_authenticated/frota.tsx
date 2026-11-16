@@ -35,6 +35,7 @@ const tiposComponente = [
 function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
+  const [isCentralManager, setIsCentralManager] = useState(false);
   const [fleets, setFleets] = useState<Frota[]>([]);
   const [components, setComponents] = useState<Componente[]>([]);
   const [installations, setInstallations] = useState<Instalacao[]>([]);
@@ -51,6 +52,14 @@ function CentralFrotaPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("Sessão não autenticada.");
+      const { data: memberships, error: membershipError } = await (supabase as any)
+        .from("usuarios_unidades").select("unidade_id,perfil").eq("user_id", authData.user.id).eq("ativo", true);
+      if (membershipError) throw membershipError;
+      const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
+      setIsCentralManager(central);
       const [unitResult, fleetResult, componentResult, installationResult] = await Promise.all([
         (supabase as any).from("unidades").select("id,nome").order("nome"),
         (supabase as any).from("frotas").select("*").order("numero"),
@@ -61,12 +70,14 @@ function CentralFrotaPage() {
       ]);
       const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error;
       if (failure) throw failure;
-      setUnits(unitResult.data ?? []);
+      const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
+      const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || memberUnitIds.has(unit.id));
+      setUnits(allowedUnits);
       setFleets(fleetResult.data ?? []);
       setComponents(componentResult.data ?? []);
       setInstallations(installationResult.data ?? []);
-      setFleetForm(current => ({ ...current, unidade_id: current.unidade_id || unitResult.data?.[0]?.id || "" }));
-      setComponentForm(current => ({ ...current, unidade_id: current.unidade_id || unitResult.data?.[0]?.id || "" }));
+      setFleetForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
+      setComponentForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
     } catch (error) {
       toast.error("Não foi possível carregar o Central Frota. Verifique se a estrutura de teste foi aplicada.");
       console.error("[Central Frota]", error);
@@ -243,7 +254,7 @@ function CentralFrotaPage() {
         {tab === "frotas" && !selectedFleet && <section className="space-y-4">
           <form onSubmit={saveFleet} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-6">
             <h2 className="font-semibold sm:col-span-6">Cadastrar frota</h2>
-            <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={fleetForm.unidade_id} onChange={e => setFleetForm({ ...fleetForm, unidade_id: e.target.value })} required>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={fleetForm.unidade_id} onChange={e => setFleetForm({ ...fleetForm, unidade_id: e.target.value })} required disabled={!isCentralManager && units.length <= 1}>
               <option value="">Unidade</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}
             </select>
             <Input placeholder="Número da frota" value={fleetForm.numero} onChange={e => setFleetForm({ ...fleetForm, numero: e.target.value })} required />
@@ -262,7 +273,7 @@ function CentralFrotaPage() {
         {tab === "componentes" && !selectedComponent && <section className="space-y-4">
           <form onSubmit={saveComponent} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-6">
             <h2 className="font-semibold sm:col-span-6">Cadastrar componente eletrônico</h2>
-            <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={componentForm.unidade_id} onChange={e => setComponentForm({ ...componentForm, unidade_id: e.target.value })} required>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={componentForm.unidade_id} onChange={e => setComponentForm({ ...componentForm, unidade_id: e.target.value })} required disabled={!isCentralManager && units.length <= 1}>
               <option value="">Unidade</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}
             </select>
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentForm.tipo} onChange={e => setComponentForm({ ...componentForm, tipo: e.target.value })}>{tiposComponente.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>
