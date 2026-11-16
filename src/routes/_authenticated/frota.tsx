@@ -109,7 +109,8 @@ function CentralFrotaPage() {
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
   const [removal, setRemoval] = useState({ id: "", motivo: "", status: "disponivel" });
   const [editingFleet, setEditingFleet] = useState(false);
-  const [editingComponent, setEditingComponent] = useState(false);\n  const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
+  const [editingComponent, setEditingComponent] = useState(false);
+  const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
   const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
 
