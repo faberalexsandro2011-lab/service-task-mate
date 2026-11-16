@@ -305,7 +305,7 @@ function CentralFrotaPage() {
       setFleetForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
       setComponentForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
     } catch (error) {
-      toast.error("Não foi possível carregar o Central Frota. Verifique se a estrutura de teste foi aplicada.");
+      toast.error("Não foi possível carregar o Central Frota. Verifique sua conexão e suas permissões de acesso.");
       console.error("[Central Frota]", error);
     } finally {
       setLoading(false);
@@ -479,7 +479,7 @@ function CentralFrotaPage() {
             <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Histórico da frota</div>
             {fleetInstallations.map(item => <div key={item.id} className="space-y-1 border-b px-4 py-3 text-sm last:border-0">
               <p className="font-medium">{item.componentes_frota?.numero_serie ?? "Componente"} · {item.retirado_em ? "Instalação encerrada" : "Em uso"}</p>
-              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_nome || item.instalado_por_email?.split("@")[0] || "Usuário autenticado"}</p>
+              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_nome || "Usuário autenticado"}</p>
               {item.retirado_em && <p className="text-muted-foreground">Retirado em {new Date(item.retirado_em).toLocaleString("pt-BR")} · {item.motivo_retirada || "Motivo não informado"}</p>}
             </div>)}
           </div>
@@ -519,7 +519,7 @@ function CentralFrotaPage() {
             <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Histórico deste componente</div>
             {componentInstallations.map(item => <div key={item.id} className="space-y-1 border-b px-4 py-3 text-sm last:border-0">
               <button type="button" onClick={() => { const f = fleets.find(x => x.id === item.frota_id); if (f) { setSelectedFleetId(f.id); setTab("frotas"); } }} className="font-semibold hover:text-primary">Frota {item.frotas?.numero ?? "—"} ›</button>
-              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_nome || item.instalado_por_email?.split("@")[0] || "Usuário autenticado"}</p>
+              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_nome || "Usuário autenticado"}</p>
               {item.retirado_em && <p className="text-muted-foreground">Retirado em {new Date(item.retirado_em).toLocaleString("pt-BR")} · {item.motivo_retirada || "Motivo não informado"}</p>}
             </div>)}
             {!componentInstallations.length && <p className="p-5 text-sm text-muted-foreground">Este componente ainda não possui histórico de instalação.</p>}
@@ -595,8 +595,8 @@ function CentralFrotaPage() {
           <div className="bg-muted/60 px-4 py-3 text-sm font-semibold">Histórico de instalações, retiradas e substituições</div>
           {installations.map(item => <article key={item.id} className="space-y-1 border-t px-4 py-3 text-sm">
             <p className="font-semibold">Frota {item.frotas?.numero ?? "—"} · Série {item.componentes_frota?.numero_serie ?? "—"}</p>
-            <p className="text-muted-foreground">Instalado: {new Date(item.instalado_em).toLocaleString("pt-BR")} · Responsável: {item.instalado_por_nome || item.instalado_por_email?.split("@")[0] || "Usuário autenticado"}</p>
-            {item.retirado_em && <p className="text-muted-foreground">Retirado: {new Date(item.retirado_em).toLocaleString("pt-BR")} · Responsável: {item.retirado_por_nome || item.retirado_por_email?.split("@")[0] || "Usuário autenticado"} · Motivo: {item.motivo_retirada}</p>}
+            <p className="text-muted-foreground">Instalado: {new Date(item.instalado_em).toLocaleString("pt-BR")} · Responsável: {item.instalado_por_nome || "Usuário autenticado"}</p>
+            {item.retirado_em && <p className="text-muted-foreground">Retirado: {new Date(item.retirado_em).toLocaleString("pt-BR")} · Responsável: {item.retirado_por_nome || "Usuário autenticado"} · Motivo: {item.motivo_retirada}</p>}
           </article>)}
           {!installations.length && <p className="p-6 text-center text-sm text-muted-foreground">O histórico aparecerá aqui após a primeira movimentação.</p>}
         </section>}
