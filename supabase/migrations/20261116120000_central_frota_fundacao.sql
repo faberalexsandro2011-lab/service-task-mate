@@ -134,8 +134,8 @@ create policy central_frota_instalacoes_insert on public.instalacoes_frota
 for insert to authenticated with check (
   instalado_por = auth.uid()
   and public.central_frota_tem_acesso(unidade_id, true)
-  and exists (select 1 from public.frotas f where f.id = frota_id and f.unidade_id = unidade_id)
-  and exists (select 1 from public.componentes_frota c where c.id = componente_id and c.unidade_id = unidade_id)
+  and exists (select 1 from public.frotas f where f.id = instalacoes_frota.frota_id and f.unidade_id = instalacoes_frota.unidade_id)
+  and exists (select 1 from public.componentes_frota c where c.id = instalacoes_frota.componente_id and c.unidade_id = instalacoes_frota.unidade_id)
 );
 drop policy if exists central_frota_instalacoes_update on public.instalacoes_frota;
 create policy central_frota_instalacoes_update on public.instalacoes_frota
