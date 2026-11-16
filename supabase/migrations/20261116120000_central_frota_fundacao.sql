@@ -70,7 +70,7 @@ security invoker
 set search_path = public, auth
 as $$
   select
-    public.has_role(auth.uid(), 'gestor'::public.app_role)
+    public.usuario_e_gestor_operacional()
     or exists (
       select 1
       from public.usuarios_unidades uu
