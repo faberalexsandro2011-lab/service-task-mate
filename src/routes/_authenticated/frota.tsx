@@ -50,16 +50,40 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
       setError("A câmera ainda não está pronta.");
       return;
     }
+    const viewport = video.parentElement;
+    const frame = viewport?.querySelector<HTMLElement>("[data-camera-frame]");
+    if (!viewport || !frame) {
+      setError("Não foi possível localizar a área de enquadramento.");
+      return;
+    }
+
+    // Recorta a mesma região visível dentro da moldura, compensando o object-fit: cover.
+    const viewportRect = viewport.getBoundingClientRect();
+    const frameRect = frame.getBoundingClientRect();
+    const scale = Math.max(viewportRect.width / video.videoWidth, viewportRect.height / video.videoHeight);
+    const renderedWidth = video.videoWidth * scale;
+    const renderedHeight = video.videoHeight * scale;
+    const offsetX = (renderedWidth - viewportRect.width) / 2;
+    const offsetY = (renderedHeight - viewportRect.height) / 2;
+    const sourceX = Math.max(0, (frameRect.left - viewportRect.left + offsetX) / scale);
+    const sourceY = Math.max(0, (frameRect.top - viewportRect.top + offsetY) / scale);
+    const sourceWidth = Math.min(video.videoWidth - sourceX, frameRect.width / scale);
+    const sourceHeight = Math.min(video.videoHeight - sourceY, frameRect.height / scale);
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      setError("A área enquadrada está inválida. Ajuste a câmera e tente novamente.");
+      return;
+    }
+
+    const outputScale = Math.min(1, 1600 / Math.max(sourceWidth, sourceHeight));
     const canvas = document.createElement("canvas");
-    const scale = Math.min(1, 1400 / video.videoWidth);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.width = Math.max(1, Math.round(sourceWidth * outputScale));
+    canvas.height = Math.max(1, Math.round(sourceHeight * outputScale));
     const context = canvas.getContext("2d");
     if (!context) {
       setError("Não foi possível capturar a foto.");
       return;
     }
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.drawImage(video, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
     setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.9));
     setOcrCandidate("");
     setOcrText("");
@@ -173,7 +197,12 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Fechar câmera"><X className="size-5" /></Button>
         </div>
         {error && <div className="rounded-xl bg-muted p-3 text-sm text-destructive">{error}</div>}
-        <div className="overflow-hidden rounded-xl bg-black"><video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" /></div>
+        <div className="relative mx-auto aspect-square w-full max-h-[50vh] overflow-hidden rounded-xl bg-black">
+          <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-[8%] rounded-lg border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" data-camera-frame>
+            <span className="absolute -top-6 left-0 rounded bg-black/60 px-2 py-1 text-[11px] font-medium text-white">Enquadre o número aqui</span>
+          </div>
+        </div>
         {!supported && <p className="text-xs text-muted-foreground">Leitura automática de códigos não disponível neste navegador. Você ainda pode fotografar o texto com OCR.</p>}
         <Button type="button" variant="outline" className="w-full" onClick={capturePhoto} disabled={ocrBusy}>
           <Camera className="mr-2 size-4" />{capturedPhoto ? "Tirar outra foto" : "Tirar foto da etiqueta"}
