@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Trash2,
   Tractor,
+  Truck,
   Wrench,
   Ban,
   History,
@@ -551,6 +552,9 @@ function Dashboard() {
               <button type="button" onClick={() => void navigate({ to: "/historico" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                 <History className="size-4" /> Histórico
               </button>
+              <button type="button" onClick={() => void navigate({ to: "/frota" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                <Truck className="size-4" /> Central Frota
+              </button>
             </>
           )}
         </nav>
@@ -565,6 +569,9 @@ function Dashboard() {
               <>
                 <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
                   <BarChart3 />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/frota" })} title="Central Frota">
+                  <Truck />
                 </Button>
               </>
             )}
