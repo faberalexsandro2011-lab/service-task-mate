@@ -7,15 +7,15 @@ alter table public.instalacoes_frota
 
 -- Recupera os nomes dos registros já existentes.
 update public.instalacoes_frota i
-set instalado_por_nome = coalesce(nullif(trim(p.nome), ''), nullif(split_part(coalesce(i.instalado_por_email, ''), '@', 1), ''))
-from public.profiles p
-where p.id = i.instalado_por
+set instalado_por_nome = coalesce(nullif(trim(u.raw_user_meta_data ->> 'nome'), ''), nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''), nullif(split_part(coalesce(i.instalado_por_email, ''), '@', 1), ''))
+from auth.users u
+where u.id = i.instalado_por
   and nullif(trim(i.instalado_por_nome), '') is null;
 
 update public.instalacoes_frota i
-set retirado_por_nome = coalesce(nullif(trim(p.nome), ''), nullif(split_part(coalesce(i.retirado_por_email, ''), '@', 1), ''))
-from public.profiles p
-where p.id = i.retirado_por
+set retirado_por_nome = coalesce(nullif(trim(u.raw_user_meta_data ->> 'nome'), ''), nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''), nullif(split_part(coalesce(i.retirado_por_email, ''), '@', 1), ''))
+from auth.users u
+where u.id = i.retirado_por
   and nullif(trim(i.retirado_por_nome), '') is null;
 
 create or replace function public.central_frota_auditar_instalacao()
@@ -29,10 +29,8 @@ begin
     new.instalado_em := now();
     new.instalado_por := auth.uid();
     new.instalado_por_email := coalesce(auth.jwt() ->> 'email', '');
-    select coalesce(nullif(trim(p.nome), ''), nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), ''))
-      into new.instalado_por_nome
-    from public.profiles p
-    where p.id = auth.uid();
+    select coalesce(nullif(trim(auth.jwt() -> 'user_metadata' ->> 'nome'), ''), nullif(trim(auth.jwt() -> 'user_metadata' ->> 'full_name'), ''), nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), ''))
+      into new.instalado_por_nome;
     if new.instalado_por_nome is null then
       new.instalado_por_nome := nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), '');
     end if;
@@ -67,10 +65,8 @@ begin
     new.retirado_em := now();
     new.retirado_por := auth.uid();
     new.retirado_por_email := coalesce(auth.jwt() ->> 'email', '');
-    select coalesce(nullif(trim(p.nome), ''), nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), ''))
-      into new.retirado_por_nome
-    from public.profiles p
-    where p.id = auth.uid();
+    select coalesce(nullif(trim(auth.jwt() -> 'user_metadata' ->> 'nome'), ''), nullif(trim(auth.jwt() -> 'user_metadata' ->> 'full_name'), ''), nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), ''))
+      into new.retirado_por_nome;
     if new.retirado_por_nome is null then
       new.retirado_por_nome := nullif(split_part(coalesce(auth.jwt() ->> 'email', ''), '@', 1), '');
     end if;
