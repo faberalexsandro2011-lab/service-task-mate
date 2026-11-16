@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, CarFront, History, Plus, RefreshCw, Search, Truck, Wrench } from "lucide-react";
+import { ArrowLeft, Boxes, Camera, CarFront, History, Plus, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,66 @@ const tiposComponente = [
   ["tela_solinftec", "Tela Solinftec"], ["rastreador", "Rastreador"], ["radio", "Rádio"], ["outro", "Outro"],
 ] as const;
 
+function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
+  const [supported, setSupported] = useState(true);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let active = true;
+    let frame = 0;
+    let detector: any;
+    async function start() {
+      try {
+        const Detector = (window as any).BarcodeDetector;
+        if (!Detector) {
+          setSupported(false);
+          setError("A leitura automática de códigos não é compatível com este navegador. Tente usar o Chrome atualizado.");
+          return;
+        }
+        detector = new Detector({ formats: ["qr_code", "code_128", "code_39", "code_93", "codabar", "ean_13", "ean_8", "itf", "upc_a", "upc_e", "data_matrix", "pdf417"] });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (!active) { stream.getTracks().forEach(track => track.stop()); return; }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        const scan = async () => {
+          if (!active || !videoRef.current || videoRef.current.readyState < 2) {
+            if (active) frame = requestAnimationFrame(scan);
+            return;
+          }
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const value = codes?.[0]?.rawValue?.trim();
+            if (value) { active = false; onCapture(value); return; }
+          } catch { /* tenta novamente no próximo quadro */ }
+          if (active) frame = requestAnimationFrame(scan);
+        };
+        frame = requestAnimationFrame(scan);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Não foi possível acessar a câmera. Verifique a permissão do navegador.");
+      }
+    }
+    void start();
+    return () => { active = false; cancelAnimationFrame(frame); stream?.getTracks().forEach(track => track.stop()); };
+  }, [onCapture]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+      <div className="w-full max-w-lg space-y-3 rounded-2xl bg-background p-4 shadow-xl">
+        <div className="flex items-center justify-between">
+          <div><h3 className="font-semibold">Capturar número de série</h3><p className="text-xs text-muted-foreground">Aponte a câmera para o código de barras ou QR Code da etiqueta.</p></div>
+          <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Fechar câmera"><X className="size-5" /></Button>
+        </div>
+        {error ? <div className="rounded-xl bg-muted p-4 text-sm">{error}{!supported && <p className="mt-2 text-muted-foreground">Digite o número de série manualmente se a leitura não estiver disponível.</p>}</div> : <div className="overflow-hidden rounded-xl bg-black"><video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" /></div>}
+        <Button type="button" variant="outline" className="w-full" onClick={onClose}>Fechar leitor</Button>
+      </div>
+    </div>
+  );
+}
+
 function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
@@ -49,7 +109,7 @@ function CentralFrotaPage() {
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
   const [removal, setRemoval] = useState({ id: "", motivo: "", status: "disponivel" });
   const [editingFleet, setEditingFleet] = useState(false);
-  const [editingComponent, setEditingComponent] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(false);\n  const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
   const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
 
@@ -275,7 +335,7 @@ function CentralFrotaPage() {
           {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
             <h3 className="font-semibold sm:col-span-4">Editar componente</h3>
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.tipo} onChange={e => setComponentEditForm({ ...componentEditForm, tipo: e.target.value })}>{tiposComponente.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select>
-            <Input value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required />
+            <div className="flex gap-2"><Input className="min-w-0 flex-1" value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("edit")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Input value={componentEditForm.fabricante} onChange={e => setComponentEditForm({ ...componentEditForm, fabricante: e.target.value })} placeholder="Fabricante" />
             <Input value={componentEditForm.modelo} onChange={e => setComponentEditForm({ ...componentEditForm, modelo: e.target.value })} placeholder="Modelo" />
             <div className="flex gap-2 sm:col-span-4"><Button type="submit" disabled={saving}>Salvar alterações</Button><Button type="button" variant="outline" onClick={() => setEditingComponent(false)}>Cancelar</Button></div>
@@ -332,7 +392,7 @@ function CentralFrotaPage() {
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentForm.tipo} onChange={e => setComponentForm({ ...componentForm, tipo: e.target.value })}>{tiposComponente.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>
             <Input placeholder="Fabricante" value={componentForm.fabricante} onChange={e => setComponentForm({ ...componentForm, fabricante: e.target.value })} />
             <Input placeholder="Modelo" value={componentForm.modelo} onChange={e => setComponentForm({ ...componentForm, modelo: e.target.value })} />
-            <Input placeholder="Número de série" value={componentForm.numero_serie} onChange={e => setComponentForm({ ...componentForm, numero_serie: e.target.value })} required />
+            <div className="flex gap-2"><Input className="min-w-0 flex-1" placeholder="Número de série" value={componentForm.numero_serie} onChange={e => setComponentForm({ ...componentForm, numero_serie: e.target.value })} required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("new")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Button type="submit" disabled={saving || !units.length} className="sm:col-span-6"><Plus className="mr-2 size-4" />Cadastrar componente</Button>
           </form>
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número de série, fabricante ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
@@ -379,6 +439,16 @@ function CentralFrotaPage() {
           {!installations.length && <p className="p-6 text-center text-sm text-muted-foreground">O histórico aparecerá aqui após a primeira movimentação.</p>}
         </section>}
       </main>
+      {serialScannerTarget && <SerialCameraScanner
+        onClose={() => setSerialScannerTarget(null)}
+        onCapture={value => {
+          if (serialScannerTarget === "new") setComponentForm(current => ({ ...current, numero_serie: value }));
+          else setComponentEditForm(current => ({ ...current, numero_serie: value }));
+          setSerialScannerTarget(null);
+          toast.success("Número de série capturado pela câmera.");
+        }}
+      />}
+
     </div>
   );
 }
