@@ -36,6 +36,10 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [supported, setSupported] = useState(true);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrCandidate, setOcrCandidate] = useState("");
+  const [ocrText, setOcrText] = useState("");
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -45,12 +49,11 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
     async function start() {
       try {
         const Detector = (window as any).BarcodeDetector;
-        if (!Detector) {
+        if (Detector) {
+          detector = new Detector({ formats: ["qr_code", "code_128", "code_39", "code_93", "codabar", "ean_13", "ean_8", "itf", "upc_a", "upc_e", "data_matrix", "pdf417"] });
+        } else {
           setSupported(false);
-          setError("A leitura automática de códigos não é compatível com este navegador. Tente usar o Chrome atualizado.");
-          return;
         }
-        detector = new Detector({ formats: ["qr_code", "code_128", "code_39", "code_93", "codabar", "ean_13", "ean_8", "itf", "upc_a", "upc_e", "data_matrix", "pdf417"] });
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
         if (!active) { stream.getTracks().forEach(track => track.stop()); return; }
         if (videoRef.current) {
@@ -62,11 +65,13 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
             if (active) frame = requestAnimationFrame(scan);
             return;
           }
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const value = codes?.[0]?.rawValue?.trim();
-            if (value) { active = false; onCapture(value); return; }
-          } catch { /* tenta novamente no próximo quadro */ }
+          if (detector) {
+            try {
+              const codes = await detector.detect(videoRef.current);
+              const value = codes?.[0]?.rawValue?.trim();
+              if (value) { active = false; onCapture(value); return; }
+            } catch { /* tenta novamente no próximo quadro */ }
+          }
           if (active) frame = requestAnimationFrame(scan);
         };
         frame = requestAnimationFrame(scan);
@@ -78,15 +83,88 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
     return () => { active = false; cancelAnimationFrame(frame); stream?.getTracks().forEach(track => track.stop()); };
   }, [onCapture]);
 
+  async function readPrintedText() {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return setError("A câmera ainda não está pronta.");
+    setOcrBusy(true);
+    setError("");
+    setOcrCandidate("");
+    setOcrText("");
+    let worker: any;
+    try {
+      const w = window as any;
+      if (!w.Tesseract) {
+        await new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector<HTMLScriptElement>('script[data-central-frota-ocr="true"]');
+          if (existing) {
+            if (w.Tesseract) return resolve();
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener("error", () => reject(new Error("Não foi possível carregar o mecanismo de OCR.")), { once: true });
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js";
+          script.async = true;
+          script.dataset.centralFrotaOcr = "true";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Falha ao carregar OCR. Verifique a conexão com a internet."));
+          document.head.appendChild(script);
+        });
+      }
+      const Tesseract = (window as any).Tesseract;
+      if (!Tesseract) throw new Error("O mecanismo de OCR não ficou disponível.");
+      worker = await Tesseract.createWorker("por+eng", 1, {
+        logger: (message: any) => {
+          if (message.status === "recognizing text" && typeof message.progress === "number") setOcrProgress(Math.round(message.progress * 100));
+        },
+        workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/worker.min.js",
+        corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0/tesseract-core.wasm.js",
+        langPath: "https://tessdata.projectnaptha.com/4.0.0",
+      });
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(1, 1600 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Não foi possível preparar a imagem para leitura.");
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const result = await worker.recognize(canvas);
+      const text = String(result.data.text ?? "").replace(/\s+/g, " ").trim();
+      setOcrText(text);
+      const candidates = text.match(/[A-Z0-9][A-Z0-9._/-]{3,23}/gi) ?? [];
+      const candidate = candidates.find((item: string) => /\d/.test(item)) ?? candidates[0] ?? "";
+      if (!candidate) throw new Error("Não identifiquei um número de série com segurança. Aproxime a câmera e tente novamente.");
+      setOcrCandidate(candidate.toUpperCase());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível ler o texto da etiqueta.");
+    } finally {
+      if (worker) await worker.terminate().catch(() => undefined);
+      setOcrBusy(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="w-full max-w-lg space-y-3 rounded-2xl bg-background p-4 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4">
+      <div className="my-auto w-full max-w-lg space-y-3 rounded-2xl bg-background p-4 shadow-xl">
         <div className="flex items-center justify-between">
-          <div><h3 className="font-semibold">Capturar número de série</h3><p className="text-xs text-muted-foreground">Aponte a câmera para o código de barras ou QR Code da etiqueta.</p></div>
+          <div><h3 className="font-semibold">Capturar número de série</h3><p className="text-xs text-muted-foreground">Leia o código de barras/QR ou o texto impresso na etiqueta.</p></div>
           <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Fechar câmera"><X className="size-5" /></Button>
         </div>
-        {error ? <div className="rounded-xl bg-muted p-4 text-sm">{error}{!supported && <p className="mt-2 text-muted-foreground">Digite o número de série manualmente se a leitura não estiver disponível.</p>}</div> : <div className="overflow-hidden rounded-xl bg-black"><video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" /></div>}
+        {error && <div className="rounded-xl bg-muted p-3 text-sm text-destructive">{error}</div>}
+        <div className="overflow-hidden rounded-xl bg-black"><video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" /></div>
+        {!supported && <p className="text-xs text-muted-foreground">Leitura automática de códigos não disponível neste navegador. Você ainda pode fotografar o texto com OCR.</p>}
+        <Button type="button" variant="outline" className="w-full" onClick={() => void readPrintedText()} disabled={ocrBusy}>
+          <Camera className="mr-2 size-4" />{ocrBusy ? `Lendo etiqueta... ${ocrProgress}%` : "Ler texto impresso (OCR)"}
+        </Button>
+        {ocrCandidate && <div className="space-y-2 rounded-xl border p-3">
+          <p className="text-sm font-medium">Número provável encontrado</p>
+          <p className="rounded-md bg-muted p-2 font-mono text-lg font-bold">{ocrCandidate}</p>
+          <Button type="button" className="w-full" onClick={() => onCapture(ocrCandidate)}>Usar este número de série</Button>
+          <p className="text-xs text-muted-foreground">Confira o número depois de preencher, pois letras e números parecidos podem ser confundidos.</p>
+        </div>}
+        {ocrText && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Ver todo o texto reconhecido</summary><p className="mt-2 rounded-md bg-muted p-2">{ocrText}</p></details>}
         <Button type="button" variant="outline" className="w-full" onClick={onClose}>Fechar leitor</Button>
+        <p className="text-xs text-muted-foreground">O OCR carrega o mecanismo e o idioma português pela internet na primeira utilização. A leitura por OCR não funciona sem conexão nessa primeira carga; a digitação manual continua disponível.</p>
       </div>
     </div>
   );
