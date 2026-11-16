@@ -42,6 +42,30 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrCandidate, setOcrCandidate] = useState("");
   const [ocrText, setOcrText] = useState("");
+  const [capturedPhoto, setCapturedPhoto] = useState("");
+
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || !video.videoWidth) {
+      setError("A câmera ainda não está pronta.");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    const scale = Math.min(1, 1400 / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const context = canvas.getContext("2d");
+    if (!context) {
+      setError("Não foi possível capturar a foto.");
+      return;
+    }
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setCapturedPhoto(canvas.toDataURL("image/jpeg", 0.9));
+    setOcrCandidate("");
+    setOcrText("");
+    setOcrProgress(0);
+    setError("");
+  }
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -86,8 +110,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
   }, []);
 
   async function readPrintedText() {
-    const video = videoRef.current;
-    if (!video || video.readyState < 2) return setError("A câmera ainda não está pronta.");
+    if (!capturedPhoto) return setError("Tire uma foto da etiqueta antes de iniciar a leitura.");
     setOcrBusy(true);
     setError("");
     setOcrCandidate("");
@@ -115,7 +138,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
       }
       const Tesseract = (window as any).Tesseract;
       if (!Tesseract) throw new Error("O mecanismo de OCR não ficou disponível.");
-      worker = await Tesseract.createWorker("por+eng", 1, {
+      worker = await Tesseract.createWorker("eng", 1, {
         logger: (message: any) => {
           if (message.status === "recognizing text" && typeof message.progress === "number") setOcrProgress(Math.round(message.progress * 100));
         },
@@ -123,14 +146,11 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
         corePath: "https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0/tesseract-core.wasm.js",
         langPath: "https://tessdata.projectnaptha.com/4.0.0",
       });
-      const canvas = document.createElement("canvas");
-      const scale = Math.min(1, 1600 / video.videoWidth);
-      canvas.width = Math.round(video.videoWidth * scale);
-      canvas.height = Math.round(video.videoHeight * scale);
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Não foi possível preparar a imagem para leitura.");
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const result = await worker.recognize(canvas);
+      await worker.setParameters({
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._/",
+        preserve_interword_spaces: "1",
+      });
+      const result = await worker.recognize(capturedPhoto);
       const text = String(result.data.text ?? "").replace(/\s+/g, " ").trim();
       setOcrText(text);
       const candidates = text.match(/[A-Z0-9][A-Z0-9._/-]{3,23}/gi) ?? [];
@@ -155,9 +175,16 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
         {error && <div className="rounded-xl bg-muted p-3 text-sm text-destructive">{error}</div>}
         <div className="overflow-hidden rounded-xl bg-black"><video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" /></div>
         {!supported && <p className="text-xs text-muted-foreground">Leitura automática de códigos não disponível neste navegador. Você ainda pode fotografar o texto com OCR.</p>}
-        <Button type="button" variant="outline" className="w-full" onClick={() => void readPrintedText()} disabled={ocrBusy}>
-          <Camera className="mr-2 size-4" />{ocrBusy ? `Lendo etiqueta... ${ocrProgress}%` : "Ler texto impresso (OCR)"}
+        <Button type="button" variant="outline" className="w-full" onClick={capturePhoto} disabled={ocrBusy}>
+          <Camera className="mr-2 size-4" />{capturedPhoto ? "Tirar outra foto" : "Tirar foto da etiqueta"}
         </Button>
+        {capturedPhoto && <div className="space-y-2 rounded-xl border p-2">
+          <p className="text-xs font-medium text-muted-foreground">Foto capturada — confira se o número está nítido.</p>
+          <img src={capturedPhoto} alt="Foto da etiqueta do equipamento" className="max-h-48 w-full rounded-lg object-contain" />
+          <Button type="button" className="w-full" onClick={() => void readPrintedText()} disabled={ocrBusy}>
+            <Camera className="mr-2 size-4" />{ocrBusy ? `Lendo foto... ${ocrProgress}%` : "Ler número na foto (OCR)"}
+          </Button>
+        </div>}
         {ocrCandidate && <div className="space-y-2 rounded-xl border p-3">
           <p className="text-sm font-medium">Número provável encontrado</p>
           <p className="rounded-md bg-muted p-2 font-mono text-lg font-bold">{ocrCandidate}</p>
@@ -166,7 +193,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
         </div>}
         {ocrText && <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">Ver todo o texto reconhecido</summary><p className="mt-2 rounded-md bg-muted p-2">{ocrText}</p></details>}
         <Button type="button" variant="outline" className="w-full" onClick={onClose}>Fechar leitor</Button>
-        <p className="text-xs text-muted-foreground">O OCR carrega o mecanismo e o idioma português pela internet na primeira utilização. A leitura por OCR não funciona sem conexão nessa primeira carga; a digitação manual continua disponível.</p>
+        <p className="text-xs text-muted-foreground">O OCR analisa a foto capturada e reconhece letras e números da etiqueta. Na primeira utilização, o mecanismo precisa ser carregado pela internet; depois, o navegador poderá reutilizá-lo conforme o cache. A digitação manual continua disponível.</p>
       </div>
     </div>
   );
