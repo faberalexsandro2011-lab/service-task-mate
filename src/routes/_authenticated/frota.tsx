@@ -43,6 +43,9 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
   const [ocrCandidate, setOcrCandidate] = useState("");
   const [ocrText, setOcrText] = useState("");
   const [capturedPhoto, setCapturedPhoto] = useState("");
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; step: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
 
   function capturePhoto() {
     const video = videoRef.current;
@@ -110,6 +113,14 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
+        const videoTrack = stream.getVideoTracks()[0];
+        videoTrackRef.current = videoTrack ?? null;
+        const capabilities = videoTrack?.getCapabilities?.() as MediaTrackCapabilities & { zoom?: { min: number; max: number; step: number } };
+        if (capabilities?.zoom && capabilities.zoom.max > capabilities.zoom.min) {
+          const range = { min: capabilities.zoom.min, max: Math.min(capabilities.zoom.max, 4), step: capabilities.zoom.step || 0.1 };
+          setZoomRange(range);
+          setZoom(Math.max(range.min, Math.min(1, range.max)));
+        }
         const scan = async () => {
           if (!active || !videoRef.current || videoRef.current.readyState < 2) {
             if (active) frame = requestAnimationFrame(scan);
@@ -132,6 +143,14 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
     void start();
     return () => { active = false; cancelAnimationFrame(frame); stream?.getTracks().forEach(track => track.stop()); };
   }, []);
+
+  function changeZoom(value: number) {
+    setZoom(value);
+    const track = videoTrackRef.current;
+    if (track) void track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] }).catch(() => {
+      setError("Este aparelho não permitiu ajustar o zoom da câmera. Tente aproximar o aparelho da etiqueta.");
+    });
+  }
 
   async function readPrintedText() {
     if (!capturedPhoto) return setError("Tire uma foto da etiqueta antes de iniciar a leitura.");
@@ -199,10 +218,16 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
         {error && <div className="rounded-xl bg-muted p-3 text-sm text-destructive">{error}</div>}
         <div className="relative mx-auto aspect-square w-full max-h-[50vh] overflow-hidden rounded-xl bg-black">
           <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
-          <div className="pointer-events-none absolute inset-[8%] rounded-lg border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" data-camera-frame>
-            <span className="absolute -top-6 left-0 rounded bg-black/60 px-2 py-1 text-[11px] font-medium text-white">Enquadre o número aqui</span>
+          <div className="pointer-events-none absolute inset-x-[5%] top-[32%] bottom-[32%] rounded-lg border-2 border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]" data-camera-frame>
+            <span className="absolute -top-6 left-0 rounded bg-black/60 px-2 py-1 text-[11px] font-medium text-white">Enquadre o número inteiro aqui</span>
           </div>
         </div>
+        {zoomRange && <div className="space-y-1 rounded-lg border p-3">
+          <div className="flex items-center justify-between text-sm"><label htmlFor="serial-camera-zoom" className="font-medium">Zoom da câmera</label><span className="font-mono text-muted-foreground">{zoom.toFixed(1)}×</span></div>
+          <input id="serial-camera-zoom" type="range" min={zoomRange.min} max={zoomRange.max} step={zoomRange.step} value={zoom} onChange={event => changeZoom(Number(event.target.value))} className="w-full accent-primary" />
+          <p className="text-xs text-muted-foreground">Aproxime a imagem para destacar a etiqueta. Ajuste a moldura para incluir o número completo.</p>
+        </div>}
+        {!zoomRange && <p className="text-xs text-muted-foreground">Para dar mais foco, aproxime o aparelho da etiqueta. O zoom ajustável não está disponível neste navegador.</p>}
         {!supported && <p className="text-xs text-muted-foreground">Leitura automática de códigos não disponível neste navegador. Você ainda pode fotografar o texto com OCR.</p>}
         <Button type="button" variant="outline" className="w-full" onClick={capturePhoto} disabled={ocrBusy}>
           <Camera className="mr-2 size-4" />{capturedPhoto ? "Tirar outra foto" : "Tirar foto da etiqueta"}
