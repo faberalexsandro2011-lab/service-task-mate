@@ -41,6 +41,8 @@ function CentralFrotaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [fleetForm, setFleetForm] = useState({ unidade_id: "", numero: "", tipo: "trator", marca: "", modelo: "" });
   const [componentForm, setComponentForm] = useState({ unidade_id: "", tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
@@ -78,6 +80,13 @@ function CentralFrotaPage() {
   const activeInstallations = useMemo(() => installations.filter(item => !item.retirado_em), [installations]);
   const filteredFleets = fleets.filter(item => `${item.numero} ${item.marca ?? ""} ${item.modelo ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   const filteredComponents = components.filter(item => `${item.numero_serie} ${item.fabricante ?? ""} ${item.modelo ?? ""}`.toLowerCase().includes(search.toLowerCase()));
+  const selectedFleet = fleets.find(item => item.id === selectedFleetId) ?? null;
+  const selectedComponent = components.find(item => item.id === selectedComponentId) ?? null;
+  const fleetInstallations = selectedFleet ? installations.filter(item => item.frota_id === selectedFleet.id) : [];
+  const componentInstallations = selectedComponent ? installations.filter(item => item.componente_id === selectedComponent.id) : [];
+  const currentComponentInstallation = selectedComponent ? activeInstallations.find(item => item.componente_id === selectedComponent.id) : null;
+  const currentComponentFleet = currentComponentInstallation ? fleets.find(item => item.id === currentComponentInstallation.frota_id) : null;
+  const siblingInstallations = currentComponentFleet ? activeInstallations.filter(item => item.frota_id === currentComponentFleet.id) : [];
 
   async function saveFleet(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,7 +181,66 @@ function CentralFrotaPage() {
           {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
         </nav>
 
-        {tab === "frotas" && <section className="space-y-4">
+
+        {tab === "frotas" && selectedFleet && <section className="space-y-4">
+          <Button variant="outline" size="sm" onClick={() => setSelectedFleetId(null)}><ArrowLeft className="mr-2 size-4" />Voltar para frotas</Button>
+          <div className="rounded-2xl border bg-card p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalhes da frota</p>
+            <h2 className="mt-1 text-2xl font-bold">Frota {selectedFleet.numero}</h2>
+            <p className="text-sm text-muted-foreground">{tiposFrota.find(x => x[0] === selectedFleet.tipo)?.[1] ?? selectedFleet.tipo} · {[selectedFleet.marca, selectedFleet.modelo].filter(Boolean).join(" ") || "Marca/modelo não informados"} · {units.find(u => u.id === selectedFleet.unidade_id)?.nome ?? "Unidade"}</p>
+            <p className="mt-2 text-sm">Status: <strong>{selectedFleet.status}</strong> · {fleetInstallations.filter(x => !x.retirado_em).length} componente(s) instalado(s) atualmente</p>
+          </div>
+          <div className="rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Equipamentos relacionados a esta frota</div>
+            {fleetInstallations.map(item => <button key={item.id} type="button" onClick={() => { setSelectedComponentId(item.componente_id); setTab("componentes"); }} className="flex w-full items-center justify-between gap-3 border-b px-4 py-3 text-left last:border-0 hover:bg-muted/40">
+              <span><strong>{item.componentes_frota?.numero_serie ?? "Componente"}</strong><span className="block text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === item.componentes_frota?.tipo)?.[1] ?? item.componentes_frota?.tipo ?? "Equipamento"} · {item.retirado_em ? "Retirado" : "Instalado atualmente"}</span></span>
+              <span className="text-xs text-muted-foreground">{new Date(item.instalado_em).toLocaleDateString("pt-BR")}<span className="ml-2">›</span></span>
+            </button>)}
+            {!fleetInstallations.length && <p className="p-5 text-sm text-muted-foreground">Nenhum equipamento foi relacionado a esta frota ainda.</p>}
+          </div>
+          <div className="rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Histórico da frota</div>
+            {fleetInstallations.map(item => <div key={item.id} className="space-y-1 border-b px-4 py-3 text-sm last:border-0">
+              <p className="font-medium">{item.componentes_frota?.numero_serie ?? "Componente"} · {item.retirado_em ? "Instalação encerrada" : "Em uso"}</p>
+              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_email || "usuário autenticado"}</p>
+              {item.retirado_em && <p className="text-muted-foreground">Retirado em {new Date(item.retirado_em).toLocaleString("pt-BR")} · {item.motivo_retirada || "Motivo não informado"}</p>}
+            </div>)}
+          </div>
+        </section>}
+
+        {tab === "componentes" && selectedComponent && <section className="space-y-4">
+          <Button variant="outline" size="sm" onClick={() => setSelectedComponentId(null)}><ArrowLeft className="mr-2 size-4" />Voltar para componentes</Button>
+          <div className="rounded-2xl border bg-card p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalhes do componente</p>
+            <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
+            <p className="text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === selectedComponent.tipo)?.[1] ?? selectedComponent.tipo} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
+            <p className="mt-2 text-sm">Status: <strong>{selectedComponent.status}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
+          </div>
+          {currentComponentFleet && <div className="rounded-2xl border p-4">
+            <p className="text-sm text-muted-foreground">Instalado atualmente na frota</p>
+            <button type="button" onClick={() => { setSelectedFleetId(currentComponentFleet.id); setTab("frotas"); }} className="mt-1 flex w-full items-center justify-between text-left text-lg font-semibold hover:text-primary">Frota {currentComponentFleet.numero}<span>›</span></button>
+            <p className="text-sm text-muted-foreground">{tiposFrota.find(x => x[0] === currentComponentFleet.tipo)?.[1] ?? currentComponentFleet.tipo} · {[currentComponentFleet.marca, currentComponentFleet.modelo].filter(Boolean).join(" ")}</p>
+          </div>}
+          {currentComponentFleet && <div className="rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Outros componentes desta frota</div>
+            {siblingInstallations.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.componente_id)} className="flex w-full items-center justify-between gap-3 border-b px-4 py-3 text-left last:border-0 hover:bg-muted/40">
+              <span><strong>{item.componentes_frota?.numero_serie ?? "Componente"}</strong><span className="block text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === item.componentes_frota?.tipo)?.[1] ?? item.componentes_frota?.tipo ?? "Equipamento"}</span></span><span className="text-xs text-muted-foreground">Ver detalhes ›</span>
+            </button>)}
+            {siblingInstallations.length <= 1 && <p className="px-4 py-3 text-sm text-muted-foreground">Este é o único componente instalado atualmente nesta frota.</p>}
+          </div>}
+          {!currentComponentFleet && <p className="rounded-xl bg-muted/50 p-4 text-sm text-muted-foreground">Este componente não está instalado em nenhuma frota no momento.</p>}
+          <div className="rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Histórico deste componente</div>
+            {componentInstallations.map(item => <div key={item.id} className="space-y-1 border-b px-4 py-3 text-sm last:border-0">
+              <button type="button" onClick={() => { const f = fleets.find(x => x.id === item.frota_id); if (f) { setSelectedFleetId(f.id); setTab("frotas"); } }} className="font-semibold hover:text-primary">Frota {item.frotas?.numero ?? "—"} ›</button>
+              <p className="text-muted-foreground">Instalado em {new Date(item.instalado_em).toLocaleString("pt-BR")} por {item.instalado_por_email || "usuário autenticado"}</p>
+              {item.retirado_em && <p className="text-muted-foreground">Retirado em {new Date(item.retirado_em).toLocaleString("pt-BR")} · {item.motivo_retirada || "Motivo não informado"}</p>}
+            </div>)}
+            {!componentInstallations.length && <p className="p-5 text-sm text-muted-foreground">Este componente ainda não possui histórico de instalação.</p>}
+          </div>
+        </section>}
+
+        {tab === "frotas" && !selectedFleet && <section className="space-y-4">
           <form onSubmit={saveFleet} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-6">
             <h2 className="font-semibold sm:col-span-6">Cadastrar frota</h2>
             <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={fleetForm.unidade_id} onChange={e => setFleetForm({ ...fleetForm, unidade_id: e.target.value })} required>
@@ -186,12 +254,12 @@ function CentralFrotaPage() {
           </form>
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número, marca ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-[1fr_1fr_1fr] gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Frota</span><span>Tipo</span><span>Marca / modelo</span></div>
-            {filteredFleets.map(item => <div key={item.id} className="grid grid-cols-[1fr_1fr_1fr] gap-2 border-t px-4 py-3 text-sm"><strong>{item.numero}</strong><span>{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span>{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"}</span></div>)}
+            {filteredFleets.map(item => <button key={item.id} type="button" onClick={() => setSelectedFleetId(item.id)} className="grid w-full grid-cols-[1fr_1fr_1fr] gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><strong>{item.numero}</strong><span>{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span>{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"} <span className="text-primary">›</span></span></button>)}
             {!filteredFleets.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhuma frota cadastrada."}</p>}
           </div>
         </section>}
 
-        {tab === "componentes" && <section className="space-y-4">
+        {tab === "componentes" && !selectedComponent && <section className="space-y-4">
           <form onSubmit={saveComponent} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-6">
             <h2 className="font-semibold sm:col-span-6">Cadastrar componente eletrônico</h2>
             <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={componentForm.unidade_id} onChange={e => setComponentForm({ ...componentForm, unidade_id: e.target.value })} required>
@@ -205,7 +273,7 @@ function CentralFrotaPage() {
           </form>
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número de série, fabricante ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-4 gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Tipo</span><span>Nº de série</span><span>Fabricante / modelo</span><span>Status</span></div>
-            {filteredComponents.map(item => <div key={item.id} className="grid grid-cols-4 gap-2 border-t px-4 py-3 text-sm"><span>{tiposComponente.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status}</span></div>)}
+            {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{tiposComponente.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status} <span className="text-primary">›</span></span></button>)}
             {!filteredComponents.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhum componente cadastrado."}</p>}
           </div>
         </section>}
