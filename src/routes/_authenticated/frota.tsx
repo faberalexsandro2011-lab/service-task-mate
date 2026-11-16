@@ -48,6 +48,10 @@ function CentralFrotaPage() {
   const [componentForm, setComponentForm] = useState({ unidade_id: "", tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
   const [removal, setRemoval] = useState({ id: "", motivo: "", status: "disponivel" });
+  const [editingFleet, setEditingFleet] = useState(false);
+  const [editingComponent, setEditingComponent] = useState(false);
+  const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
+  const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +102,36 @@ function CentralFrotaPage() {
   const currentComponentInstallation = selectedComponent ? activeInstallations.find(item => item.componente_id === selectedComponent.id) : null;
   const currentComponentFleet = currentComponentInstallation ? fleets.find(item => item.id === currentComponentInstallation.frota_id) : null;
   const siblingInstallations = currentComponentFleet ? activeInstallations.filter(item => item.frota_id === currentComponentFleet.id) : [];
+
+  async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFleet || !fleetEditForm.numero.trim()) return toast.error("Informe o número da frota.");
+    setSaving(true);
+    const { error } = await (supabase as any).from("frotas").update({
+      numero: fleetEditForm.numero.trim(), tipo: fleetEditForm.tipo, marca: fleetEditForm.marca.trim() || null,
+      modelo: fleetEditForm.modelo.trim() || null, status: fleetEditForm.status,
+    }).eq("id", selectedFleet.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível editar a frota: " + error.message);
+    toast.success("Frota atualizada.");
+    setEditingFleet(false);
+    await load();
+  }
+
+  async function saveComponentChanges(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedComponent || !componentEditForm.numero_serie.trim()) return toast.error("Informe o número de série.");
+    setSaving(true);
+    const { error } = await (supabase as any).from("componentes_frota").update({
+      tipo: componentEditForm.tipo, fabricante: componentEditForm.fabricante.trim() || null,
+      modelo: componentEditForm.modelo.trim() || null, numero_serie: componentEditForm.numero_serie.trim(),
+    }).eq("id", selectedComponent.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível editar o componente: " + error.message);
+    toast.success("Componente atualizado.");
+    setEditingComponent(false);
+    await load();
+  }
 
   async function saveFleet(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -200,7 +234,17 @@ function CentralFrotaPage() {
             <h2 className="mt-1 text-2xl font-bold">Frota {selectedFleet.numero}</h2>
             <p className="text-sm text-muted-foreground">{tiposFrota.find(x => x[0] === selectedFleet.tipo)?.[1] ?? selectedFleet.tipo} · {[selectedFleet.marca, selectedFleet.modelo].filter(Boolean).join(" ") || "Marca/modelo não informados"} · {units.find(u => u.id === selectedFleet.unidade_id)?.nome ?? "Unidade"}</p>
             <p className="mt-2 text-sm">Status: <strong>{selectedFleet.status}</strong> · {fleetInstallations.filter(x => !x.retirado_em).length} componente(s) instalado(s) atualmente</p>
+            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setFleetEditForm({ numero: selectedFleet.numero, tipo: selectedFleet.tipo, marca: selectedFleet.marca ?? "", modelo: selectedFleet.modelo ?? "", status: selectedFleet.status }); setEditingFleet(true); }}>Editar dados da frota</Button>
           </div>
+          {editingFleet && <form onSubmit={saveFleetChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-5">
+            <h3 className="font-semibold sm:col-span-5">Editar frota {selectedFleet.numero}</h3>
+            <Input value={fleetEditForm.numero} onChange={e => setFleetEditForm({ ...fleetEditForm, numero: e.target.value })} placeholder="Número" required />
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={fleetEditForm.tipo} onChange={e => setFleetEditForm({ ...fleetEditForm, tipo: e.target.value })}>{tiposFrota.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select>
+            <Input value={fleetEditForm.marca} onChange={e => setFleetEditForm({ ...fleetEditForm, marca: e.target.value })} placeholder="Marca" />
+            <Input value={fleetEditForm.modelo} onChange={e => setFleetEditForm({ ...fleetEditForm, modelo: e.target.value })} placeholder="Modelo" />
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={fleetEditForm.status} onChange={e => setFleetEditForm({ ...fleetEditForm, status: e.target.value })}><option value="ativa">Ativa</option><option value="inativa">Inativa</option><option value="manutencao">Em manutenção</option></select>
+            <div className="flex gap-2 sm:col-span-5"><Button type="submit" disabled={saving}>Salvar alterações</Button><Button type="button" variant="outline" onClick={() => setEditingFleet(false)}>Cancelar</Button></div>
+          </form>}
           <div className="rounded-2xl border">
             <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Equipamentos relacionados a esta frota</div>
             {fleetInstallations.map(item => <button key={item.id} type="button" onClick={() => { setSelectedComponentId(item.componente_id); setTab("componentes"); }} className="flex w-full items-center justify-between gap-3 border-b px-4 py-3 text-left last:border-0 hover:bg-muted/40">
@@ -226,7 +270,16 @@ function CentralFrotaPage() {
             <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
             <p className="text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === selectedComponent.tipo)?.[1] ?? selectedComponent.tipo} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
             <p className="mt-2 text-sm">Status: <strong>{selectedComponent.status}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
+            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie }); setEditingComponent(true); }}>Editar dados do componente</Button>
           </div>
+          {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
+            <h3 className="font-semibold sm:col-span-4">Editar componente</h3>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.tipo} onChange={e => setComponentEditForm({ ...componentEditForm, tipo: e.target.value })}>{tiposComponente.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select>
+            <Input value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required />
+            <Input value={componentEditForm.fabricante} onChange={e => setComponentEditForm({ ...componentEditForm, fabricante: e.target.value })} placeholder="Fabricante" />
+            <Input value={componentEditForm.modelo} onChange={e => setComponentEditForm({ ...componentEditForm, modelo: e.target.value })} placeholder="Modelo" />
+            <div className="flex gap-2 sm:col-span-4"><Button type="submit" disabled={saving}>Salvar alterações</Button><Button type="button" variant="outline" onClick={() => setEditingComponent(false)}>Cancelar</Button></div>
+          </form>}
           {currentComponentFleet && <div className="rounded-2xl border p-4">
             <p className="text-sm text-muted-foreground">Instalado atualmente na frota</p>
             <button type="button" onClick={() => { setSelectedFleetId(currentComponentFleet.id); setTab("frotas"); }} className="mt-1 flex w-full items-center justify-between text-left text-lg font-semibold hover:text-primary">Frota {currentComponentFleet.numero}<span>›</span></button>
