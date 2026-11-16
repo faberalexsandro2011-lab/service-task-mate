@@ -100,7 +100,7 @@ export const Route = createFileRoute("/_authenticated")({
     const isViewerArea = location.pathname.endsWith("/visualizacao");
 
     const isTestPanel = location.pathname.endsWith("/painel-teste");
-    if (role === "admin_unidade" && !isTestPanel) throw redirect({ to: "/painel-teste", replace: true });
+    if (role === "admin_unidade" && !isTestPanel && !isFleetArea) throw redirect({ to: "/painel-teste", replace: true });
     if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
     if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : role === "admin_unidade" ? "/painel-teste" : "/tecnico", replace: true });
 
