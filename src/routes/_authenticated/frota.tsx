@@ -257,6 +257,7 @@ function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
+  const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
   const [fleets, setFleets] = useState<Frota[]>([]);
   const [components, setComponents] = useState<Componente[]>([]);
   const [installations, setInstallations] = useState<Instalacao[]>([]);
@@ -285,7 +286,9 @@ function CentralFrotaPage() {
         .from("usuarios_unidades").select("unidade_id,perfil").eq("user_id", authData.user.id).eq("ativo", true);
       if (membershipError) throw membershipError;
       const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
+      const canViewComponentTotals = (memberships ?? []).some((item: any) => item.perfil === "admin_unidade" || (item.perfil === "gestor_central" && item.unidade_id === null));
       setIsCentralManager(central);
+      setCanViewComponentTotals(canViewComponentTotals);
       const [unitResult, fleetResult, componentResult, installationResult] = await Promise.all([
         (supabase as any).from("unidades").select("id,nome").order("nome"),
         (supabase as any).from("frotas").select("*").order("numero"),
@@ -557,6 +560,42 @@ function CentralFrotaPage() {
             <div className="flex gap-2"><Input className="min-w-0 flex-1" placeholder="Número de série" value={componentForm.numero_serie} onChange={e => setComponentForm({ ...componentForm, numero_serie: e.target.value })} required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("new")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Button type="submit" disabled={saving || !units.length} className="sm:col-span-6"><Plus className="mr-2 size-4" />Cadastrar componente</Button>
           </form>
+          {canViewComponentTotals && <div className="overflow-hidden rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3">
+              <h3 className="font-semibold">Totais por componente</h3>
+              <p className="text-xs text-muted-foreground">Quantidade cadastrada por tipo e situação atual</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+                  <tr><th className="px-4 py-3">Componente</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3 text-right">Instalados</th><th className="px-3 py-3 text-right">Disponíveis</th><th className="px-3 py-3 text-right">Manutenção</th><th className="px-3 py-3 text-right">Descartados</th></tr>
+                </thead>
+                <tbody>
+                  {tiposComponente.map(([tipo, label]) => {
+                    const items = components.filter(item => item.tipo === tipo);
+                    if (!items.length) return null;
+                    const installedIds = new Set(activeInstallations.map(item => item.componente_id));
+                    return <tr key={tipo} className="border-t">
+                      <td className="px-4 py-3 font-medium">{label}</td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums">{items.length}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => installedIds.has(item.id)).length}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "disponivel").length}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "manutencao").length}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "descartado").length}</td>
+                    </tr>;
+                  })}
+                  <tr className="border-t bg-muted/30 font-semibold">
+                    <td className="px-4 py-3">Total geral</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{components.length}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{activeInstallations.length}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "disponivel").length}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "manutencao").length}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "descartado").length}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>}
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número de série, fabricante ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-4 gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Tipo</span><span>Nº de série</span><span>Fabricante / modelo</span><span>Status</span></div>
             {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{tiposComponente.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status} <span className="text-primary">›</span></span></button>)}
