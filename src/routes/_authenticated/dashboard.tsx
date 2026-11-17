@@ -1196,8 +1196,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = (status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager)) || (status === "pendente" && actor.role === "admin_unidade");
+  const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || actor.isManager || (!order.tecnico_id || isMine));
+  const canFinish = (status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager)) || (status === "pendente" && (actor.role === "admin_unidade" || actor.isManager));
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
@@ -1630,7 +1630,7 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
     const alreadyRecordedFinishTime = Boolean(order.concluida_em);
     const finishedAt = order.concluida_em ?? new Date().toISOString();
     // Sem número de OS, registra o horário e aguarda o ADM antes de concluir.
-    const isAdm = actor.role === "admin_unidade";
+    const isAdm = actor.role === "admin_unidade" || actor.isManager;
     const admCloseFields = isAdm && hasOsNumber
       ? { fechada_em: finishedAt, fechada_por_email: actor.email, fechada_por_id: actor.id }
       : {};
