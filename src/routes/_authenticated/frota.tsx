@@ -32,6 +32,14 @@ const tiposComponente = [
   ["tela_solinftec", "Tela Solinftec"], ["rastreador", "Rastreador"], ["radio", "Rádio"], ["outro", "Outro"],
 ] as const;
 
+function normalizarTipoComponente(tipo: string) {
+  return tipo.trim().replace(/\\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
+function nomeTipoComponente(tipo: string) {
+  return tiposComponente.find(([value]) => value === tipo)?.[1] ?? tipo;
+}
+
 function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCaptureRef = useRef(onCapture);
@@ -267,14 +275,14 @@ function CentralFrotaPage() {
   const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [fleetForm, setFleetForm] = useState({ unidade_id: "", numero: "", tipo: "trator", marca: "", modelo: "" });
-  const [componentForm, setComponentForm] = useState({ unidade_id: "", tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
+  const [componentForm, setComponentForm] = useState({ unidade_id: "", tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "" });
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
   const [removal, setRemoval] = useState({ id: "", motivo: "", status: "disponivel" });
   const [editingFleet, setEditingFleet] = useState(false);
   const [editingComponent, setEditingComponent] = useState(false);
   const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
-  const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
+  const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,6 +335,11 @@ function CentralFrotaPage() {
   const currentComponentInstallation = selectedComponent ? activeInstallations.find(item => item.componente_id === selectedComponent.id) : null;
   const currentComponentFleet = currentComponentInstallation ? fleets.find(item => item.id === currentComponentInstallation.frota_id) : null;
   const siblingInstallations = currentComponentFleet ? activeInstallations.filter(item => item.frota_id === currentComponentFleet.id) : [];
+  const tiposPersonalizados = [...new Set(components.map(item => item.tipo).filter(tipo => !tiposComponente.some(([value]) => value === tipo)))];
+  const opcoesTipoComponente: [string, string][] = [
+    ...tiposComponente.map(([value, label]) => [value, label] as [string, string]),
+    ...tiposPersonalizados.map(tipo => [tipo, tipo] as [string, string]),
+  ];
 
   async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -345,10 +358,13 @@ function CentralFrotaPage() {
 
   async function saveComponentChanges(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const tipoInformado = componentEditForm.tipo === "__novo_tipo__" ? componentEditForm.tipoPersonalizado.trim() : componentEditForm.tipo;
     if (!selectedComponent || !componentEditForm.numero_serie.trim()) return toast.error("Informe o número de série.");
+    if (!tipoInformado) return toast.error("Informe o nome do novo tipo de equipamento.");
+    const tipoExistente = components.find(item => normalizarTipoComponente(item.tipo) === normalizarTipoComponente(tipoInformado))?.tipo;
     setSaving(true);
     const { error } = await (supabase as any).from("componentes_frota").update({
-      tipo: componentEditForm.tipo, fabricante: componentEditForm.fabricante.trim() || null,
+      tipo: tipoExistente ?? tipoInformado, fabricante: componentEditForm.fabricante.trim() || null,
       modelo: componentEditForm.modelo.trim() || null, numero_serie: componentEditForm.numero_serie.trim(), status: componentEditForm.status,
     }).eq("id", selectedComponent.id);
     setSaving(false);
@@ -374,16 +390,19 @@ function CentralFrotaPage() {
 
   async function saveComponent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const tipoInformado = componentForm.tipo === "__novo_tipo__" ? componentForm.tipoPersonalizado.trim() : componentForm.tipo;
     if (!componentForm.unidade_id || !componentForm.numero_serie.trim()) return toast.error("Selecione a unidade e informe o número de série.");
+    if (!tipoInformado) return toast.error("Informe o nome do novo tipo de equipamento.");
+    const tipoExistente = components.find(item => normalizarTipoComponente(item.tipo) === normalizarTipoComponente(tipoInformado))?.tipo;
     setSaving(true);
     const { error } = await (supabase as any).from("componentes_frota").insert({
-      ...componentForm, numero_serie: componentForm.numero_serie.trim(),
+      ...componentForm, tipo: tipoExistente ?? tipoInformado, numero_serie: componentForm.numero_serie.trim(),
       fabricante: componentForm.fabricante.trim() || null, modelo: componentForm.modelo.trim() || null,
     });
     setSaving(false);
     if (error) return toast.error(error.message.includes("unique") ? "Esse número de série já está cadastrado." : "Não foi possível cadastrar o componente: " + error.message);
     toast.success("Componente cadastrado.");
-    setComponentForm(current => ({ ...current, numero_serie: "", fabricante: "", modelo: "" }));
+    setComponentForm(current => ({ ...current, tipo: "monitor", tipoPersonalizado: "", numero_serie: "", fabricante: "", modelo: "" }));
     await load();
   }
 
@@ -480,7 +499,7 @@ function CentralFrotaPage() {
           <div className="rounded-2xl border">
             <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Equipamentos relacionados a esta frota</div>
             {fleetInstallations.map(item => <button key={item.id} type="button" onClick={() => { setSelectedComponentId(item.componente_id); setTab("componentes"); }} className="flex w-full items-center justify-between gap-3 border-b px-4 py-3 text-left last:border-0 hover:bg-muted/40">
-              <span><strong>{item.componentes_frota?.numero_serie ?? "Componente"}</strong><span className="block text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === item.componentes_frota?.tipo)?.[1] ?? item.componentes_frota?.tipo ?? "Equipamento"} · {item.retirado_em ? "Retirado" : "Instalado atualmente"}</span></span>
+              <span><strong>{item.componentes_frota?.numero_serie ?? "Componente"}</strong><span className="block text-sm text-muted-foreground">{item.componentes_frota?.tipo ? nomeTipoComponente(item.componentes_frota.tipo) : "Equipamento"} · {item.retirado_em ? "Retirado" : "Instalado atualmente"}</span></span>
               <span className="text-xs text-muted-foreground">{new Date(item.instalado_em).toLocaleDateString("pt-BR")}<span className="ml-2">›</span></span>
             </button>)}
             {!fleetInstallations.length && <p className="p-5 text-sm text-muted-foreground">Nenhum equipamento foi relacionado a esta frota ainda.</p>}
@@ -500,13 +519,14 @@ function CentralFrotaPage() {
           <div className="rounded-2xl border bg-card p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalhes do componente</p>
             <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
-            <p className="text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === selectedComponent.tipo)?.[1] ?? selectedComponent.tipo} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
+            <p className="text-sm text-muted-foreground">{nomeTipoComponente(selectedComponent.tipo)} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
             <p className="mt-2 text-sm">Status: <strong>{selectedComponent.status}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
-            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>
+            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, tipoPersonalizado: "", fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>
           </div>
           {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
             <h3 className="font-semibold sm:col-span-4">Editar componente</h3>
-            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.tipo} onChange={e => setComponentEditForm({ ...componentEditForm, tipo: e.target.value })}>{tiposComponente.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.tipo} onChange={e => setComponentEditForm({ ...componentEditForm, tipo: e.target.value })}>{opcoesTipoComponente.map(([v,l]) => <option key={v} value={v}>{l}</option>)}<option value="__novo_tipo__">+ Novo tipo de equipamento</option></select>
+            {componentEditForm.tipo === "__novo_tipo__" && <Input value={componentEditForm.tipoPersonalizado} onChange={e => setComponentEditForm({ ...componentEditForm, tipoPersonalizado: e.target.value })} placeholder="Nome do novo tipo (ex.: Câmera)" required />}
             <div className="flex gap-2"><Input className="min-w-0 flex-1" value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("edit")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Input value={componentEditForm.fabricante} onChange={e => setComponentEditForm({ ...componentEditForm, fabricante: e.target.value })} placeholder="Fabricante" />
             <Input value={componentEditForm.modelo} onChange={e => setComponentEditForm({ ...componentEditForm, modelo: e.target.value })} placeholder="Modelo" />
@@ -562,7 +582,8 @@ function CentralFrotaPage() {
             <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={componentForm.unidade_id} onChange={e => setComponentForm({ ...componentForm, unidade_id: e.target.value })} required disabled={!isCentralManager && units.length <= 1}>
               <option value="">Unidade</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}
             </select>
-            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentForm.tipo} onChange={e => setComponentForm({ ...componentForm, tipo: e.target.value })}>{tiposComponente.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentForm.tipo} onChange={e => setComponentForm({ ...componentForm, tipo: e.target.value })}>{opcoesTipoComponente.map(([value,label]) => <option key={value} value={value}>{label}</option>)}<option value="__novo_tipo__">+ Novo tipo de equipamento</option></select>
+            {componentForm.tipo === "__novo_tipo__" && <Input value={componentForm.tipoPersonalizado} onChange={e => setComponentForm({ ...componentForm, tipoPersonalizado: e.target.value })} placeholder="Nome do novo tipo (ex.: Câmera)" required />}
             <Input placeholder="Fabricante" value={componentForm.fabricante} onChange={e => setComponentForm({ ...componentForm, fabricante: e.target.value })} />
             <Input placeholder="Modelo" value={componentForm.modelo} onChange={e => setComponentForm({ ...componentForm, modelo: e.target.value })} />
             <div className="flex gap-2"><Input className="min-w-0 flex-1" placeholder="Número de série" value={componentForm.numero_serie} onChange={e => setComponentForm({ ...componentForm, numero_serie: e.target.value })} required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("new")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
@@ -579,7 +600,7 @@ function CentralFrotaPage() {
                   <tr><th className="px-4 py-3">Componente</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3 text-right">Instalados</th><th className="px-3 py-3 text-right">Disponíveis</th><th className="px-3 py-3 text-right">Manutenção</th><th className="px-3 py-3 text-right">Descartados</th></tr>
                 </thead>
                 <tbody>
-                  {tiposComponente.map(([tipo, label]) => {
+                  {opcoesTipoComponente.map(([tipo, label]) => {
                     const items = components.filter(item => item.tipo === tipo);
                     if (!items.length) return null;
                     const installedIds = new Set(activeInstallations.map(item => item.componente_id));
@@ -606,7 +627,7 @@ function CentralFrotaPage() {
           </div>}
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número de série, fabricante ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-4 gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Tipo</span><span>Nº de série</span><span>Fabricante / modelo</span><span>Status</span></div>
-            {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{tiposComponente.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status} <span className="text-primary">›</span></span></button>)}
+            {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{nomeTipoComponente(item.tipo)}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status} <span className="text-primary">›</span></span></button>)}
             {!filteredComponents.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhum componente cadastrado."}</p>}
           </div>
         </section>}
@@ -618,7 +639,7 @@ function CentralFrotaPage() {
               <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa").map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1]}</option>)}
             </select>
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.componente_id} onChange={e => setInstallForm({ ...installForm, componente_id: e.target.value })} required>
-              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {tiposComponente.find(x => x[0] === c.tipo)?.[1]}</option>)}
+              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {nomeTipoComponente(c.tipo)}</option>)}
             </select>
             <Button type="submit" disabled={saving || !installForm.frota_id || !installForm.componente_id}><Wrench className="mr-2 size-4" />Registrar instalação</Button>
           </form>
