@@ -96,31 +96,32 @@ async function getDashboardData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const [ordersResult, profileResult, roleResult, unitRoleResult] = await Promise.all([
+  const [ordersResult, profileResult, unitRolesResult] = await Promise.all([
     supabase.from("ordens_servico").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("*").order("nome", { ascending: true }),
-    supabase.from("user_roles").select("user_id, role"),
-    supabase.from("usuarios_unidades").select("perfil, ativo").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle(),
+    // No banco oficial, os perfis de acesso ficam em usuarios_unidades.
+    // A tabela user_roles não existe neste projeto.
+    supabase.from("usuarios_unidades").select("user_id, perfil, ativo").eq("ativo", true),
   ]);
   if (ordersResult.error) throw ordersResult.error;
   if (profileResult.error) throw profileResult.error;
-  if (roleResult.error) throw roleResult.error;
-  if (unitRoleResult.error) throw unitRoleResult.error;
+  if (unitRolesResult.error) throw unitRolesResult.error;
 
-  // O perfil ADM é armazenado em usuarios_unidades.perfil, não em user_roles.
-  // Prioriza o vínculo ativo da unidade para que as ações administrativas apareçam.
-  const role = unitRoleResult.data?.perfil
-    ?? roleResult.data.find((item) => item.user_id === authData.user.id)?.role
-    ?? "tecnico";
+  const unitRoles = unitRolesResult.data ?? [];
+  const role = unitRoles.find((item) => item.user_id === authData.user.id)?.perfil ?? "tecnico";
   const technicians = profileResult.data
-    .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
+    .filter((profile) => unitRoles.some((item) => item.user_id === profile.id && item.perfil === "tecnico"))
     .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
   const meRaw = profileResult.data.find((profile) => profile.id === authData.user.id);
   const me = meRaw && meRaw.nome?.trim().toLowerCase() === "alex" ? { ...meRaw, nome: "Alexsandro Faber" } : meRaw;
   const team = profileResult.data
     .map((rawProfile) => {
       const profile = rawProfile.nome?.trim().toLowerCase() === "alex" ? { ...rawProfile, nome: "Alexsandro Faber" } : rawProfile;
-      return { profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" };
+      const storedRole = unitRoles.find((item) => item.user_id === profile.id)?.perfil;
+      const teamRole = storedRole === "admin_unidade" || storedRole === "gestor" || storedRole === "gestor_central"
+        ? "gestor"
+        : storedRole === "visualizador" ? "visualizador" : "tecnico";
+      return { profile, role: teamRole };
     })
     .filter((item) => item.profile.id !== authData.user.id);
 
