@@ -40,6 +40,16 @@ function nomeTipoComponente(tipo: string) {
   return tiposComponente.find(([value]) => value === tipo)?.[1] ?? tipo;
 }
 
+function nomeStatusComponente(status: string) {
+  return ({
+    disponivel: "Disponível",
+    instalado: "Instalado",
+    manutencao: "Em manutenção",
+    descartado: "Descartado",
+    backup: "Backup",
+  } as Record<string, string>)[status] ?? status;
+}
+
 function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const onCaptureRef = useRef(onCapture);
@@ -521,7 +531,7 @@ function CentralFrotaPage() {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detalhes do componente</p>
             <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
             <p className="text-sm text-muted-foreground">{nomeTipoComponente(selectedComponent.tipo)} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
-            <p className="mt-2 text-sm">Status: <strong>{selectedComponent.status}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
+            <p className="mt-2 text-sm">Status: <strong>{nomeStatusComponente(selectedComponent.status)}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
             <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, tipoPersonalizado: "", fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>
           </div>
           {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
@@ -531,7 +541,7 @@ function CentralFrotaPage() {
             <div className="flex gap-2"><Input className="min-w-0 flex-1" value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("edit")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Input value={componentEditForm.fabricante} onChange={e => setComponentEditForm({ ...componentEditForm, fabricante: e.target.value })} placeholder="Fabricante" />
             <Input value={componentEditForm.modelo} onChange={e => setComponentEditForm({ ...componentEditForm, modelo: e.target.value })} placeholder="Modelo" />
-            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.status} onChange={e => setComponentEditForm({ ...componentEditForm, status: e.target.value })}><option value="disponivel">Disponível</option><option value="manutencao">Em manutenção</option><option value="descartado">Descartado</option></select>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.status} onChange={e => setComponentEditForm({ ...componentEditForm, status: e.target.value })}><option value="disponivel">Disponível</option><option value="backup">Backup</option><option value="manutencao">Em manutenção</option><option value="descartado">Descartado</option></select>
             <div className="flex gap-2 sm:col-span-4"><Button type="submit" disabled={saving}>Salvar alterações</Button><Button type="button" variant="outline" onClick={() => setEditingComponent(false)}>Cancelar</Button></div>
           </form>}
           {currentComponentFleet && <div className="rounded-2xl border p-4">
@@ -598,7 +608,7 @@ function CentralFrotaPage() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead className="bg-muted/30 text-left text-xs uppercase text-muted-foreground">
-                  <tr><th className="px-4 py-3">Componente</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3 text-right">Instalados</th><th className="px-3 py-3 text-right">Disponíveis</th><th className="px-3 py-3 text-right">Manutenção</th><th className="px-3 py-3 text-right">Descartados</th></tr>
+                  <tr><th className="px-4 py-3">Componente</th><th className="px-3 py-3 text-right">Total</th><th className="px-3 py-3 text-right">Instalados</th><th className="px-3 py-3 text-right">Disponíveis</th><th className="px-3 py-3 text-right">Backup</th><th className="px-3 py-3 text-right">Manutenção</th><th className="px-3 py-3 text-right">Descartados</th></tr>
                 </thead>
                 <tbody>
                   {opcoesTipoComponente.map(([tipo, label]) => {
@@ -610,6 +620,7 @@ function CentralFrotaPage() {
                       <td className="px-3 py-3 text-right font-semibold tabular-nums">{items.length}</td>
                       <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => installedIds.has(item.id)).length}</td>
                       <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "disponivel").length}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "backup").length}</td>
                       <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "manutencao").length}</td>
                       <td className="px-3 py-3 text-right tabular-nums">{items.filter(item => item.status === "descartado").length}</td>
                     </tr>;
@@ -619,6 +630,7 @@ function CentralFrotaPage() {
                     <td className="px-3 py-3 text-right tabular-nums">{components.length}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{activeInstallations.length}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "disponivel").length}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "backup").length}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "manutencao").length}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{components.filter(item => item.status === "descartado").length}</td>
                   </tr>
@@ -628,7 +640,7 @@ function CentralFrotaPage() {
           </div>}
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número de série, fabricante ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-4 gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Tipo</span><span>Nº de série</span><span>Fabricante / modelo</span><span>Status</span></div>
-            {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{nomeTipoComponente(item.tipo)}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{item.status} <span className="text-primary">›</span></span></button>)}
+            {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{nomeTipoComponente(item.tipo)}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{nomeStatusComponente(item.status)} <span className="text-primary">›</span></span></button>)}
             {!filteredComponents.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhum componente cadastrado."}</p>}
           </div>
         </section>}
@@ -650,7 +662,7 @@ function CentralFrotaPage() {
               <option value="">Instalação ativa</option>{activeInstallations.map(item => <option key={item.id} value={item.id}>Frota {item.frotas?.numero ?? "—"} · Série {item.componentes_frota?.numero_serie ?? "—"}</option>)}
             </select>
             <Input placeholder="Motivo da retirada" value={removal.motivo} onChange={e => setRemoval({ ...removal, motivo: e.target.value })} required />
-            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={removal.status} onChange={e => setRemoval({ ...removal, status: e.target.value })}><option value="disponivel">Voltar para disponível</option><option value="manutencao">Enviar para manutenção</option><option value="descartado">Marcar como descartado</option></select>
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={removal.status} onChange={e => setRemoval({ ...removal, status: e.target.value })}><option value="disponivel">Voltar para disponível</option><option value="backup">Reservar como backup</option><option value="manutencao">Enviar para manutenção</option><option value="descartado">Marcar como descartado</option></select>
             <Button type="submit" variant="outline" disabled={saving || !removal.id} className="sm:col-span-4">Registrar retirada</Button>
           </form>
           <p className="rounded-xl bg-muted/50 p-3 text-sm text-muted-foreground">O responsável e a data/hora de cada instalação ou retirada são preenchidos pelo banco com base na sessão autenticada. Não é possível apagar o histórico.</p>
