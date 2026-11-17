@@ -96,16 +96,22 @@ async function getDashboardData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const [ordersResult, profileResult, roleResult] = await Promise.all([
+  const [ordersResult, profileResult, roleResult, unitRoleResult] = await Promise.all([
     supabase.from("ordens_servico").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("*").order("nome", { ascending: true }),
     supabase.from("user_roles").select("user_id, role"),
+    supabase.from("usuarios_unidades").select("perfil, ativo").eq("user_id", authData.user.id).eq("ativo", true).maybeSingle(),
   ]);
   if (ordersResult.error) throw ordersResult.error;
   if (profileResult.error) throw profileResult.error;
   if (roleResult.error) throw roleResult.error;
+  if (unitRoleResult.error) throw unitRoleResult.error;
 
-  const role = roleResult.data.find((item) => item.user_id === authData.user.id)?.role ?? "tecnico";
+  // O perfil ADM é armazenado em usuarios_unidades.perfil, não em user_roles.
+  // Prioriza o vínculo ativo da unidade para que as ações administrativas apareçam.
+  const role = unitRoleResult.data?.perfil
+    ?? roleResult.data.find((item) => item.user_id === authData.user.id)?.role
+    ?? "tecnico";
   const technicians = profileResult.data
     .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
     .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
