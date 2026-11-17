@@ -274,7 +274,7 @@ function CentralFrotaPage() {
   const [editingComponent, setEditingComponent] = useState(false);
   const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
-  const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "" });
+  const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -349,7 +349,7 @@ function CentralFrotaPage() {
     setSaving(true);
     const { error } = await (supabase as any).from("componentes_frota").update({
       tipo: componentEditForm.tipo, fabricante: componentEditForm.fabricante.trim() || null,
-      modelo: componentEditForm.modelo.trim() || null, numero_serie: componentEditForm.numero_serie.trim(),
+      modelo: componentEditForm.modelo.trim() || null, numero_serie: componentEditForm.numero_serie.trim(), status: componentEditForm.status,
     }).eq("id", selectedComponent.id);
     setSaving(false);
     if (error) return toast.error("Não foi possível editar o componente: " + error.message);
@@ -495,7 +495,7 @@ function CentralFrotaPage() {
             <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
             <p className="text-sm text-muted-foreground">{tiposComponente.find(x => x[0] === selectedComponent.tipo)?.[1] ?? selectedComponent.tipo} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
             <p className="mt-2 text-sm">Status: <strong>{selectedComponent.status}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
-            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie }); setEditingComponent(true); }}>Editar dados do componente</Button>
+            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>
           </div>
           {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
             <h3 className="font-semibold sm:col-span-4">Editar componente</h3>
@@ -503,6 +503,7 @@ function CentralFrotaPage() {
             <div className="flex gap-2"><Input className="min-w-0 flex-1" value={componentEditForm.numero_serie} onChange={e => setComponentEditForm({ ...componentEditForm, numero_serie: e.target.value })} placeholder="Número de série" required /><Button type="button" variant="outline" size="icon" onClick={() => setSerialScannerTarget("edit")} aria-label="Ler número de série pela câmera"><Camera className="size-4" /></Button></div>
             <Input value={componentEditForm.fabricante} onChange={e => setComponentEditForm({ ...componentEditForm, fabricante: e.target.value })} placeholder="Fabricante" />
             <Input value={componentEditForm.modelo} onChange={e => setComponentEditForm({ ...componentEditForm, modelo: e.target.value })} placeholder="Modelo" />
+            <select className="h-10 rounded-md border bg-background px-3 text-sm" value={componentEditForm.status} onChange={e => setComponentEditForm({ ...componentEditForm, status: e.target.value })}><option value="disponivel">Disponível</option><option value="manutencao">Em manutenção</option><option value="descartado">Descartado</option></select>
             <div className="flex gap-2 sm:col-span-4"><Button type="submit" disabled={saving}>Salvar alterações</Button><Button type="button" variant="outline" onClick={() => setEditingComponent(false)}>Cancelar</Button></div>
           </form>}
           {currentComponentFleet && <div className="rounded-2xl border p-4">
