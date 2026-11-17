@@ -1197,7 +1197,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
   const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = status === "em_andamento" && actor.role !== "admin_unidade" && (isMine || actor.isManager);
+  const canFinish = status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
