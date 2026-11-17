@@ -140,7 +140,7 @@ const STATUS_LABEL: Record<Status, string> = {
   concluida: "Finalizada",
   cancelada: "Cancelada",
 };
-type Actor = { id: string; email: string; name: string; isManager: boolean };
+type Actor = { id: string; email: string; name: string; isManager: boolean; role: string };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" | "visualizador" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
@@ -312,7 +312,7 @@ function Dashboard() {
   }, [queryClient]);
 
   const data = dashboardQuery.data;
-  const isManager = data?.role === "gestor";
+  const isManager = ["gestor", "gestor_central", "admin_unidade"].includes(data?.role ?? "");
   const userId = data?.user.id;
   const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
@@ -495,6 +495,7 @@ function Dashboard() {
     email: data.user.email ?? "",
     name: data.me?.nome?.trim().toLowerCase() === "alex" ? "Alexsandro Faber" : (data.me?.nome ?? data.user.email ?? ""),
     isManager,
+    role: data.role,
   };
   const connected = online && live;
 
@@ -1186,10 +1187,10 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (isPrimaryAdmin || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || (!actor.isManager && (!order.tecnico_id || isMine)));
+  const canFinish = status === "em_andamento" && actor.role !== "admin_unidade" && (isMine || actor.isManager);
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
-  const canClose = actor.isManager && status === "concluida" && !isClosed;
+  const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
@@ -1268,6 +1269,18 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
 
   async function start() {
     setBusy(true);
+    if (actor.role === "admin_unidade") {
+      const { error } = await (supabase as any).rpc("iniciar_os_pelo_adm", { p_os_id: order.id });
+      setBusy(false);
+      if (error) {
+        toast.error(friendlyError(error, error.message || "Não foi possível iniciar a OS como ADM."));
+        await onChanged();
+        return;
+      }
+      toast.success(`OS ${order.numero_os} iniciada pelo ADM da unidade.`);
+      await onChanged();
+      return;
+    }
     const { data, error } = await supabase
       .from("ordens_servico")
       .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
@@ -1292,29 +1305,22 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   }
 
   async function closeOrder() {
-    if (!actor.isManager || status !== "concluida" || isClosed) return;
-    if (!confirm(`Fechar oficialmente a OS ${order.numero_os}? Depois disso, o técnico não poderá mais editá-la.`)) return;
+    if (actor.role !== "admin_unidade" || (status !== "em_andamento" && status !== "concluida") || isClosed) return;
+    if (!confirm(`Confirmar a finalização administrativa da OS ${order.numero_os}? O sistema registrará seu usuário e horário.`)) return;
     setBusy(true);
-    const closedAt = new Date().toISOString();
-    const { data: closedRows, error } = await (supabase as any).from("ordens_servico").update({
-      fechada_em: closedAt,
-      fechada_por_email: actor.email,
-    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null).select("id");
-    if (error || !closedRows?.length) {
-      setBusy(false);
-      toast.error(error ? friendlyError(error, "Não foi possível fechar a OS.") : "Esta OS já foi fechada ou alterada. Atualize o painel.");
+    const { error } = await (supabase as any).rpc("fechar_os_pelo_adm", {
+      p_os_id: order.id,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(friendlyError(error, error.message || "Não foi possível fechar a OS."));
       await onChanged();
       return;
     }
-    try {
-      await logHistory(order.id, actor, "fechada", `OS fechada oficialmente por ${actor.email}`);
-    } catch (historyError) {
-      console.error("[OS] Falha ao registrar fechamento no histórico:", historyError);
-    }
-    setBusy(false);
-    toast.success(`OS ${order.numero_os} fechada. O técnico não poderá mais editá-la.`);
+    toast.success(`OS ${order.numero_os} finalizada pelo ADM da unidade.`);
     await onChanged();
   }
+
 
   async function cancel() {
     if (!confirm(`Cancelar a OS ${order.numero_os}?`)) return;
