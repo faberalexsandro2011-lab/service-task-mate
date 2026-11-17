@@ -592,7 +592,7 @@ function PainelTeste() {
     await carregar();
   };
 
-  const isAdmVale = perfilAtual === "admin_unidade" && emailUsuarioAtual === "admin@vdp.com" && !!unidadeAtualId;
+  const isAdmVale = perfilAtual === "admin_unidade" && !!unidadeAtualId;
 
   const iniciarOSComoAdm = async (ordem: Ordem) => {
     if (!isAdmVale || ordem.unidade_id !== unidadeAtualId || ordem.status !== "pendente") return;
