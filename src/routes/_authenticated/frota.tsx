@@ -33,7 +33,7 @@ const tiposComponente = [
 ] as const;
 
 function normalizarTipoComponente(tipo: string) {
-  return tipo.trim().replace(/\\s+/g, " ").toLocaleLowerCase("pt-BR");
+  return tipo.trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
 }
 
 function nomeTipoComponente(tipo: string) {
