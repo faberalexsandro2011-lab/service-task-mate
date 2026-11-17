@@ -396,7 +396,8 @@ function CentralFrotaPage() {
     const tipoExistente = components.find(item => normalizarTipoComponente(item.tipo) === normalizarTipoComponente(tipoInformado))?.tipo;
     setSaving(true);
     const { error } = await (supabase as any).from("componentes_frota").insert({
-      ...componentForm, tipo: tipoExistente ?? tipoInformado, numero_serie: componentForm.numero_serie.trim(),
+      unidade_id: componentForm.unidade_id, tipo: tipoExistente ?? tipoInformado,
+      numero_serie: componentForm.numero_serie.trim(),
       fabricante: componentForm.fabricante.trim() || null, modelo: componentForm.modelo.trim() || null,
     });
     setSaving(false);
