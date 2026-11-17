@@ -1197,7 +1197,7 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
   const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || (!actor.isManager && (!order.tecnico_id || isMine)));
-  const canFinish = status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager);
+  const canFinish = (status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager)) || (status === "pendente" && actor.role === "admin_unidade");
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
   const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
@@ -1630,24 +1630,32 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
     const alreadyRecordedFinishTime = Boolean(order.concluida_em);
     const finishedAt = order.concluida_em ?? new Date().toISOString();
     // Sem número de OS, registra o horário e aguarda o ADM antes de concluir.
+    const isAdm = actor.role === "admin_unidade";
+    const admCloseFields = isAdm && hasOsNumber
+      ? { fechada_em: finishedAt, fechada_por_email: actor.email, fechada_por_id: actor.id }
+      : {};
     const updateValues = !hasOsNumber
       ? { notas_fecho: solucao, concluida_em: finishedAt }
-      : { status: "concluida", notas_fecho: solucao, concluida_em: finishedAt };
+      : { status: "concluida", notas_fecho: solucao, concluida_em: finishedAt, ...admCloseFields };
+    const allowedStatuses = isAdm ? ["pendente", "em_andamento"] : ["em_andamento"];
     const { data, error } = await supabase
       .from("ordens_servico")
       .update(updateValues)
       .eq("id", order.id)
-      .eq("status", "em_andamento")
+      .in("status", allowedStatuses)
       .select("id");
     if (error || !data?.length) {
       setSaving(false);
       toast.error(error ? friendlyError(error, "Não foi possível registrar a finalização.") : "Esta OS já não está em andamento.");
       return;
     }
-    const historyAction = !hasOsNumber ? "horario_finalizacao_registrado" : "finalizada";
+    const responsibleName = actor.name?.trim() || actor.email;
+    const historyAction = !hasOsNumber
+      ? (isAdm ? "horario_finalizacao_registrado_pelo_adm" : "horario_finalizacao_registrado")
+      : (isAdm ? "finalizada_pelo_adm" : "finalizada");
     const historyDetail = !hasOsNumber
-      ? `Horário de finalização registrado por ${actor.email}: ${finishedAt}. Aguardando o ADM informar o número da OS. ${solucao}`
-      : `${alreadyRecordedFinishTime ? "Serviço concluído após receber o número da OS" : "Finalizada"} por ${actor.email}: ${solucao}`;
+      ? `Horário de finalização registrado por ${isAdm ? "ADM " : ""}${responsibleName}: ${finishedAt}. Aguardando o ADM informar o número da OS. ${solucao}`
+      : `${isAdm ? "OS finalizada pelo ADM" : (alreadyRecordedFinishTime ? "Serviço concluído após receber o número da OS" : "Finalizada")} por ${responsibleName} (${actor.email}): ${solucao}`;
     await logHistory(order.id, actor, historyAction, historyDetail);
     setSaving(false);
     toast.success(!hasOsNumber
