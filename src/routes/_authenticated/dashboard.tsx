@@ -108,7 +108,9 @@ async function getDashboardData() {
   if (unitRolesResult.error) throw unitRolesResult.error;
 
   const unitRoles = unitRolesResult.data ?? [];
-  const role = unitRoles.find((item) => item.user_id === authData.user.id)?.perfil ?? "tecnico";
+  const myRoles = unitRoles.filter((item) => item.user_id === authData.user.id).map((item) => item.perfil);
+  // Se o usuário tiver mais de um vínculo, prioriza o perfil ADM para não esconder as ações administrativas.
+  const role = myRoles.includes("admin_unidade") ? "admin_unidade" : myRoles.includes("gestor_central") ? "gestor_central" : myRoles.includes("gestor") ? "gestor" : myRoles.includes("visualizador") ? "visualizador" : "tecnico";
   const technicians = profileResult.data
     .filter((profile) => unitRoles.some((item) => item.user_id === profile.id && item.perfil === "tecnico"))
     .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
@@ -1507,8 +1509,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          {!actor.isManager && (
-            <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
+          {(actor.role === "admin_unidade" || !actor.isManager) && (
+            <div className={actor.isManager ? "col-span-2 w-full pt-2 lg:col-span-9" : "ml-auto w-full sm:w-auto sm:min-w-[160px]"} onClick={(event) => event.stopPropagation()}>
               {actionButtons}
             </div>
           )}
