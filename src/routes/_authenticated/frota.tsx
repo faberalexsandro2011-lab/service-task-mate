@@ -449,7 +449,7 @@ function CentralFrotaPage() {
 
 
   function normalizeExcelHeader(value: unknown) {
-    return String(value ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    return String(value ?? "").normalize("NFD").replace(/\\p{Diacritic}/gu, "").replace(/[\\u200B-\\u200D\\uFEFF]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
   }
 
   async function readFleetImportFile(file: File) {
@@ -461,12 +461,11 @@ function CentralFrotaPage() {
       const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
       if (!matrix.length) throw new Error("A planilha está vazia.");
       const fleetHeaders = new Set(["numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "identificacao_frota", "codigo_frota"]);
-      const headerIndex = matrix.slice(0, 20).findIndex(row =>
-        row.some(cell => {
-          const key = normalizeExcelHeader(cell);
-          return fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo")));
-        }),
-      );
+      const headerIndex = matrix.slice(0, 20).findIndex(row => {
+        const keys = row.map(cell => normalizeExcelHeader(cell));
+        // Na planilha SGPA, a primeira coluna é literalmente "Frota".
+        return keys[0] === "frota" || keys.some(key => fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
+      });
       if (headerIndex < 0) {
         const examples = matrix.slice(0, 5).map(row => row.map(cell => String(cell ?? "").trim()).filter(Boolean).join(" | ")).filter(Boolean);
         throw new Error(`Não identifiquei a coluna da frota. Use um cabeçalho como "Número frota", "Número da frota", "Nº Frota" ou "Frota". Primeiras linhas encontradas: ${examples.join(" / ") || "sem conteúdo"}`);
@@ -478,7 +477,7 @@ function CentralFrotaPage() {
           for (const key of keys) if (normalized[key] !== undefined && String(normalized[key]).trim()) return String(normalized[key]).trim();
           return "";
         };
-        const fleetKey = headers.find(key => fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
+        const fleetKey = headers.find((key, index) => (index === 0 && key === "frota") || fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
         return {
           numero: (fleetKey ? String(normalized[fleetKey] ?? "").trim() : "") || pick("numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "numero", "identificacao_frota", "codigo_frota"),
           tipo: pick("tipo_frota", "tipo_frota_sgpa", "tipo", "categoria") || "trator",
