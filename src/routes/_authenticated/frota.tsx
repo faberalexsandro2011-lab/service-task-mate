@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Camera, CarFront, Copy, History, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Camera, CarFront, Copy, History, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 
 type Unidade = { id: string; nome: string };
 type Frota = { id: string; unidade_id: string; numero: string; tipo: string; marca: string | null; modelo: string | null; status: string; qr_publico_token?: string | null };
-type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string };
+type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string; localizacao_estoque?: string | null };
+type MovimentacaoEstoque = { id: string; componente_id: string; tipo: string; localizacao_origem: string | null; localizacao_destino: string | null; ocorrido_em: string; responsavel_email: string | null; observacoes: string | null };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
   instalado_em: string; instalado_por_email: string | null; instalado_por_nome: string | null; retirado_em: string | null;
@@ -272,13 +273,15 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
 }
 
 function CentralFrotaPage() {
-  const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "historico">("frotas");
+  const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
   const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
   const [fleets, setFleets] = useState<Frota[]>([]);
   const [components, setComponents] = useState<Componente[]>([]);
   const [installations, setInstallations] = useState<Instalacao[]>([]);
+  const [stockMovements, setStockMovements] = useState<MovimentacaoEstoque[]>([]);
+  const [locationDrafts, setLocationDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
@@ -308,15 +311,16 @@ function CentralFrotaPage() {
       const canViewComponentTotals = (memberships ?? []).some((item: any) => item.perfil === "admin_unidade" || (item.perfil === "gestor_central" && item.unidade_id === null));
       setIsCentralManager(central);
       setCanViewComponentTotals(canViewComponentTotals);
-      const [unitResult, fleetResult, componentResult, installationResult] = await Promise.all([
+      const [unitResult, fleetResult, componentResult, installationResult, movementResult] = await Promise.all([
         (supabase as any).from("unidades").select("id,nome").order("nome"),
         (supabase as any).from("frotas").select("*").order("numero"),
         (supabase as any).from("componentes_frota").select("*").order("numero_serie"),
         (supabase as any).from("instalacoes_frota")
           .select("*,frotas(numero,tipo),componentes_frota(tipo,numero_serie)")
-          .order("instalado_em", { ascending: false }),
+           .order("instalado_em", { ascending: false }),
+        (supabase as any).from("movimentacoes_componentes_frota").select("*").order("ocorrido_em", { ascending: false }).limit(200),
       ]);
-      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error;
+      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error;
       if (failure) throw failure;
       const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
       const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || memberUnitIds.has(unit.id));
@@ -324,6 +328,7 @@ function CentralFrotaPage() {
       setFleets(fleetResult.data ?? []);
       setComponents(componentResult.data ?? []);
       setInstallations(installationResult.data ?? []);
+      setStockMovements(movementResult.data ?? []);
       setFleetForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
       setComponentForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
     } catch (error) {
@@ -470,6 +475,18 @@ function CentralFrotaPage() {
     await load();
   }
 
+  async function saveStockLocation(component: Componente) {
+    const location = (locationDrafts[component.id] ?? component.localizacao_estoque ?? "Estoque geral").trim();
+    if (!location) return toast.error("Informe a prateleira ou local do estoque.");
+    setSaving(true);
+    const { error } = await (supabase as any).from("componentes_frota")
+      .update({ localizacao_estoque: location }).eq("id", component.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível atualizar o local: " + error.message);
+    toast.success("Localização do dispositivo atualizada.");
+    await load();
+  }
+
   async function installComponent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fleet = fleets.find(item => item.id === installForm.frota_id);
@@ -512,6 +529,7 @@ function CentralFrotaPage() {
     { id: "frotas", label: "Frotas", icon: CarFront },
     { id: "componentes", label: "Componentes", icon: Boxes },
     { id: "instalacoes", label: "Instalações", icon: Wrench },
+    { id: "estoque", label: "Estoque", icon: Package },
     { id: "historico", label: "Histórico", icon: History },
   ] as const;
 
@@ -713,6 +731,50 @@ function CentralFrotaPage() {
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-4 gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Tipo</span><span>Nº de série</span><span>Fabricante / modelo</span><span>Status</span></div>
             {filteredComponents.map(item => <button key={item.id} type="button" onClick={() => setSelectedComponentId(item.id)} className="grid w-full grid-cols-4 gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><span>{nomeTipoComponente(item.tipo)}</span><strong>{item.numero_serie}</strong><span>{[item.fabricante,item.modelo].filter(Boolean).join(" ") || "—"}</span><span>{nomeStatusComponente(item.status)} <span className="text-primary">›</span></span></button>)}
             {!filteredComponents.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhum componente cadastrado."}</p>}
+          </div>
+        </section>}
+
+
+        {tab === "estoque" && <section className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              ["Disponíveis", components.filter(x => x.status === "disponivel").length],
+              ["Backup", components.filter(x => x.status === "backup").length],
+              ["Manutenção", components.filter(x => x.status === "manutencao").length],
+              ["Instalados", components.filter(x => x.status === "instalado").length],
+            ].map(([label, count]) => <div key={label} className="rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-bold tabular-nums">{count}</p></div>)}
+          </div>
+          <div className="rounded-2xl border bg-card p-4">
+            <h2 className="font-semibold">Dispositivos guardados</h2>
+            <p className="mb-3 text-sm text-muted-foreground">Consulte o estoque por número de série e informe a prateleira ou local físico. Equipamentos instalados não aparecem nesta lista.</p>
+            <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar série, tipo, fabricante, modelo ou prateleira" value={search} onChange={e => setSearch(e.target.value)} /></div>
+          </div>
+          <div className="space-y-2">
+            {components.filter(item => ["disponivel","backup","manutencao"].includes(item.status))
+              .filter(item => [item.numero_serie,item.tipo,item.fabricante ?? "",item.modelo ?? "",item.localizacao_estoque ?? ""].join(" ").toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")))
+              .map(item => <article key={item.id} className="rounded-xl border bg-card p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><p className="font-semibold">{item.numero_serie}</p><p className="text-sm text-muted-foreground">{nomeTipoComponente(item.tipo)} · {[item.fabricante,item.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p></div>
+                  <span className="rounded-full bg-muted px-2 py-1 text-xs">{nomeStatusComponente(item.status)}</span>
+                </div>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <Input value={locationDrafts[item.id] ?? item.localizacao_estoque ?? "Estoque geral"} onChange={e => setLocationDrafts(current => ({ ...current, [item.id]: e.target.value }))} placeholder="Ex.: Prateleira 1, Caixa A..." />
+                  <Button type="button" variant="outline" disabled={saving} onClick={() => void saveStockLocation(item)}>Salvar local</Button>
+                </div>
+              </article>)}
+            {!components.some(item => ["disponivel","backup","manutencao"].includes(item.status)) && <p className="rounded-xl border p-6 text-center text-sm text-muted-foreground">Nenhum dispositivo guardado no momento.</p>}
+          </div>
+          <div className="rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Movimentações recentes do estoque</div>
+            {stockMovements.slice(0,30).map(move => {
+              const component = components.find(x => x.id === move.componente_id);
+              return <div key={move.id} className="border-t px-4 py-3 text-sm">
+                <p className="font-medium">{component?.numero_serie ?? "Dispositivo"} · {({entrada:"Entrada",instalacao:"Instalação",retirada:"Retirada",transferencia:"Transferência",manutencao:"Manutenção",descarte:"Descarte"} as Record<string,string>)[move.tipo] ?? move.tipo}</p>
+                <p className="text-muted-foreground">{move.localizacao_origem ?? "—"} → {move.localizacao_destino ?? "Instalado em frota"} · {new Date(move.ocorrido_em).toLocaleString("pt-BR")}</p>
+                {move.observacoes && <p className="text-xs text-muted-foreground">{move.observacoes}</p>}
+              </div>;
+            })}
+            {!stockMovements.length && <p className="p-5 text-sm text-muted-foreground">As movimentações aparecerão aqui automaticamente.</p>}
           </div>
         </section>}
 
