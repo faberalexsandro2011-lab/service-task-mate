@@ -280,7 +280,7 @@ function CentralFrotaPage() {
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
   const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
-  const [adminUnitIds, setAdminUnitIds] = useState<string[]>([]);
+  const [stockUnitIds, setStockUnitIds] = useState<string[]>([]);
   const [transfers, setTransfers] = useState<TransferenciaFrota[]>([]);
   const [transferForm, setTransferForm] = useState({ componente_id: "", unidade_destino_id: "", observacoes: "" });
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
@@ -307,7 +307,7 @@ function CentralFrotaPage() {
   const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
   const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
-  const canManageStock = isCentralManager || adminUnitIds.length > 0;
+  const canManageStock = isCentralManager || stockUnitIds.length > 0;
 
   useEffect(() => {
     if (!loading && !canManageStock && tab === "estoque") setTab("frotas");
@@ -324,10 +324,10 @@ function CentralFrotaPage() {
       if (membershipError) throw membershipError;
       const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
       const canViewComponentTotals = (memberships ?? []).some((item: any) => item.perfil === "admin_unidade" || (item.perfil === "gestor_central" && item.unidade_id === null));
-      const adminUnits = (memberships ?? []).filter((item: any) => item.perfil === "admin_unidade" && item.unidade_id).map((item: any) => item.unidade_id);
+      const managedUnits = (memberships ?? []).filter((item: any) => ["admin_unidade", "gestor"].includes(item.perfil) && item.unidade_id).map((item: any) => item.unidade_id);
       setIsCentralManager(central);
       setCanViewComponentTotals(canViewComponentTotals);
-      setAdminUnitIds(adminUnits);
+      setStockUnitIds(managedUnits);
       const [unitResult, fleetResult, componentResult, installationResult, movementResult, transferResult] = await Promise.all([
         (supabase as any).from("unidades").select("id,nome").order("nome"),
         (supabase as any).from("frotas").select("*").order("numero"),
@@ -993,7 +993,7 @@ function CentralFrotaPage() {
                   {!units.length && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma unidade disponível.</p>}
                 </div>
 
-                {(isCentralManager || adminUnitIds.length > 0) && <form onSubmit={sendComponentTransfer} className="h-fit space-y-4 rounded-2xl border bg-card p-4 shadow-sm">
+                {(isCentralManager || stockUnitIds.length > 0) && <form onSubmit={sendComponentTransfer} className="h-fit space-y-4 rounded-2xl border bg-card p-4 shadow-sm">
                   <div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Truck className="size-5" /></div><div><h3 className="font-semibold">Transferir equipamento</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Envie um dispositivo para outra unidade. O destino precisará conferir e confirmar o recebimento.</p></div></div>
                   <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Equipamento de origem</label><select className="h-11 w-full rounded-xl border bg-background px-3 text-sm" value={transferForm.componente_id} onChange={e => setTransferForm(current => ({ ...current, componente_id: e.target.value }))} required><option value="">Selecione o equipamento</option>{components.filter(c => ["disponivel","backup"].includes(c.status) && (isCentralManager || adminUnitIds.includes(c.unidade_id))).map(c => <option key={c.id} value={c.id}>{units.find(u => u.id === c.unidade_id)?.nome ?? "Unidade"} · {c.numero_serie} · {nomeTipoComponente(c.tipo)}</option>)}</select></div>
                   <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Unidade de destino</label><select className="h-11 w-full rounded-xl border bg-background px-3 text-sm" value={transferForm.unidade_destino_id} onChange={e => setTransferForm(current => ({ ...current, unidade_destino_id: e.target.value }))} required><option value="">Selecione o destino</option>{units.filter(u => u.id !== components.find(c => c.id === transferForm.componente_id)?.unidade_id).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}</select></div>
