@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Camera, CarFront, Copy, History, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
