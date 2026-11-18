@@ -361,7 +361,7 @@ function CentralFrotaPage() {
   async function generateFleetQr() {
     if (!selectedFleet) return;
     setQrLoading(true);
-    const { data, error } = await supabase.rpc("central_frota_gerar_qr_publico", {
+    const { data, error } = await (supabase as any).rpc("central_frota_gerar_qr_publico", {
       p_frota_id: selectedFleet.id,
     });
     setQrLoading(false);
