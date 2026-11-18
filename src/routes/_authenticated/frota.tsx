@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Camera, CarFront, History, Plus, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Camera, CarFront, Download, FileSpreadsheet, History, Plus, RefreshCw, Search, Truck, Upload, Wrench, X } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -262,6 +263,7 @@ function CentralFrotaPage() {
   const [installations, setInstallations] = useState<Instalacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -415,6 +417,156 @@ function CentralFrotaPage() {
     await load();
   }
 
+  function exportInventory(templateOnly = false) {
+    const workbook = XLSX.utils.book_new();
+    const fleetRows = templateOnly ? [] : fleets.map(fleet => ({
+      Unidade: units.find(unit => unit.id === fleet.unidade_id)?.nome ?? "",
+      Numero: fleet.numero, Tipo: fleet.tipo, Marca: fleet.marca ?? "",
+      Modelo: fleet.modelo ?? "", Status: fleet.status,
+    }));
+    const deviceRows = templateOnly ? [] : components.map(component => {
+      const current = activeInstallations.find(item => item.componente_id === component.id);
+      const fleet = current ? fleets.find(item => item.id === current.frota_id) : null;
+      return {
+        Unidade: units.find(unit => unit.id === component.unidade_id)?.nome ?? "",
+        Tipo: component.tipo, Fabricante: component.fabricante ?? "", Modelo: component.modelo ?? "",
+        Numero_de_Serie: component.numero_serie, Status: component.status, Frota: fleet?.numero ?? "",
+      };
+    });
+    const fleetSheet = templateOnly
+      ? XLSX.utils.aoa_to_sheet([["Unidade", "Numero", "Tipo", "Marca", "Modelo", "Status"]])
+      : XLSX.utils.json_to_sheet(fleetRows);
+    const deviceSheet = templateOnly
+      ? XLSX.utils.aoa_to_sheet([["Unidade", "Tipo", "Fabricante", "Modelo", "Numero_de_Serie", "Status", "Frota"]])
+      : XLSX.utils.json_to_sheet(deviceRows);
+    XLSX.utils.book_append_sheet(workbook, fleetSheet, "Frotas");
+    XLSX.utils.book_append_sheet(workbook, deviceSheet, "Dispositivos");
+    XLSX.writeFile(workbook, templateOnly ? "modelo-importacao-central-frota.xlsx" : "inventario-central-frota-" + new Date().toISOString().slice(0, 10) + ".xlsx");
+    if (!templateOnly) toast.success("Planilha de inventário exportada.");
+  }
+
+  function cellText(row: Record<string, unknown>, aliases: string[]) {
+    const normalized = new Map(Object.entries(row).map(([key, value]) => [
+      key.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""),
+      String(value ?? "").trim(),
+    ]));
+    for (const alias of aliases) {
+      const value = normalized.get(alias.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""));
+      if (value) return value;
+    }
+    return "";
+  }
+
+  function normalizeFleetType(value: string) {
+    const v = value.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+    if (["trator", "tractor"].includes(v)) return "trator";
+    if (["colheitadeira", "colheitador", "harvester"].includes(v)) return "colheitadeira";
+    if (["caminhao", "truck"].includes(v)) return "caminhao";
+    if (["veiculo", "carro", "utilitario"].includes(v)) return "veiculo";
+    return "";
+  }
+
+  function normalizeDeviceStatus(value: string) {
+    const v = value.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/\\s+/g, "_");
+    if (!v || ["disponivel", "available"].includes(v)) return "disponivel";
+    if (["instalado", "installed", "em_uso"].includes(v)) return "instalado";
+    if (["manutencao", "maintenance"].includes(v)) return "manutencao";
+    if (["descartado", "descartada", "descart"].includes(v)) return "descartado";
+    if (["backup", "reserva"].includes(v)) return "backup";
+    return "";
+  }
+
+  async function importInventory(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const fleetSheet = workbook.Sheets.Frotas;
+      const deviceSheet = workbook.Sheets.Dispositivos;
+      if (!fleetSheet || !deviceSheet) throw new Error('A planilha precisa conter duas abas: "Frotas" e "Dispositivos". Baixe o modelo para conferir as colunas.');
+      const fleetInput = XLSX.utils.sheet_to_json<Record<string, unknown>>(fleetSheet, { defval: "" });
+      const deviceInput = XLSX.utils.sheet_to_json<Record<string, unknown>>(deviceSheet, { defval: "" });
+      const unitByName = new Map(units.map(unit => [unit.nome.trim().toLowerCase(), unit]));
+      const fleetMap = new Map(fleets.map(fleet => [fleet.unidade_id + "|" + fleet.numero.trim().toLowerCase(), fleet]));
+      const seenFleets = new Set<string>();
+      const pendingFleets: Array<Record<string, unknown>> = [];
+      for (let index = 0; index < fleetInput.length; index++) {
+        const row = fleetInput[index];
+        const unitName = cellText(row, ["unidade", "unidadenome"]);
+        const unit = unitByName.get(unitName.toLowerCase());
+        const number = cellText(row, ["numero", "numerodafrota", "frota"]);
+        const type = normalizeFleetType(cellText(row, ["tipo", "tipofrota", "categoria"]));
+        if (!unit || !number || !type) throw new Error("Aba Frotas, linha " + (index + 2) + ": informe Unidade válida, Número e Tipo (trator, colheitadeira, caminhão ou veículo).");
+        const key = unit.id + "|" + number.toLowerCase();
+        if (seenFleets.has(key)) throw new Error("Aba Frotas: número duplicado na planilha — " + number + " (" + unit.nome + ").");
+        seenFleets.add(key);
+        if (!fleetMap.has(key)) pendingFleets.push({
+          unidade_id: unit.id, numero: number, tipo: type,
+          marca: cellText(row, ["marca"]) || null, modelo: cellText(row, ["modelo"]) || null,
+          status: cellText(row, ["status"]) || "ativa",
+        });
+      }
+      if (pendingFleets.length) {
+        const { data, error } = await (supabase as any).from("frotas").insert(pendingFleets).select("*");
+        if (error) throw new Error("Falha ao importar frotas: " + error.message);
+        for (const fleet of data ?? []) fleetMap.set(fleet.unidade_id + "|" + fleet.numero.trim().toLowerCase(), fleet);
+      }
+
+      const seenSerials = new Set<string>();
+      const existingSerials = new Set(components.map(component => component.unidade_id + "|" + component.numero_serie.trim().toLowerCase()));
+      const pendingComponents: Array<Record<string, unknown> & { __fleetKey?: string }> = [];
+      for (let index = 0; index < deviceInput.length; index++) {
+        const row = deviceInput[index];
+        const serial = cellText(row, ["numerodeserie", "serie", "serial", "numeroserie"]);
+        const unitName = cellText(row, ["unidade", "unidadenome"]);
+        const unit = unitByName.get(unitName.toLowerCase());
+        const fleetNumber = cellText(row, ["frota", "numerodafrota", "frotarelacionada"]);
+        const fleetKey = unit && fleetNumber ? unit.id + "|" + fleetNumber.toLowerCase() : "";
+        const status = normalizeDeviceStatus(cellText(row, ["status", "situacao"]));
+        const type = cellText(row, ["tipo", "tipodispositivo", "componente"]);
+        if (!unit || !serial || !type || !status) throw new Error("Aba Dispositivos, linha " + (index + 2) + ": informe Unidade, Tipo, Número de Série e Status válido.");
+        if (status === "instalado" && (!fleetNumber || !fleetMap.has(fleetKey))) throw new Error("Aba Dispositivos, linha " + (index + 2) + ": dispositivo instalado precisa informar Frota existente na mesma unidade.");
+        const key = unit.id + "|" + serial.toLowerCase();
+        if (seenSerials.has(key) || existingSerials.has(key)) throw new Error("Número de série duplicado ou já cadastrado: " + serial + ".");
+        seenSerials.add(key);
+        pendingComponents.push({
+          unidade_id: unit.id, tipo, fabricante: cellText(row, ["fabricante", "marca"]) || null,
+          modelo: cellText(row, ["modelo"]) || null, numero_serie: serial,
+          status: status === "instalado" ? "disponivel" : status,
+          __fleetKey: status === "instalado" ? fleetKey : undefined,
+        });
+      }
+
+      let createdComponents: any[] = [];
+      if (pendingComponents.length) {
+        const payload = pendingComponents.map(({ __fleetKey, ...row }) => row);
+        const { data, error } = await (supabase as any).from("componentes_frota").insert(payload).select("*");
+        if (error) throw new Error("Frotas importadas, mas houve falha ao cadastrar dispositivos: " + error.message);
+        createdComponents = data ?? [];
+        const installationsToCreate = createdComponents.flatMap((component, index) => {
+          const fleetKey = pendingComponents[index]?.__fleetKey;
+          const fleet = fleetKey ? fleetMap.get(fleetKey) : null;
+          return fleet ? [{ unidade_id: component.unidade_id, frota_id: fleet.id, componente_id: component.id }] : [];
+        });
+        if (installationsToCreate.length) {
+          const { error: installError } = await (supabase as any).from("instalacoes_frota").insert(installationsToCreate);
+          if (installError) throw new Error("Dispositivos cadastrados, mas não foi possível concluir todos os vínculos com as frotas: " + installError.message);
+        }
+      }
+      toast.success("Importação concluída: " + pendingFleets.length + " frota(s) nova(s) e " + createdComponents.length + " dispositivo(s) novo(s).");
+      await load();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Erro ao ler a planilha.";
+      toast.error(message, { duration: 9000 });
+      console.error("[Central Frota] Importação:", error);
+      await load();
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const tabs = [
     { id: "frotas", label: "Frotas", icon: CarFront },
     { id: "componentes", label: "Componentes", icon: Boxes },
@@ -430,7 +582,11 @@ function CentralFrotaPage() {
             <div className="rounded-xl bg-primary/10 p-2 text-primary"><Truck className="size-6" /></div>
             <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <input id="central-frota-import-file" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={event => void importInventory(event)} />
+            <Button variant="outline" size="sm" onClick={() => exportInventory(true)}><FileSpreadsheet className="mr-1 size-4" /> Modelo</Button>
+            <Button variant="outline" size="sm" onClick={() => document.getElementById("central-frota-import-file")?.click()} disabled={importing || loading}><Upload className="mr-1 size-4" />{importing ? "Importando..." : "Importar"}</Button>
+            <Button variant="outline" size="sm" onClick={() => exportInventory()} disabled={loading}><Download className="mr-1 size-4" /> Exportar inventário</Button>
             <Button variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
           </div>
