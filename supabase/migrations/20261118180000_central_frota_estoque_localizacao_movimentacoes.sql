@@ -2,13 +2,13 @@
 -- Aplicar somente no banco de testes da branch.
 
 alter table public.componentes_frota
-  add column if not exists localizacao_estoque text not null default 'Estoque geral';
+  add column if not exists localizacao_estoque text default 'Estoque geral';
 
 alter table public.componentes_frota
   drop constraint if exists componentes_frota_localizacao_estoque_check;
 alter table public.componentes_frota
   add constraint componentes_frota_localizacao_estoque_check
-  check (length(trim(localizacao_estoque)) between 1 and 120);
+  check (localizacao_estoque is null or length(trim(localizacao_estoque)) between 1 and 120);
 
 create table if not exists public.movimentacoes_componentes_frota (
   id uuid primary key default gen_random_uuid(),
