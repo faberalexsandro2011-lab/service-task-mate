@@ -57,7 +57,7 @@ function PublicFleetPage() {
     let active = true;
     async function load() {
       setLoading(true);
-      const { data, error } = await supabase.rpc("central_frota_consulta_publica", {
+      const { data, error } = await (supabase as any).rpc("central_frota_consulta_publica", {
         p_token: token,
       });
       if (!active) return;
