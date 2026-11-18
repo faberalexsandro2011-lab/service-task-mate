@@ -2,6 +2,18 @@
 -- Aplicar somente no banco de testes da branch.
 
 alter table public.componentes_frota
+  drop constraint if exists componentes_frota_status_check;
+alter table public.componentes_frota
+  add constraint componentes_frota_status_check
+  check (status in ('disponivel','instalado','manutencao','descartado','backup'));
+
+alter table public.instalacoes_frota
+  drop constraint if exists instalacoes_frota_status_apos_retirada_check;
+alter table public.instalacoes_frota
+  add constraint instalacoes_frota_status_apos_retirada_check
+  check (status_apos_retirada is null or status_apos_retirada in ('disponivel','manutencao','descartado','backup'));
+
+alter table public.componentes_frota
   add column if not exists localizacao_estoque text default 'Estoque geral';
 
 alter table public.componentes_frota
