@@ -307,6 +307,11 @@ function CentralFrotaPage() {
   const [serialScannerTarget, setSerialScannerTarget] = useState<"new" | "edit" | null>(null);
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
   const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
+  const canManageStock = isCentralManager || adminUnitIds.length > 0;
+
+  useEffect(() => {
+    if (!loading && !canManageStock && tab === "estoque") setTab("frotas");
+  }, [loading, canManageStock, tab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -509,6 +514,7 @@ function CentralFrotaPage() {
   }
 
   async function exportFleetsExcel() {
+    if (!canManageStock) return toast.error("Apenas ADM e gestores podem exportar dados.");
     const rows = fleets.flatMap(fleet => {
       const related = activeInstallations.filter(item => item.frota_id === fleet.id);
       const base = { "Unidade": units.find(unit => unit.id === fleet.unidade_id)?.nome ?? "", "Número frota": fleet.numero, "Tipo frota": fleet.tipo, "Marca frota": fleet.marca ?? "", "Modelo frota": fleet.modelo ?? "", "Status frota": fleet.status };
@@ -523,6 +529,7 @@ function CentralFrotaPage() {
   }
 
   async function importFleetsExcel() {
+    if (!canManageStock) return toast.error("Apenas ADM e gestores podem importar dados.");
     if (!importRows.length || !importUnitId) return toast.error("Selecione a unidade e carregue uma planilha válida.");
     setImporting(true);
     let createdFleets = 0, createdComponents = 0, skipped = 0;
@@ -594,6 +601,7 @@ function CentralFrotaPage() {
   }
 
   async function saveStockLocation(component: Componente) {
+    if (!canManageStock) return toast.error("Apenas ADM e gestores podem acessar o estoque.");
     const location = (locationDrafts[component.id] ?? component.localizacao_estoque ?? "Estoque geral").trim();
     if (!location) return toast.error("Informe a prateleira ou local do estoque.");
     setSaving(true);
@@ -685,7 +693,7 @@ function CentralFrotaPage() {
     { id: "frotas", label: "Frotas", icon: CarFront },
     { id: "componentes", label: "Componentes", icon: Boxes },
     { id: "instalacoes", label: "Instalações", icon: Wrench },
-    { id: "estoque", label: "Estoque por unidade", icon: Package },
+    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package }] : []),
     { id: "historico", label: "Histórico", icon: History },
   ] as const;
 
@@ -712,7 +720,7 @@ function CentralFrotaPage() {
         </section>
 
         <nav className="flex flex-wrap gap-2" aria-label="Seções do Central Frota">
-          {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
+          {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
         </nav>
 
 
@@ -826,7 +834,7 @@ function CentralFrotaPage() {
             <Button type="submit" disabled={saving || !units.length} className="sm:col-span-6"><Plus className="mr-2 size-4" />Cadastrar frota</Button>
           </form>
 
-          <div className="rounded-2xl border bg-card p-4 space-y-3">
+          {canManageStock && <div className="rounded-2xl border bg-card p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Importar ou exportar Excel</h3><p className="text-sm text-muted-foreground">Importe frotas com ou sem dispositivos. O número de série é necessário para cadastrar e vincular o dispositivo à frota.</p></div><Button type="button" variant="outline" onClick={() => void exportFleetsExcel()} disabled={!fleets.length && !components.length}><Boxes className="mr-2 size-4" />Exportar Excel</Button></div>
             <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
               <select className="h-10 rounded-md border bg-background px-3 text-sm" value={importUnitId} onChange={e => setImportUnitId(e.target.value)}><option value="">Unidade da importação</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}</select>
@@ -838,7 +846,7 @@ function CentralFrotaPage() {
               <div className="max-h-36 overflow-auto rounded-lg border bg-background text-xs">{importRows.slice(0,8).map((row,i) => <div key={i} className="grid grid-cols-3 gap-2 border-b px-2 py-2 last:border-0"><strong>{row.numero}</strong><span>{row.tipo}</span><span>{row.numero_serie || "Sem dispositivo"}</span></div>)}{importRows.length > 8 && <p className="p-2 text-muted-foreground">Mais {importRows.length-8} linha(s)...</p>}</div>
               <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => void importFleetsExcel()} disabled={importing || !importUnitId}>{importing ? "Importando..." : "Confirmar importação"}</Button><Button type="button" variant="outline" onClick={() => setImportRows([])} disabled={importing}>Cancelar</Button></div>
             </div>}
-          </div>
+          </div>}
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número, marca ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-[1fr_1fr_1fr] gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Frota</span><span>Tipo</span><span>Marca / modelo</span></div>
             {filteredFleets.map(item => <button key={item.id} type="button" onClick={() => setSelectedFleetId(item.id)} className="grid w-full grid-cols-[1fr_1fr_1fr] gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><strong>{item.numero}</strong><span>{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span>{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"} <span className="text-primary">›</span></span></button>)}
@@ -905,7 +913,7 @@ function CentralFrotaPage() {
         </section>}
 
 
-        {tab === "estoque" && <section className="space-y-6">
+        {tab === "estoque" && canManageStock && <section className="space-y-6">
           {(() => {
             const total = components.length;
             const availableTotal = components.filter(item => item.status === "disponivel").length;
