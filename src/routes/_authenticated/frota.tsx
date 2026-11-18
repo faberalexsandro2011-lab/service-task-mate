@@ -12,6 +12,7 @@ type Frota = { id: string; unidade_id: string; numero: string; tipo: string; mar
 type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string; localizacao_estoque?: string | null };
 type LinhaImportacaoFrota = { numero: string; tipo: string; marca: string; modelo: string; componente_tipo: string; fabricante: string; componente_modelo: string; numero_serie: string; localizacao: string };
 type MovimentacaoEstoque = { id: string; componente_id: string; tipo: string; localizacao_origem: string | null; localizacao_destino: string | null; ocorrido_em: string; responsavel_email: string | null; observacoes: string | null };
+type TransferenciaFrota = { id: string; componente_id: string; numero_serie: string; tipo: string; fabricante: string | null; modelo: string | null; unidade_origem_id: string; unidade_origem_nome: string; unidade_destino_id: string; unidade_destino_nome: string; status: "enviada" | "recebida" | "recusada"; status_anterior: string; enviada_por: string; enviada_em: string; recebida_por: string | null; recebida_em: string | null; recusada_por: string | null; recusada_em: string | null; motivo_recusa: string | null; observacoes: string | null };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
   instalado_em: string; instalado_por_email: string | null; instalado_por_nome: string | null; retirado_em: string | null;
@@ -279,6 +280,10 @@ function CentralFrotaPage() {
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
   const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
+  const [adminUnitIds, setAdminUnitIds] = useState<string[]>([]);
+  const [transfers, setTransfers] = useState<TransferenciaFrota[]>([]);
+  const [transferForm, setTransferForm] = useState({ componente_id: "", unidade_destino_id: "", observacoes: "" });
+  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
   const [fleets, setFleets] = useState<Frota[]>([]);
   const [components, setComponents] = useState<Componente[]>([]);
   const [installations, setInstallations] = useState<Instalacao[]>([]);
@@ -314,9 +319,11 @@ function CentralFrotaPage() {
       if (membershipError) throw membershipError;
       const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
       const canViewComponentTotals = (memberships ?? []).some((item: any) => item.perfil === "admin_unidade" || (item.perfil === "gestor_central" && item.unidade_id === null));
+      const adminUnits = (memberships ?? []).filter((item: any) => item.perfil === "admin_unidade" && item.unidade_id).map((item: any) => item.unidade_id);
       setIsCentralManager(central);
       setCanViewComponentTotals(canViewComponentTotals);
-      const [unitResult, fleetResult, componentResult, installationResult, movementResult] = await Promise.all([
+      setAdminUnitIds(adminUnits);
+      const [unitResult, fleetResult, componentResult, installationResult, movementResult, transferResult] = await Promise.all([
         (supabase as any).from("unidades").select("id,nome").order("nome"),
         (supabase as any).from("frotas").select("*").order("numero"),
         (supabase as any).from("componentes_frota").select("*").order("numero_serie"),
@@ -324,8 +331,9 @@ function CentralFrotaPage() {
           .select("*,frotas(numero,tipo),componentes_frota(tipo,numero_serie)")
            .order("instalado_em", { ascending: false }),
         (supabase as any).from("movimentacoes_componentes_frota").select("*").order("ocorrido_em", { ascending: false }).limit(200),
+        (supabase as any).rpc("central_frota_listar_transferencias"),
       ]);
-      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error;
+      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error || transferResult.error;
       if (failure) throw failure;
       const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
       const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || memberUnitIds.has(unit.id));
@@ -334,6 +342,7 @@ function CentralFrotaPage() {
       setComponents(componentResult.data ?? []);
       setInstallations(installationResult.data ?? []);
       setStockMovements(movementResult.data ?? []);
+      setTransfers(transferResult.data ?? []);
       setFleetForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
       setComponentForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
     } catch (error) {
@@ -596,6 +605,44 @@ function CentralFrotaPage() {
     await load();
   }
 
+  async function sendComponentTransfer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!transferForm.componente_id || !transferForm.unidade_destino_id) return toast.error("Selecione o equipamento e a unidade de destino.");
+    setSaving(true);
+    const { error } = await (supabase as any).rpc("central_frota_enviar_transferencia", {
+      p_componente_id: transferForm.componente_id,
+      p_unidade_destino_id: transferForm.unidade_destino_id,
+      p_observacoes: transferForm.observacoes.trim() || null,
+    });
+    setSaving(false);
+    if (error) return toast.error("Não foi possível enviar a transferência: " + error.message);
+    toast.success("Equipamento enviado. A unidade de destino precisa confirmar o recebimento.");
+    setTransferForm({ componente_id: "", unidade_destino_id: "", observacoes: "" });
+    await load();
+  }
+
+  async function confirmComponentTransfer(id: string) {
+    setSaving(true);
+    const { error } = await (supabase as any).rpc("central_frota_confirmar_recebimento", { p_transferencia_id: id });
+    setSaving(false);
+    if (error) return toast.error("Não foi possível confirmar o recebimento: " + error.message);
+    toast.success("Recebimento confirmado. Equipamento agora pertence ao estoque desta unidade.");
+    await load();
+  }
+
+  async function refuseComponentTransfer(id: string) {
+    const reason = (rejectReasons[id] ?? "").trim();
+    if (!reason) return toast.error("Informe o motivo da recusa.");
+    setSaving(true);
+    const { error } = await (supabase as any).rpc("central_frota_recusar_recebimento", {
+      p_transferencia_id: id, p_motivo: reason,
+    });
+    setSaving(false);
+    if (error) return toast.error("Não foi possível registrar a recusa: " + error.message);
+    toast.success("Recusa registrada. O equipamento continua na unidade de origem, aguardando resolução.");
+    await load();
+  }
+
   async function installComponent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fleet = fleets.find(item => item.id === installForm.frota_id);
@@ -638,7 +685,7 @@ function CentralFrotaPage() {
     { id: "frotas", label: "Frotas", icon: CarFront },
     { id: "componentes", label: "Componentes", icon: Boxes },
     { id: "instalacoes", label: "Instalações", icon: Wrench },
-    { id: "estoque", label: "Estoque", icon: Package },
+    { id: "estoque", label: "Estoque por unidade", icon: Package },
     { id: "historico", label: "Histórico", icon: History },
   ] as const;
 
@@ -858,36 +905,94 @@ function CentralFrotaPage() {
         </section>}
 
 
-        {tab === "estoque" && <section className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-4">
-            {[
-              ["Disponíveis", components.filter(x => x.status === "disponivel").length],
-              ["Backup", components.filter(x => x.status === "backup").length],
-              ["Manutenção", components.filter(x => x.status === "manutencao").length],
-              ["Instalados", components.filter(x => x.status === "instalado").length],
-            ].map(([label, count]) => <div key={label} className="rounded-xl border bg-card p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="text-2xl font-bold tabular-nums">{count}</p></div>)}
+        {tab === "estoque" && <section className="space-y-5">
+          <div>
+            <h2 className="text-lg font-semibold">Estoque organizado por unidade</h2>
+            <p className="text-sm text-muted-foreground">Cada equipamento pertence a uma única unidade. Durante uma transferência, ele fica bloqueado até o ADM de destino confirmar o recebimento.</p>
           </div>
-          <div className="rounded-2xl border bg-card p-4">
-            <h2 className="font-semibold">Dispositivos guardados</h2>
-            <p className="mb-3 text-sm text-muted-foreground">Consulte o estoque por número de série e informe a prateleira ou local físico. Equipamentos instalados não aparecem nesta lista.</p>
-            <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar série, tipo, fabricante, modelo ou prateleira" value={search} onChange={e => setSearch(e.target.value)} /></div>
-          </div>
-          <div className="space-y-2">
-            {components.filter(item => ["disponivel","backup","manutencao"].includes(item.status))
-              .filter(item => [item.numero_serie,item.tipo,item.fabricante ?? "",item.modelo ?? "",item.localizacao_estoque ?? ""].join(" ").toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")))
-              .map(item => <article key={item.id} className="rounded-xl border bg-card p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><p className="font-semibold">{item.numero_serie}</p><p className="text-sm text-muted-foreground">{nomeTipoComponente(item.tipo)} · {[item.fabricante,item.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p></div>
-                  <span className="rounded-full bg-muted px-2 py-1 text-xs">{nomeStatusComponente(item.status)}</span>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {units.map(unit => {
+              const items = components.filter(item => item.unidade_id === unit.id);
+              const installed = items.filter(item => item.status === "instalado").length;
+              const available = items.filter(item => item.status === "disponivel").length;
+              const backup = items.filter(item => item.status === "backup").length;
+              const maintenance = items.filter(item => item.status === "manutencao").length;
+              const pending = items.filter(item => item.status === "transferencia_pendente").length;
+              return <article key={unit.id} className="rounded-2xl border bg-card p-4">
+                <h3 className="font-semibold">{unit.nome}</h3>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <div className="rounded-lg bg-muted/50 p-2"><span className="text-muted-foreground">Disponíveis</span><p className="text-xl font-bold tabular-nums">{available}</p></div>
+                  <div className="rounded-lg bg-muted/50 p-2"><span className="text-muted-foreground">Backup</span><p className="text-xl font-bold tabular-nums">{backup}</p></div>
+                  <div className="rounded-lg bg-muted/50 p-2"><span className="text-muted-foreground">Instalados</span><p className="text-xl font-bold tabular-nums">{installed}</p></div>
+                  <div className="rounded-lg bg-muted/50 p-2"><span className="text-muted-foreground">Manutenção</span><p className="text-xl font-bold tabular-nums">{maintenance}</p></div>
                 </div>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <Input value={locationDrafts[item.id] ?? item.localizacao_estoque ?? "Estoque geral"} onChange={e => setLocationDrafts(current => ({ ...current, [item.id]: e.target.value }))} placeholder="Ex.: Prateleira 1, Caixa A..." />
-                  <Button type="button" variant="outline" disabled={saving} onClick={() => void saveStockLocation(item)}>Salvar local</Button>
-                </div>
-              </article>)}
-            {!components.some(item => ["disponivel","backup","manutencao"].includes(item.status)) && <p className="rounded-xl border p-6 text-center text-sm text-muted-foreground">Nenhum dispositivo guardado no momento.</p>}
+                <p className="mt-2 text-xs text-muted-foreground">{items.length} equipamento(s) no total · {pending} em transferência</p>
+              </article>;
+            })}
           </div>
-          <div className="rounded-2xl border">
+
+          {(isCentralManager || adminUnitIds.length > 0) && <form onSubmit={sendComponentTransfer} className="space-y-3 rounded-2xl border bg-card p-4">
+            <div><h3 className="font-semibold">Enviar equipamento para outra unidade</h3><p className="text-sm text-muted-foreground">O equipamento sairá da disponibilidade da origem e ficará aguardando conferência no destino.</p></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={transferForm.componente_id} onChange={e => setTransferForm(current => ({ ...current, componente_id: e.target.value }))} required>
+                <option value="">Equipamento disponível / backup</option>
+                {components.filter(c => ["disponivel","backup"].includes(c.status) && (isCentralManager || adminUnitIds.includes(c.unidade_id))).map(c => <option key={c.id} value={c.id}>{units.find(u => u.id === c.unidade_id)?.nome ?? "Unidade"} · {c.numero_serie} · {nomeTipoComponente(c.tipo)}</option>)}
+              </select>
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={transferForm.unidade_destino_id} onChange={e => setTransferForm(current => ({ ...current, unidade_destino_id: e.target.value }))} required>
+                <option value="">Unidade de destino</option>
+                {units.filter(u => u.id !== components.find(c => c.id === transferForm.componente_id)?.unidade_id).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+            </div>
+            <Input placeholder="Observação do envio (opcional)" value={transferForm.observacoes} onChange={e => setTransferForm(current => ({ ...current, observacoes: e.target.value }))} />
+            <Button type="submit" disabled={saving || !transferForm.componente_id || !transferForm.unidade_destino_id}>Registrar envio</Button>
+          </form>}
+
+          <div className="space-y-3">
+            <div><h3 className="font-semibold">Equipamentos guardados por unidade</h3><p className="text-sm text-muted-foreground">Instalados em frotas não aparecem no estoque guardado.</p></div>
+            {units.map(unit => {
+              const items = components.filter(item => item.unidade_id === unit.id && ["disponivel","backup","manutencao"].includes(item.status))
+                .filter(item => [item.numero_serie,item.tipo,item.fabricante ?? "",item.modelo ?? "",item.localizacao_estoque ?? ""].join(" ").toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")));
+              return <div key={unit.id} className="overflow-hidden rounded-2xl border">
+                <div className="flex items-center justify-between bg-muted/50 px-4 py-3"><strong>{unit.nome}</strong><span className="text-xs text-muted-foreground">{items.length} equipamento(s)</span></div>
+                {items.map(item => <article key={item.id} className="border-t p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div><p className="font-semibold">{item.numero_serie}</p><p className="text-sm text-muted-foreground">{nomeTipoComponente(item.tipo)} · {[item.fabricante,item.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p></div>
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs">{nomeStatusComponente(item.status)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <Input value={locationDrafts[item.id] ?? item.localizacao_estoque ?? "Estoque geral"} onChange={e => setLocationDrafts(current => ({ ...current, [item.id]: e.target.value }))} placeholder="Prateleira / local físico" />
+                    <Button type="button" variant="outline" disabled={saving} onClick={() => void saveStockLocation(item)}>Salvar local</Button>
+                  </div>
+                </article>)}
+                {!items.length && <p className="p-4 text-sm text-muted-foreground">Nenhum equipamento guardado nesta unidade.</p>}
+              </div>;
+            })}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border">
+            <div className="border-b bg-muted/50 px-4 py-3"><h3 className="font-semibold">Transferências entre unidades</h3><p className="text-xs text-muted-foreground">Envios, recebimentos e recusas ficam registrados no histórico.</p></div>
+            {transfers.map(move => {
+              const canReceive = move.status === "enviada" && (isCentralManager || adminUnitIds.includes(move.unidade_destino_id));
+              return <article key={move.id} className="space-y-2 border-t p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div><p className="font-semibold">{move.numero_serie} · {nomeTipoComponente(move.tipo)}</p><p className="text-sm text-muted-foreground">{move.unidade_origem_nome} → {move.unidade_destino_nome}</p></div>
+                  <span className="rounded-full bg-muted px-2 py-1 text-xs">{move.status === "enviada" ? "Aguardando recebimento" : move.status === "recebida" ? "Recebida" : "Recusada · pendente de resolução"}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Enviada em {new Date(move.enviada_em).toLocaleString("pt-BR")}{move.observacoes ? " · " + move.observacoes : ""}</p>
+                {move.status === "recebida" && move.recebida_em && <p className="text-xs text-muted-foreground">Recebida em {new Date(move.recebida_em).toLocaleString("pt-BR")}</p>}
+                {move.status === "recusada" && <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3"><p className="text-sm font-medium">Motivo da recusa</p><p className="text-sm">{move.motivo_recusa}</p><p className="mt-1 text-xs text-muted-foreground">O equipamento continua vinculado à unidade de origem e bloqueado até a resolução.</p></div>}
+                {canReceive && <div className="space-y-2 rounded-lg bg-muted/40 p-3">
+                  <p className="text-sm font-medium">Conferiu o equipamento e o número de série?</p>
+                  <div className="flex flex-wrap gap-2"><Button type="button" disabled={saving} onClick={() => void confirmComponentTransfer(move.id)}>Confirmar recebimento</Button></div>
+                  <Input placeholder="Motivo da recusa (obrigatório para recusar)" value={rejectReasons[move.id] ?? ""} onChange={e => setRejectReasons(current => ({ ...current, [move.id]: e.target.value }))} />
+                  <Button type="button" variant="destructive" disabled={saving || !(rejectReasons[move.id] ?? "").trim()} onClick={() => void refuseComponentTransfer(move.id)}>Recusar recebimento</Button>
+                </div>}
+              </article>;
+            })}
+            {!transfers.length && <p className="p-5 text-sm text-muted-foreground">Nenhuma transferência registrada.</p>}
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border">
             <div className="border-b bg-muted/50 px-4 py-3 font-semibold">Movimentações recentes do estoque</div>
             {stockMovements.slice(0,30).map(move => {
               const component = components.find(x => x.id === move.componente_id);
