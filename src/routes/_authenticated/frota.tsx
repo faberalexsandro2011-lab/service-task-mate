@@ -481,8 +481,8 @@ function CentralFrotaPage() {
         const fleetKey = headers.find(key => fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
         return {
           numero: (fleetKey ? String(normalized[fleetKey] ?? "").trim() : "") || pick("numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "numero", "identificacao_frota", "codigo_frota"),
-          tipo: pick("tipo_frota", "tipo", "categoria") || "trator",
-          marca: pick("marca_frota", "marca"), modelo: pick("modelo_frota", "modelo"),
+          tipo: pick("tipo_frota", "tipo_frota_sgpa", "tipo", "categoria") || "trator",
+          marca: pick("marca_frota", "marca"), modelo: pick("modelo_frota", "modelo", "desc_frota", "descricao_frota", "descricao"),
           componente_tipo: pick("tipo_dispositivo", "tipo_componente", "componente", "equipamento"),
           fabricante: pick("fabricante", "marca_dispositivo", "fabricante_dispositivo"),
           componente_modelo: pick("modelo_dispositivo", "modelo_componente"),
