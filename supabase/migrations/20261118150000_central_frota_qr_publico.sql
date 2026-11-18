@@ -1,5 +1,6 @@
 -- QR Code público e permanente por frota.
--- A consulta pública expõe apenas os dados cadastrais e os dispositivos atualmente instalados.
+-- A consulta pública expõe apenas dados cadastrais e os dispositivos atualmente instalados.
+-- A lógica privilegiada fica no schema private, fora da API exposta pelo PostgREST.
 
 alter table public.frotas
   add column if not exists qr_publico_token uuid;
@@ -8,11 +9,15 @@ create unique index if not exists frotas_qr_publico_token_unique
   on public.frotas (qr_publico_token)
   where qr_publico_token is not null;
 
-create or replace function public.central_frota_gerar_qr_publico(p_frota_id uuid)
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to anon, authenticated;
+
+create or replace function private.central_frota_gerar_qr_publico(p_frota_id uuid)
 returns uuid
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $$
 declare
   v_unidade_id uuid;
@@ -22,10 +27,10 @@ begin
     raise exception 'É necessário estar autenticado.';
   end if;
 
-  select unidade_id, qr_publico_token
+  select f.unidade_id, f.qr_publico_token
     into v_unidade_id, v_token
-  from public.frotas
-  where id = p_frota_id
+  from public.frotas f
+  where f.id = p_frota_id
   for update;
 
   if not found then
@@ -37,7 +42,7 @@ begin
   end if;
 
   if v_token is null then
-    v_token := gen_random_uuid();
+    v_token := pg_catalog.gen_random_uuid();
     update public.frotas
       set qr_publico_token = v_token
     where id = p_frota_id;
@@ -47,18 +52,30 @@ begin
 end;
 $$;
 
+revoke all on function private.central_frota_gerar_qr_publico(uuid) from public, anon, authenticated;
+grant execute on function private.central_frota_gerar_qr_publico(uuid) to authenticated;
+
+create or replace function public.central_frota_gerar_qr_publico(p_frota_id uuid)
+returns uuid
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.central_frota_gerar_qr_publico(p_frota_id);
+$$;
+
 revoke all on function public.central_frota_gerar_qr_publico(uuid) from public, anon;
 grant execute on function public.central_frota_gerar_qr_publico(uuid) to authenticated;
 
-create or replace function public.central_frota_consulta_publica(p_token uuid)
+create or replace function private.central_frota_consulta_publica(p_token uuid)
 returns jsonb
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = ''
 as $$
-  select jsonb_build_object(
-    'frota', jsonb_build_object(
+  select pg_catalog.jsonb_build_object(
+    'frota', pg_catalog.jsonb_build_object(
       'numero', f.numero,
       'tipo', f.tipo,
       'marca', f.marca,
@@ -68,8 +85,8 @@ as $$
       'unidade', u.nome
     ),
     'dispositivos', coalesce((
-      select jsonb_agg(
-        jsonb_build_object(
+      select pg_catalog.jsonb_agg(
+        pg_catalog.jsonb_build_object(
           'tipo', c.tipo,
           'fabricante', c.fabricante,
           'modelo', c.modelo,
@@ -87,6 +104,19 @@ as $$
   from public.frotas f
   join public.unidades u on u.id = f.unidade_id
   where f.qr_publico_token = p_token;
+$$;
+
+revoke all on function private.central_frota_consulta_publica(uuid) from public, anon, authenticated;
+grant execute on function private.central_frota_consulta_publica(uuid) to anon, authenticated;
+
+create or replace function public.central_frota_consulta_publica(p_token uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select private.central_frota_consulta_publica(p_token);
 $$;
 
 revoke all on function public.central_frota_consulta_publica(uuid) from public;
