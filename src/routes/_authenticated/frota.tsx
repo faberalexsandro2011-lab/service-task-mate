@@ -519,8 +519,10 @@ function CentralFrotaPage() {
         if (!row.numero_serie) continue;
         const serialKey = `${importUnitId}::${row.numero_serie.toLocaleLowerCase("pt-BR")}`;
         if (serials.has(serialKey)) { skipped++; continue; }
-        const { error } = await (supabase as any).from("componentes_frota").insert({ unidade_id: importUnitId, tipo: row.componente_tipo || "outro", fabricante: row.fabricante || null, modelo: row.componente_modelo || null, numero_serie: row.numero_serie, localizacao_estoque: row.localizacao || "Estoque geral" });
+        const { data: createdComponent, error } = await (supabase as any).from("componentes_frota").insert({ unidade_id: importUnitId, tipo: row.componente_tipo || "outro", fabricante: row.fabricante || null, modelo: row.componente_modelo || null, numero_serie: row.numero_serie, localizacao_estoque: row.localizacao || "Estoque geral" }).select("id").single();
         if (error) throw new Error(`Dispositivo ${row.numero_serie}: ${error.message}`);
+        const { error: installError } = await (supabase as any).from("instalacoes_frota").insert({ unidade_id: importUnitId, frota_id: fleetId, componente_id: createdComponent.id });
+        if (installError) throw new Error(`Vínculo do dispositivo ${row.numero_serie} à frota ${row.numero}: ${installError.message}`);
         serials.add(serialKey); createdComponents++;
       }
       toast.success(`Importação concluída: ${createdFleets} frota(s), ${createdComponents} dispositivo(s); ${skipped} item(ns) existente(s) ignorado(s).`);
@@ -761,7 +763,7 @@ function CentralFrotaPage() {
           </form>
 
           <div className="rounded-2xl border bg-card p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Importar ou exportar Excel</h3><p className="text-sm text-muted-foreground">Importe frotas com ou sem dispositivos. O número de série é necessário para cadastrar um dispositivo.</p></div><Button type="button" variant="outline" onClick={() => void exportFleetsExcel()} disabled={!fleets.length && !components.length}><Boxes className="mr-2 size-4" />Exportar Excel</Button></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Importar ou exportar Excel</h3><p className="text-sm text-muted-foreground">Importe frotas com ou sem dispositivos. O número de série é necessário para cadastrar e vincular o dispositivo à frota.</p></div><Button type="button" variant="outline" onClick={() => void exportFleetsExcel()} disabled={!fleets.length && !components.length}><Boxes className="mr-2 size-4" />Exportar Excel</Button></div>
             <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
               <select className="h-10 rounded-md border bg-background px-3 text-sm" value={importUnitId} onChange={e => setImportUnitId(e.target.value)}><option value="">Unidade da importação</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}</select>
               <Input type="file" accept=".xlsx,.xls,.csv" onChange={e => { const file = e.target.files?.[0]; if (file) void readFleetImportFile(file); e.currentTarget.value = ""; }} />
