@@ -449,7 +449,7 @@ function CentralFrotaPage() {
 
 
   function normalizeExcelHeader(value: unknown) {
-    return String(value ?? "").normalize("NFD").replace(/\\p{Diacritic}/gu, "").replace(/[\\u200B-\\u200D\\uFEFF]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
   }
 
   async function readFleetImportFile(file: File) {
