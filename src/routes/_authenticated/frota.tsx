@@ -467,6 +467,7 @@ function CentralFrotaPage() {
   }
 
   async function readFleetImportFile(file: File) {
+    if (!canManageStock) return toast.error("Apenas ADM e gestores podem importar planilhas.");
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
