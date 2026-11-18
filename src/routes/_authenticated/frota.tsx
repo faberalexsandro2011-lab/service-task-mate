@@ -511,7 +511,9 @@ function CentralFrotaPage() {
         const fleetKey = `${importUnitId}::${row.numero.toLocaleLowerCase("pt-BR")}`;
         let fleetId = fleetMap.get(fleetKey) ?? fleets.find(f => f.unidade_id === importUnitId && f.numero.toLocaleLowerCase("pt-BR") === row.numero.toLocaleLowerCase("pt-BR"))?.id;
         if (!fleetId) {
-          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: tiposFrota.some(([v]) => v === row.tipo) ? row.tipo : "trator", marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
+          const fleetType = normalizeExcelHeader(row.tipo);
+          const normalizedFleetType = ({ caminhao: "caminhao", veiculo: "veiculo", colheitadeira: "colheitadeira", trator: "trator" } as Record<string, string>)[fleetType] ?? "trator";
+          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: normalizedFleetType, marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
           if (error) throw new Error(`Frota ${row.numero}: ${error.message}`);
           fleetId = data.id; createdFleets++;
         } else skipped++;
@@ -519,7 +521,9 @@ function CentralFrotaPage() {
         if (!row.numero_serie) continue;
         const serialKey = `${importUnitId}::${row.numero_serie.toLocaleLowerCase("pt-BR")}`;
         if (serials.has(serialKey)) { skipped++; continue; }
-        const { data: createdComponent, error } = await (supabase as any).from("componentes_frota").insert({ unidade_id: importUnitId, tipo: row.componente_tipo || "outro", fabricante: row.fabricante || null, modelo: row.componente_modelo || null, numero_serie: row.numero_serie, localizacao_estoque: row.localizacao || "Estoque geral" }).select("id").single();
+        const componentTypeKey = normalizeExcelHeader(row.componente_tipo);
+        const normalizedComponentType = ({ monitor: "monitor", receptor_gps: "receptor", receptor: "receptor", bordo_solinftec: "bordo_solinftec", tela_solinftec: "tela_solinftec", rastreador: "rastreador", radio: "radio", outro: "outro" } as Record<string, string>)[componentTypeKey] ?? (row.componente_tipo || "outro");
+        const { data: createdComponent, error } = await (supabase as any).from("componentes_frota").insert({ unidade_id: importUnitId, tipo: normalizedComponentType, fabricante: row.fabricante || null, modelo: row.componente_modelo || null, numero_serie: row.numero_serie, localizacao_estoque: row.localizacao || "Estoque geral" }).select("id").single();
         if (error) throw new Error(`Dispositivo ${row.numero_serie}: ${error.message}`);
         const { error: installError } = await (supabase as any).from("instalacoes_frota").insert({ unidade_id: importUnitId, frota_id: fleetId, componente_id: createdComponent.id });
         if (installError) throw new Error(`Vínculo do dispositivo ${row.numero_serie} à frota ${row.numero}: ${installError.message}`);
