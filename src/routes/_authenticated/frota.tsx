@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Camera, CarFront, History, Plus, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Camera, CarFront, Copy, History, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type Unidade = { id: string; nome: string };
-type Frota = { id: string; unidade_id: string; numero: string; tipo: string; marca: string | null; modelo: string | null; status: string };
+type Frota = { id: string; unidade_id: string; numero: string; tipo: string; marca: string | null; modelo: string | null; status: string; qr_publico_token?: string | null };
 type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
@@ -281,6 +281,7 @@ function CentralFrotaPage() {
   const [installations, setInstallations] = useState<Instalacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -340,6 +341,12 @@ function CentralFrotaPage() {
   const filteredComponents = components.filter(item => `${item.numero_serie} ${item.fabricante ?? ""} ${item.modelo ?? ""}`.toLowerCase().includes(search.toLowerCase()));
   const selectedFleet = fleets.find(item => item.id === selectedFleetId) ?? null;
   const selectedComponent = components.find(item => item.id === selectedComponentId) ?? null;
+  const publicFleetUrl = selectedFleet?.qr_publico_token
+    ? `${window.location.origin}/frota-publica/${selectedFleet.qr_publico_token}`
+    : "";
+  const fleetQrImageUrl = publicFleetUrl
+    ? `https://quickchart.io/qr?text=${encodeURIComponent(publicFleetUrl)}&size=320&margin=2&ecLevel=M`
+    : "";
   const fleetInstallations = selectedFleet ? installations.filter(item => item.frota_id === selectedFleet.id) : [];
   const componentInstallations = selectedComponent ? installations.filter(item => item.componente_id === selectedComponent.id) : [];
   const currentComponentInstallation = selectedComponent ? activeInstallations.find(item => item.componente_id === selectedComponent.id) : null;
@@ -350,6 +357,52 @@ function CentralFrotaPage() {
     ...tiposComponente.map(([value, label]) => [value, label] as [string, string]),
     ...tiposPersonalizados.map(tipo => [tipo, tipo] as [string, string]),
   ];
+
+  async function generateFleetQr() {
+    if (!selectedFleet) return;
+    setQrLoading(true);
+    const { data, error } = await supabase.rpc("central_frota_gerar_qr_publico", {
+      p_frota_id: selectedFleet.id,
+    });
+    setQrLoading(false);
+    if (error || !data) {
+      toast.error("Não foi possível gerar o QR Code: " + (error?.message ?? "resposta inválida"));
+      return;
+    }
+    setFleets(current => current.map(item => item.id === selectedFleet.id
+      ? { ...item, qr_publico_token: String(data) }
+      : item));
+    toast.success("QR Code permanente criado para esta frota.");
+  }
+
+  async function copyFleetPublicLink() {
+    if (!publicFleetUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicFleetUrl);
+      toast.success("Link público copiado.");
+    } catch {
+      toast.error("Não foi possível copiar o link neste navegador.");
+    }
+  }
+
+  function printFleetQrLabel() {
+    if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
+    const printWindow = window.open("", "_blank", "width=520,height=640");
+    if (!printWindow) {
+      toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
+      return;
+    }
+    const fleetNumber = selectedFleet.numero.replace(/[&<>"']/g, "");
+    printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta frota ${fleetNumber}</title><style>
+      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;text-align:center}
+      .label{width:100%;max-width:360px;margin:0 auto;border:2px solid #222;border-radius:16px;padding:20px}
+      h1{font-size:25px;margin:0 0 4px}p{font-size:13px;margin:0;color:#555}
+      img{display:block;width:250px;height:250px;margin:14px auto}
+      .url{font-size:9px;overflow-wrap:anywhere;color:#666}
+      @media print{body{padding:0}.label{border:1.5px solid #111;break-inside:avoid}}
+    </style></head><body><div class="label"><h1>FROTA ${fleetNumber}</h1><p>Central OS · Central Frota</p><img src="${fleetQrImageUrl}" alt="QR Code da frota"><p class="url">${publicFleetUrl}</p></div><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+    printWindow.document.close();
+  }
 
   async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -498,6 +551,24 @@ function CentralFrotaPage() {
             <p className="mt-2 text-sm">Status: <strong>{selectedFleet.status}</strong> · {fleetInstallations.filter(x => !x.retirado_em).length} componente(s) instalado(s) atualmente</p>
             <Button className="mt-3" variant="outline" size="sm" onClick={() => { setFleetEditForm({ numero: selectedFleet.numero, tipo: selectedFleet.tipo, marca: selectedFleet.marca ?? "", modelo: selectedFleet.modelo ?? "", status: selectedFleet.status }); setEditingFleet(true); }}>Editar dados da frota</Button>
           </div>
+          <section className="rounded-2xl border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div><h3 className="font-semibold">Etiqueta QR Code da frota</h3><p className="text-sm text-muted-foreground">Um código permanente para esta frota. A consulta mostra somente os dispositivos instalados atualmente.</p></div>
+              {!selectedFleet.qr_publico_token && <Button type="button" onClick={() => void generateFleetQr()} disabled={qrLoading}><QrCode className="mr-2 size-4" />{qrLoading ? "Gerando..." : "Gerar QR Code"}</Button>}
+            </div>
+            {selectedFleet.qr_publico_token && <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+              <div className="rounded-xl border bg-white p-2"><img src={fleetQrImageUrl} alt={`QR Code permanente da frota ${selectedFleet.numero}`} className="size-44 object-contain" /></div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <p className="font-semibold">QR Code ativo · Frota {selectedFleet.numero}</p>
+                <p className="break-all text-xs text-muted-foreground">{publicFleetUrl}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => void copyFleetPublicLink()}><Copy className="mr-2 size-4" />Copiar link</Button>
+                  <Button type="button" size="sm" onClick={printFleetQrLabel}><QrCode className="mr-2 size-4" />Imprimir etiqueta</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">O endereço e o QR Code não mudam quando os dispositivos são instalados, retirados ou substituídos.</p>
+              </div>
+            </div>}
+          </section>
           {editingFleet && <form onSubmit={saveFleetChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-5">
             <h3 className="font-semibold sm:col-span-5">Editar frota {selectedFleet.numero}</h3>
             <Input value={fleetEditForm.numero} onChange={e => setFleetEditForm({ ...fleetEditForm, numero: e.target.value })} placeholder="Número" required />
