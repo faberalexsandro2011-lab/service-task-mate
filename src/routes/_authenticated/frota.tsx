@@ -513,7 +513,7 @@ function CentralFrotaPage() {
         }
       }
       const seenSerials = new Set<string>();
-      const existingSerials = new Set(components.map(component => component.unidade_id + "|" + component.numero_serie.trim().toLowerCase()));
+      const existingSerials = new Set(components.map(component => component.numero_serie.trim().toLowerCase()));
       const pendingComponents: Array<Record<string, unknown> & { __fleetKey?: string }> = [];
       for (let index = 0; index < deviceInput.length; index++) {
         const row = deviceInput[index];
@@ -526,7 +526,7 @@ function CentralFrotaPage() {
         const type = cellText(row, ["tipo", "tipodispositivo", "componente"]);
         if (!unit || !serial || !type || !status) throw new Error("Aba Dispositivos, linha " + (index + 2) + ": informe Unidade, Tipo, Número de Série e Status válido.");
         if (status === "instalado" && (!fleetNumber || !fleetMap.has(fleetKey))) throw new Error("Aba Dispositivos, linha " + (index + 2) + ": dispositivo instalado precisa informar Frota existente na mesma unidade.");
-        const key = unit.id + "|" + serial.toLowerCase();
+        const key = serial.toLowerCase();
         if (seenSerials.has(key) || existingSerials.has(key)) throw new Error("Número de série duplicado ou já cadastrado: " + serial + ".");
         seenSerials.add(key);
         pendingComponents.push({
