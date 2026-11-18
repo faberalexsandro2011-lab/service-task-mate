@@ -16,6 +16,14 @@ alter table public.instalacoes_frota
 alter table public.componentes_frota
   add column if not exists localizacao_estoque text default 'Estoque geral';
 
+update public.componentes_frota c
+set localizacao_estoque = null
+where c.status = 'instalado'
+  and exists (
+    select 1 from public.instalacoes_frota i
+    where i.componente_id = c.id and i.retirado_em is null
+  );
+
 alter table public.componentes_frota
   drop constraint if exists componentes_frota_localizacao_estoque_check;
 alter table public.componentes_frota
@@ -77,7 +85,7 @@ set search_path = public, auth
 as $$
 begin
   if new.localizacao_estoque is distinct from old.localizacao_estoque
-     or new.status is distinct from old.status then
+     and new.status is not distinct from old.status then
     insert into public.movimentacoes_componentes_frota (
       unidade_id, componente_id, tipo, localizacao_origem, localizacao_destino,
       responsavel_id, responsavel_email, observacoes
