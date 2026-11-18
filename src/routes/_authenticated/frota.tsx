@@ -454,19 +454,33 @@ function CentralFrotaPage() {
 
   async function readFleetImportFile(file: File) {
     try {
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       if (!sheet) throw new Error("A planilha não possui uma primeira aba válida.");
-      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-      if (!raw.length) throw new Error("A planilha está vazia.");
-      const rows = raw.map(record => {
-        const normalized = Object.fromEntries(Object.entries(record).map(([key, value]) => [normalizeExcelHeader(key), value]));
+      // Aceita títulos e linhas em branco antes do cabeçalho, comuns em planilhas operacionais.
+      const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
+      if (!matrix.length) throw new Error("A planilha está vazia.");
+      const fleetHeaders = new Set(["numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "identificacao_frota", "codigo_frota"]);
+      const headerIndex = matrix.slice(0, 20).findIndex(row =>
+        row.some(cell => {
+          const key = normalizeExcelHeader(cell);
+          return fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo")));
+        }),
+      );
+      if (headerIndex < 0) {
+        const examples = matrix.slice(0, 5).map(row => row.map(cell => String(cell ?? "").trim()).filter(Boolean).join(" | ")).filter(Boolean);
+        throw new Error(`Não identifiquei a coluna da frota. Use um cabeçalho como "Número frota", "Número da frota", "Nº Frota" ou "Frota". Primeiras linhas encontradas: ${examples.join(" / ") || "sem conteúdo"}`);
+      }
+      const headers = (matrix[headerIndex] ?? []).map(cell => normalizeExcelHeader(cell));
+      const rows = matrix.slice(headerIndex + 1).map(values => {
+        const normalized = Object.fromEntries(headers.map((key, index) => [key, values[index] ?? ""]));
         const pick = (...keys: string[]) => {
           for (const key of keys) if (normalized[key] !== undefined && String(normalized[key]).trim()) return String(normalized[key]).trim();
           return "";
         };
+        const fleetKey = headers.find(key => fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
         return {
-          numero: pick("numero_frota", "frota", "numero", "identificacao_frota", "codigo_frota"),
+          numero: (fleetKey ? String(normalized[fleetKey] ?? "").trim() : "") || pick("numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "numero", "identificacao_frota", "codigo_frota"),
           tipo: pick("tipo_frota", "tipo", "categoria") || "trator",
           marca: pick("marca_frota", "marca"), modelo: pick("modelo_frota", "modelo"),
           componente_tipo: pick("tipo_dispositivo", "tipo_componente", "componente", "equipamento"),
@@ -476,7 +490,7 @@ function CentralFrotaPage() {
           localizacao: pick("localizacao", "local_estoque", "prateleira"),
         };
       }).filter(row => row.numero);
-      if (!rows.length) throw new Error("Não encontrei linhas com número da frota. Confira a coluna 'Número frota'.");
+      if (!rows.length) throw new Error("Encontrei o cabeçalho, mas nenhuma linha possui número da frota. Confira se os números estão preenchidos abaixo da coluna.");
       setImportRows(rows);
       setImportUnitId(current => current || fleetForm.unidade_id || units[0]?.id || "");
       toast.success(`${rows.length} linha(s) lida(s). Confira a prévia antes de confirmar.`);
