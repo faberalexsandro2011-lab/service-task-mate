@@ -447,18 +447,18 @@ function CentralFrotaPage() {
 
   function cellText(row: Record<string, unknown>, aliases: string[]) {
     const normalized = new Map(Object.entries(row).map(([key, value]) => [
-      key.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""),
+      key.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""),
       String(value ?? "").trim(),
     ]));
     for (const alias of aliases) {
-      const value = normalized.get(alias.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""));
+      const value = normalized.get(alias.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""));
       if (value) return value;
     }
     return "";
   }
 
   function normalizeFleetType(value: string) {
-    const v = value.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
+    const v = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     if (["trator", "tractor"].includes(v)) return "trator";
     if (["colheitadeira", "colheitador", "harvester"].includes(v)) return "colheitadeira";
     if (["caminhao", "truck"].includes(v)) return "caminhao";
@@ -467,7 +467,7 @@ function CentralFrotaPage() {
   }
 
   function normalizeDeviceStatus(value: string) {
-    const v = value.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/\\s+/g, "_");
+    const v = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "_");
     if (!v || ["disponivel", "available"].includes(v)) return "disponivel";
     if (["instalado", "installed", "em_uso"].includes(v)) return "instalado";
     if (["manutencao", "maintenance"].includes(v)) return "manutencao";
@@ -502,18 +502,16 @@ function CentralFrotaPage() {
         const key = unit.id + "|" + number.toLowerCase();
         if (seenFleets.has(key)) throw new Error("Aba Frotas: número duplicado na planilha — " + number + " (" + unit.nome + ").");
         seenFleets.add(key);
-        if (!fleetMap.has(key)) pendingFleets.push({
-          unidade_id: unit.id, numero: number, tipo: type,
-          marca: cellText(row, ["marca"]) || null, modelo: cellText(row, ["modelo"]) || null,
-          status: cellText(row, ["status"]) || "ativa",
-        });
+        if (!fleetMap.has(key)) {
+          const marca = cellText(row, ["marca"]) || null;
+          const modelo = cellText(row, ["modelo"]) || null;
+          const rawStatus = cellText(row, ["status"]).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const status = rawStatus || "ativa";
+          if (!["ativa", "inativa", "manutencao"].includes(status)) throw new Error("Aba Frotas, linha " + (index + 2) + ": Status deve ser ativa, inativa ou manutencao.");
+          pendingFleets.push({ unidade_id: unit.id, numero: number, tipo: type, marca, modelo, status });
+          fleetMap.set(key, { id: "", unidade_id: unit.id, numero, tipo, marca, modelo, status } as Frota);
+        }
       }
-      if (pendingFleets.length) {
-        const { data, error } = await (supabase as any).from("frotas").insert(pendingFleets).select("*");
-        if (error) throw new Error("Falha ao importar frotas: " + error.message);
-        for (const fleet of data ?? []) fleetMap.set(fleet.unidade_id + "|" + fleet.numero.trim().toLowerCase(), fleet);
-      }
-
       const seenSerials = new Set<string>();
       const existingSerials = new Set(components.map(component => component.unidade_id + "|" + component.numero_serie.trim().toLowerCase()));
       const pendingComponents: Array<Record<string, unknown> & { __fleetKey?: string }> = [];
@@ -537,6 +535,12 @@ function CentralFrotaPage() {
           status: status === "instalado" ? "disponivel" : status,
           __fleetKey: status === "instalado" ? fleetKey : undefined,
         });
+      }
+
+      if (pendingFleets.length) {
+        const { data, error } = await (supabase as any).from("frotas").insert(pendingFleets).select("*");
+        if (error) throw new Error("Falha ao importar frotas: " + error.message);
+        for (const fleet of data ?? []) fleetMap.set(fleet.unidade_id + "|" + fleet.numero.trim().toLowerCase(), fleet);
       }
 
       let createdComponents: any[] = [];
@@ -583,7 +587,7 @@ function CentralFrotaPage() {
             <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <input id="central-frota-import-file" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={event => void importInventory(event)} />
+            <input id="central-frota-import-file" type="file" accept=".xlsx,.xls" className="hidden" onChange={event => void importInventory(event)} />
             <Button variant="outline" size="sm" onClick={() => exportInventory(true)}><FileSpreadsheet className="mr-1 size-4" /> Modelo</Button>
             <Button variant="outline" size="sm" onClick={() => document.getElementById("central-frota-import-file")?.click()} disabled={importing || loading}><Upload className="mr-1 size-4" />{importing ? "Importando..." : "Importar"}</Button>
             <Button variant="outline" size="sm" onClick={() => exportInventory()} disabled={loading}><Download className="mr-1 size-4" /> Exportar inventário</Button>
