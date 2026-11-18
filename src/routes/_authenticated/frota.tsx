@@ -323,7 +323,7 @@ function CentralFrotaPage() {
         .from("usuarios_unidades").select("unidade_id,perfil").eq("user_id", authData.user.id).eq("ativo", true);
       if (membershipError) throw membershipError;
       const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
-      const canViewComponentTotals = (memberships ?? []).some((item: any) => item.perfil === "admin_unidade" || (item.perfil === "gestor_central" && item.unidade_id === null));
+      const canViewComponentTotals = (memberships ?? []).some((item: any) => ["admin_unidade", "gestor"].includes(item.perfil) || (item.perfil === "gestor_central" && item.unidade_id === null));
       const managedUnits = (memberships ?? []).filter((item: any) => ["admin_unidade", "gestor"].includes(item.perfil) && item.unidade_id).map((item: any) => item.unidade_id);
       setIsCentralManager(central);
       setCanViewComponentTotals(canViewComponentTotals);
