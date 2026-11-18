@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowLeft, Boxes, Camera, CarFront, Copy, History, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Input } from "@/components/ui/input";
 type Unidade = { id: string; nome: string };
 type Frota = { id: string; unidade_id: string; numero: string; tipo: string; marca: string | null; modelo: string | null; status: string; qr_publico_token?: string | null };
 type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string; localizacao_estoque?: string | null };
+type LinhaImportacaoFrota = { numero: string; tipo: string; marca: string; modelo: string; componente_tipo: string; fabricante: string; componente_modelo: string; numero_serie: string; localizacao: string };
 type MovimentacaoEstoque = { id: string; componente_id: string; tipo: string; localizacao_origem: string | null; localizacao_destino: string | null; ocorrido_em: string; responsavel_email: string | null; observacoes: string | null };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
@@ -282,6 +284,9 @@ function CentralFrotaPage() {
   const [installations, setInstallations] = useState<Instalacao[]>([]);
   const [stockMovements, setStockMovements] = useState<MovimentacaoEstoque[]>([]);
   const [locationDrafts, setLocationDrafts] = useState<Record<string, string>>({});
+  const [importRows, setImportRows] = useState<LinhaImportacaoFrota[]>([]);
+  const [importUnitId, setImportUnitId] = useState("");
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
@@ -440,6 +445,91 @@ function CentralFrotaPage() {
     toast.success("Componente atualizado.");
     setEditingComponent(false);
     await load();
+  }
+
+
+  function normalizeExcelHeader(value: unknown) {
+    return String(value ?? "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  }
+
+  async function readFleetImportFile(file: File) {
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error("A planilha não possui uma primeira aba válida.");
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      if (!raw.length) throw new Error("A planilha está vazia.");
+      const rows = raw.map(record => {
+        const normalized = Object.fromEntries(Object.entries(record).map(([key, value]) => [normalizeExcelHeader(key), value]));
+        const pick = (...keys: string[]) => {
+          for (const key of keys) if (normalized[key] !== undefined && String(normalized[key]).trim()) return String(normalized[key]).trim();
+          return "";
+        };
+        return {
+          numero: pick("numero_frota", "frota", "numero", "identificacao_frota", "codigo_frota"),
+          tipo: pick("tipo_frota", "tipo", "categoria") || "trator",
+          marca: pick("marca_frota", "marca"), modelo: pick("modelo_frota", "modelo"),
+          componente_tipo: pick("tipo_dispositivo", "tipo_componente", "componente", "equipamento"),
+          fabricante: pick("fabricante", "marca_dispositivo", "fabricante_dispositivo"),
+          componente_modelo: pick("modelo_dispositivo", "modelo_componente"),
+          numero_serie: pick("numero_serie", "serie", "serial", "numero_de_serie"),
+          localizacao: pick("localizacao", "local_estoque", "prateleira"),
+        };
+      }).filter(row => row.numero);
+      if (!rows.length) throw new Error("Não encontrei linhas com número da frota. Confira a coluna 'Número frota'.");
+      setImportRows(rows);
+      setImportUnitId(current => current || fleetForm.unidade_id || units[0]?.id || "");
+      toast.success(`${rows.length} linha(s) lida(s). Confira a prévia antes de confirmar.`);
+    } catch (error) {
+      setImportRows([]);
+      toast.error(error instanceof Error ? error.message : "Não foi possível ler a planilha.");
+    }
+  }
+
+  async function exportFleetsExcel() {
+    const rows = fleets.flatMap(fleet => {
+      const related = activeInstallations.filter(item => item.frota_id === fleet.id);
+      const base = { "Unidade": units.find(unit => unit.id === fleet.unidade_id)?.nome ?? "", "Número frota": fleet.numero, "Tipo frota": fleet.tipo, "Marca frota": fleet.marca ?? "", "Modelo frota": fleet.modelo ?? "", "Status frota": fleet.status };
+      if (!related.length) return [{ ...base, "Tipo dispositivo": "", "Fabricante": "", "Modelo dispositivo": "", "Número de série": "" }];
+      return related.map(item => ({ ...base, "Tipo dispositivo": item.componentes_frota?.tipo ?? "", "Fabricante": components.find(c => c.id === item.componente_id)?.fabricante ?? "", "Modelo dispositivo": components.find(c => c.id === item.componente_id)?.modelo ?? "", "Número de série": item.componentes_frota?.numero_serie ?? "" }));
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Frotas e dispositivos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(components.map(c => ({ "Unidade": units.find(u => u.id === c.unidade_id)?.nome ?? "", "Tipo": c.tipo, "Fabricante": c.fabricante ?? "", "Modelo": c.modelo ?? "", "Número de série": c.numero_serie, "Status": c.status, "Localização": c.localizacao_estoque ?? "" }))), "Estoque completo");
+    XLSX.writeFile(wb, `central-frotas-${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast.success("Planilha Excel exportada.");
+  }
+
+  async function importFleetsExcel() {
+    if (!importRows.length || !importUnitId) return toast.error("Selecione a unidade e carregue uma planilha válida.");
+    setImporting(true);
+    let createdFleets = 0, createdComponents = 0, skipped = 0;
+    const fleetMap = new Map<string, string>();
+    const serials = new Set(components.map(c => `${c.unidade_id}::${c.numero_serie.toLocaleLowerCase("pt-BR")}`));
+    try {
+      for (const row of importRows) {
+        const fleetKey = `${importUnitId}::${row.numero.toLocaleLowerCase("pt-BR")}`;
+        let fleetId = fleetMap.get(fleetKey) ?? fleets.find(f => f.unidade_id === importUnitId && f.numero.toLocaleLowerCase("pt-BR") === row.numero.toLocaleLowerCase("pt-BR"))?.id;
+        if (!fleetId) {
+          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: tiposFrota.some(([v]) => v === row.tipo) ? row.tipo : "trator", marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
+          if (error) throw new Error(`Frota ${row.numero}: ${error.message}`);
+          fleetId = data.id; createdFleets++;
+        } else skipped++;
+        fleetMap.set(fleetKey, fleetId);
+        if (!row.numero_serie) continue;
+        const serialKey = `${importUnitId}::${row.numero_serie.toLocaleLowerCase("pt-BR")}`;
+        if (serials.has(serialKey)) { skipped++; continue; }
+        const { error } = await (supabase as any).from("componentes_frota").insert({ unidade_id: importUnitId, tipo: row.componente_tipo || "outro", fabricante: row.fabricante || null, modelo: row.componente_modelo || null, numero_serie: row.numero_serie, localizacao_estoque: row.localizacao || "Estoque geral" });
+        if (error) throw new Error(`Dispositivo ${row.numero_serie}: ${error.message}`);
+        serials.add(serialKey); createdComponents++;
+      }
+      toast.success(`Importação concluída: ${createdFleets} frota(s), ${createdComponents} dispositivo(s); ${skipped} item(ns) existente(s) ignorado(s).`);
+      setImportRows([]);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Importação interrompida. Confira os registros já processados.");
+      await load();
+    } finally { setImporting(false); }
   }
 
   async function saveFleet(event: React.FormEvent<HTMLFormElement>) {
@@ -669,6 +759,20 @@ function CentralFrotaPage() {
             <Input placeholder="Modelo" value={fleetForm.modelo} onChange={e => setFleetForm({ ...fleetForm, modelo: e.target.value })} />
             <Button type="submit" disabled={saving || !units.length} className="sm:col-span-6"><Plus className="mr-2 size-4" />Cadastrar frota</Button>
           </form>
+
+          <div className="rounded-2xl border bg-card p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">Importar ou exportar Excel</h3><p className="text-sm text-muted-foreground">Importe frotas com ou sem dispositivos. O número de série é necessário para cadastrar um dispositivo.</p></div><Button type="button" variant="outline" onClick={() => void exportFleetsExcel()} disabled={!fleets.length && !components.length}><Boxes className="mr-2 size-4" />Exportar Excel</Button></div>
+            <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={importUnitId} onChange={e => setImportUnitId(e.target.value)}><option value="">Unidade da importação</option>{units.map(unit => <option key={unit.id} value={unit.id}>{unit.nome}</option>)}</select>
+              <Input type="file" accept=".xlsx,.xls,.csv" onChange={e => { const file = e.target.files?.[0]; if (file) void readFleetImportFile(file); e.currentTarget.value = ""; }} />
+            </div>
+            {importRows.length > 0 && <div className="space-y-2 rounded-xl bg-muted/40 p-3">
+              <p className="text-sm font-medium">Prévia: {importRows.length} linha(s), {new Set(importRows.map(r => r.numero)).size} frota(s), {importRows.filter(r => r.numero_serie).length} dispositivo(s).</p>
+              <p className="text-xs text-muted-foreground">Colunas: Número frota, Tipo frota, Marca frota, Modelo frota, Tipo dispositivo, Fabricante, Modelo dispositivo, Número de série e Localização. Linhas sem série criam somente a frota.</p>
+              <div className="max-h-36 overflow-auto rounded-lg border bg-background text-xs">{importRows.slice(0,8).map((row,i) => <div key={i} className="grid grid-cols-3 gap-2 border-b px-2 py-2 last:border-0"><strong>{row.numero}</strong><span>{row.tipo}</span><span>{row.numero_serie || "Sem dispositivo"}</span></div>)}{importRows.length > 8 && <p className="p-2 text-muted-foreground">Mais {importRows.length-8} linha(s)...</p>}</div>
+              <div className="flex flex-wrap gap-2"><Button type="button" onClick={() => void importFleetsExcel()} disabled={importing || !importUnitId}>{importing ? "Importando..." : "Confirmar importação"}</Button><Button type="button" variant="outline" onClick={() => setImportRows([])} disabled={importing}>Cancelar</Button></div>
+            </div>}
+          </div>
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número, marca ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-[1fr_1fr_1fr] gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Frota</span><span>Tipo</span><span>Marca / modelo</span></div>
             {filteredFleets.map(item => <button key={item.id} type="button" onClick={() => setSelectedFleetId(item.id)} className="grid w-full grid-cols-[1fr_1fr_1fr] gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><strong>{item.numero}</strong><span>{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span>{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"} <span className="text-primary">›</span></span></button>)}
