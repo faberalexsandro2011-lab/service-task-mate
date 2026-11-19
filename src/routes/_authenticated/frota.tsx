@@ -276,7 +276,7 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
 }
 
 function CentralFrotaPage() {
-  const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "historico">("frotas");
+  const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "transferencias" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
   const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
@@ -764,7 +764,7 @@ function CentralFrotaPage() {
     { id: "frotas", label: "Frotas", icon: CarFront },
     { id: "componentes", label: "Componentes", icon: Boxes },
     { id: "instalacoes", label: "Instalações", icon: Wrench },
-    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package }] : []),
+    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package }, { id: "transferencias", label: "Transferências", icon: Truck }] : []),
     { id: "historico", label: "Histórico", icon: History },
   ] as const;
 
@@ -1099,6 +1099,36 @@ function CentralFrotaPage() {
               </div>
             </>;
           })()}
+        </section>}
+
+        {tab === "transferencias" && canManageStock && <section className="space-y-5">
+          <div className="rounded-2xl border bg-card p-4 sm:p-5"><h2 className="text-xl font-semibold">Transferências entre unidades</h2><p className="mt-1 text-sm text-muted-foreground">Envie equipamentos, acompanhe recebimentos e cancele envios ainda pendentes.</p></div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                {(isCentralManager || stockUnitIds.length > 0) && <form onSubmit={sendComponentTransfer} className="h-fit space-y-4 rounded-2xl border bg-card p-4 shadow-sm">
+                  <div className="flex items-start gap-3"><div className="rounded-xl bg-primary/10 p-2.5 text-primary"><Truck className="size-5" /></div><div><h3 className="font-semibold">Transferir equipamento</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Envie um dispositivo para outra unidade. O destino precisará conferir e confirmar o recebimento.</p></div></div>
+                  <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Equipamento de origem</label><select className="h-11 w-full rounded-xl border bg-background px-3 text-sm" value={transferForm.componente_id} onChange={e => setTransferForm(current => ({ ...current, componente_id: e.target.value }))} required><option value="">Selecione o equipamento</option>{components.filter(c => ["disponivel","backup"].includes(c.status) && (isCentralManager || adminUnitIds.includes(c.unidade_id))).map(c => <option key={c.id} value={c.id}>{units.find(u => u.id === c.unidade_id)?.nome ?? "Unidade"} · {c.numero_serie} · {nomeTipoComponente(c.tipo)}</option>)}</select></div>
+                  <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Unidade de destino</label><select className="h-11 w-full rounded-xl border bg-background px-3 text-sm" value={transferForm.unidade_destino_id} onChange={e => setTransferForm(current => ({ ...current, unidade_destino_id: e.target.value }))} required><option value="">Selecione o destino</option>{units.filter(u => u.id !== components.find(c => c.id === transferForm.componente_id)?.unidade_id).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}</select></div>
+                  <div className="space-y-1.5"><label className="text-xs font-medium text-muted-foreground">Observações</label><Input className="h-11 rounded-xl" placeholder="Informações adicionais (opcional)" value={transferForm.observacoes} onChange={e => setTransferForm(current => ({ ...current, observacoes: e.target.value }))} /></div>
+                  <Button type="submit" className="h-11 w-full rounded-xl" disabled={saving || !transferForm.componente_id || !transferForm.unidade_destino_id}><Truck className="mr-2 size-4" />Registrar transferência</Button>
+                  <p className="text-center text-[11px] text-muted-foreground">O equipamento ficará bloqueado até a confirmação no destino.</p>
+                </form>}
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+                <div className="flex items-center justify-between border-b p-4"><div><h3 className="font-semibold">Central de transferências</h3><p className="text-xs text-muted-foreground">Acompanhe envios, recebimentos e recusas.</p></div><span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">{transfers.filter(t => t.status === "enviada").length} aguardando</span></div>
+                {transfers.map(move => {
+                  const canReceive = move.status === "enviada" && (isCentralManager || adminUnitIds.includes(move.unidade_destino_id));
+                  return <article key={move.id} className="space-y-3 border-b p-4 last:border-b-0">
+                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{move.numero_serie}</p><span className="text-xs text-muted-foreground">{nomeTipoComponente(move.tipo)}</span><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${move.status === "recebida" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : move.status === "recusada" ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>{move.status === "enviada" ? "Aguardando recebimento" : move.status === "recebida" ? "Recebida" : move.status === "cancelada" ? "Cancelada" : "Recusada · bloqueada"}</span></div><p className="mt-1 text-sm text-muted-foreground">{move.unidade_origem_nome} <span className="px-1">→</span> {move.unidade_destino_nome}</p><p className="mt-1 text-xs text-muted-foreground">Enviada em {new Date(move.enviada_em).toLocaleString("pt-BR")}{move.observacoes ? " · " + move.observacoes : ""}</p></div></div>
+                    {move.status === "recebida" && move.recebida_em && <p className="text-xs text-emerald-700 dark:text-emerald-300">Recebida em {new Date(move.recebida_em).toLocaleString("pt-BR")}</p>}
+                    {move.status === "recusada" && <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-900 dark:bg-red-950/20"><p className="text-xs font-semibold text-red-800 dark:text-red-300">Motivo da recusa</p><p className="mt-1 text-sm text-red-900 dark:text-red-200">{move.motivo_recusa}</p><p className="mt-2 text-xs text-red-800/80 dark:text-red-300/80">O equipamento permanece vinculado à origem e bloqueado até a resolução.</p></div>}
+                    {canReceive && <div className="rounded-xl bg-muted/40 p-3"><p className="mb-2 text-sm font-medium">Conferência de recebimento</p><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" disabled={saving} onClick={() => void confirmComponentTransfer(move.id)}>Confirmar recebimento</Button><div className="flex min-w-0 flex-1 gap-2"><Input placeholder="Motivo da recusa" value={rejectReasons[move.id] ?? ""} onChange={e => setRejectReasons(current => ({ ...current, [move.id]: e.target.value }))} /><Button type="button" variant="destructive" disabled={saving || !(rejectReasons[move.id] ?? "").trim()} onClick={() => void refuseComponentTransfer(move.id)}>Recusar</Button></div></div></div>}
+                    {move.status === "enviada" && (isCentralManager || adminUnitIds.includes(move.unidade_origem_id)) && <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => void cancelComponentTransfer(move.id)}><X className="mr-2 size-4" />Cancelar transferência</Button>}
+                  </article>;
+                })}
+                {!transfers.length && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma transferência registrada até o momento.</p>}
+
+          </div>
         </section>}
 
         {tab === "instalacoes" && <section className="space-y-4">
