@@ -311,7 +311,7 @@ function CentralFrotaPage() {
   const [fleetEditForm, setFleetEditForm] = useState({ numero: "", tipo: "trator", marca: "", modelo: "", status: "ativa" });
   const [componentEditForm, setComponentEditForm] = useState({ tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "", status: "disponivel" });
   const canManageStock = isCentralManager || stockUnitIds.length > 0;
-  const canAccessStock = isCentralManager || units.length > 0;
+  const canAccessStock = canManageStock;
 
   useEffect(() => {
     if (!loading && !canAccessStock && tab === "estoque") setTab("frotas");
@@ -912,7 +912,7 @@ function CentralFrotaPage() {
           </div>}
           <div className="flex items-center gap-2"><Search className="size-4 text-muted-foreground" /><Input placeholder="Buscar por número, marca ou modelo" value={search} onChange={e => setSearch(e.target.value)} /></div>
           <div className="overflow-hidden rounded-2xl border"><div className="grid grid-cols-[1fr_1fr_1fr] gap-2 bg-muted/60 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Frota</span><span>Tipo</span><span>Marca / modelo</span></div>
-            {filteredFleets.map(item => <button key={item.id} type="button" onClick={() => setSelectedFleetId(item.id)} className="grid w-full grid-cols-[1fr_1fr_1fr] gap-2 border-t px-4 py-3 text-left text-sm hover:bg-muted/40"><strong>{item.numero}</strong><span>{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span>{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"} <span className="text-primary">›</span></span></button>)}
+            {filteredFleets.map(item => <button key={item.id} type="button" aria-label={`Abrir detalhes da frota ${item.numero}`} onClick={() => { setSelectedFleetId(item.id); setTab("frotas"); }} className="grid min-h-14 w-full grid-cols-[0.8fr_0.9fr_1.5fr] items-center gap-2 border-t px-3 py-3 text-left text-sm hover:bg-muted/40 active:bg-muted/60 touch-manipulation sm:grid-cols-[1fr_1fr_1fr] sm:px-4"><strong className="min-w-0">{item.numero}</strong><span className="min-w-0">{tiposFrota.find(x => x[0] === item.tipo)?.[1] ?? item.tipo}</span><span className="flex min-w-0 items-center justify-between gap-2"><span className="min-w-0 truncate">{[item.marca,item.modelo].filter(Boolean).join(" ") || "—"}</span><span className="shrink-0 text-primary">Ver detalhes ›</span></span></button>)}
             {!filteredFleets.length && <p className="p-6 text-center text-sm text-muted-foreground">{loading ? "Carregando..." : "Nenhuma frota cadastrada."}</p>}
           </div>
         </section>}
