@@ -1,8 +1,10 @@
 -- Central Frotas: transferências entre unidades com recebimento/recusa auditáveis.
--- Exclusivo do banco de testes da branch test/central-frotas-qr-piloto.
+-- Idempotente para ambientes cuja migration já tenha sido aplicada via Supabase MCP.
 alter table public.componentes_frota drop constraint if exists componentes_frota_status_check;
-alter table public.componentes_frota add constraint componentes_frota_status_check check (status in ('disponivel','instalado','manutencao','descartado','backup','transferencia_pendente'));
-create table public.transferencias_componentes_frota (
+alter table public.componentes_frota add constraint componentes_frota_status_check
+  check (status in ('disponivel','instalado','manutencao','descartado','backup','transferencia_pendente'));
+
+create table if not exists public.transferencias_componentes_frota (
  id uuid primary key default gen_random_uuid(),
  componente_id uuid not null references public.componentes_frota(id) on delete restrict,
  unidade_origem_id uuid not null references public.unidades(id) on delete restrict,
@@ -20,13 +22,14 @@ create table public.transferencias_componentes_frota (
  constraint transferencia_unidades_distintas check (unidade_origem_id <> unidade_destino_id),
  constraint transferencia_recusa_motivo check (status <> 'recusada' or (motivo_recusa is not null and length(trim(motivo_recusa)) > 0))
 );
-create index transferencias_componentes_origem_idx on public.transferencias_componentes_frota(unidade_origem_id, enviada_em desc);
-create index transferencias_componentes_destino_idx on public.transferencias_componentes_frota(unidade_destino_id, enviada_em desc);
-create unique index transferencias_componentes_aberta_idx on public.transferencias_componentes_frota(componente_id) where status in ('enviada','recusada');
+create index if not exists transferencias_componentes_origem_idx on public.transferencias_componentes_frota(unidade_origem_id, enviada_em desc);
+create index if not exists transferencias_componentes_destino_idx on public.transferencias_componentes_frota(unidade_destino_id, enviada_em desc);
+create unique index if not exists transferencias_componentes_aberta_idx on public.transferencias_componentes_frota(componente_id) where status in ('enviada','recusada');
 alter table public.transferencias_componentes_frota enable row level security;
 grant select on public.transferencias_componentes_frota to authenticated;
 drop policy if exists central_frota_transferencias_select on public.transferencias_componentes_frota;
-create policy central_frota_transferencias_select on public.transferencias_componentes_frota for select to authenticated using (public.central_frota_tem_acesso(unidade_origem_id,false) or public.central_frota_tem_acesso(unidade_destino_id,false));
+create policy central_frota_transferencias_select on public.transferencias_componentes_frota for select to authenticated
+using (public.central_frota_tem_acesso(unidade_origem_id,false) or public.central_frota_tem_acesso(unidade_destino_id,false));
 
 create or replace function public.central_frota_enviar_transferencia(p_componente_id uuid,p_unidade_destino_id uuid,p_observacoes text default null)
 returns uuid language plpgsql security definer set search_path='' as $$
@@ -35,9 +38,9 @@ begin
  if v_user is null then raise exception 'Sessão não autenticada.'; end if;
  select * into v_item from public.componentes_frota where id=p_componente_id for update;
  if not found then raise exception 'Equipamento não encontrado.'; end if;
- if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_item.unidade_id and uu.perfil in ('admin_unidade','gestor_central'))
+ if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_item.unidade_id and uu.perfil in ('admin_unidade','gestor'))
  and not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id is null and uu.perfil='gestor_central')
- then raise exception 'Somente ADM da unidade de origem ou gestor central pode enviar equipamentos.'; end if;
+ then raise exception 'Somente ADM ou gestor da unidade de origem, ou gestor central, pode enviar equipamentos.'; end if;
  if p_unidade_destino_id=v_item.unidade_id then raise exception 'A unidade de destino deve ser diferente da origem.'; end if;
  if not exists(select 1 from public.unidades u where u.id=p_unidade_destino_id and u.ativa) then raise exception 'Unidade de destino inválida ou inativa.'; end if;
  if v_item.status not in ('disponivel','backup') then raise exception 'Somente equipamento disponível ou backup pode ser transferido.'; end if;
@@ -56,9 +59,9 @@ begin
  select * into v_transfer from public.transferencias_componentes_frota where id=p_transferencia_id for update;
  if not found then raise exception 'Transferência não encontrada.'; end if;
  if v_transfer.status<>'enviada' then raise exception 'Esta transferência não está aguardando recebimento.'; end if;
- if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_transfer.unidade_destino_id and uu.perfil in ('admin_unidade','gestor_central'))
+ if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_transfer.unidade_destino_id and uu.perfil in ('admin_unidade','gestor'))
  and not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id is null and uu.perfil='gestor_central')
- then raise exception 'Somente um ADM da unidade de destino pode confirmar o recebimento.'; end if;
+ then raise exception 'Somente ADM ou gestor da unidade de destino, ou gestor central, pode confirmar o recebimento.'; end if;
  update public.componentes_frota set unidade_id=v_transfer.unidade_destino_id,status=v_transfer.status_anterior,localizacao_estoque='Estoque geral'
  where id=v_transfer.componente_id and unidade_id=v_transfer.unidade_origem_id and status='transferencia_pendente';
  if not found then raise exception 'O equipamento mudou desde o envio; transferência não concluída.'; end if;
@@ -75,9 +78,9 @@ begin
  select * into v_transfer from public.transferencias_componentes_frota where id=p_transferencia_id for update;
  if not found then raise exception 'Transferência não encontrada.'; end if;
  if v_transfer.status<>'enviada' then raise exception 'Esta transferência não está aguardando recebimento.'; end if;
- if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_transfer.unidade_destino_id and uu.perfil in ('admin_unidade','gestor_central'))
+ if not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id=v_transfer.unidade_destino_id and uu.perfil in ('admin_unidade','gestor'))
  and not exists(select 1 from public.usuarios_unidades uu where uu.user_id=v_user and uu.ativo and uu.unidade_id is null and uu.perfil='gestor_central')
- then raise exception 'Somente um ADM da unidade de destino pode recusar o recebimento.'; end if;
+ then raise exception 'Somente ADM ou gestor da unidade de destino, ou gestor central, pode recusar o recebimento.'; end if;
  update public.transferencias_componentes_frota set status='recusada',recusada_por=v_user,recusada_em=now(),motivo_recusa=trim(p_motivo) where id=v_transfer.id and status='enviada';
  if not found then raise exception 'A transferência já foi processada.'; end if;
  -- Equipamento permanece na origem, bloqueado, até resolução posterior da recusa.
