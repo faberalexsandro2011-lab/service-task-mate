@@ -687,6 +687,23 @@ function Dashboard() {
             )}
           </div>
 
+          {isManager && (
+            <div className="mt-5 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Truck className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Central Frotas</p>
+                  <p className="text-xs text-muted-foreground">Acesse o cadastro de equipamentos, estoque e transferências.</p>
+                </div>
+              </div>
+              <Button type="button" className="gap-2" onClick={() => void navigate({ to: "/frota" })}>
+                <Truck className="size-4" /> Abrir Central Frotas
+              </Button>
+            </div>
+          )}
+
           {!isManager && (
             <div className="mt-6 inline-flex rounded-md border bg-card p-1">
               <Button size="sm" variant={scope === "minhas" ? "default" : "ghost"} onClick={() => setScope("minhas")}>As minhas OS</Button>
