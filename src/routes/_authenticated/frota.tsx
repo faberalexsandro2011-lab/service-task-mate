@@ -412,6 +412,51 @@ function CentralFrotaPage() {
     }
   }
 
+  async function downloadFleetQrLabelImage() {
+    if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
+    try {
+      const qrImage = new Image();
+      qrImage.crossOrigin = "anonymous";
+      qrImage.src = fleetQrImageUrl;
+      await new Promise<void>((resolve, reject) => {
+        qrImage.onload = () => resolve();
+        qrImage.onerror = () => reject(new Error("Não foi possível carregar o QR Code para montar a imagem."));
+      });
+
+      // 50 x 30 mm em 300 DPI: imagem pronta para impressão em etiqueta horizontal.
+      const canvas = document.createElement("canvas");
+      canvas.width = 591;
+      canvas.height = 354;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Não foi possível criar a imagem da etiqueta.");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#111111";
+      context.textAlign = "left";
+      context.textBaseline = "top";
+      context.font = "bold 26px Arial";
+      context.fillText("CENTRAL OS · FROTAS", 20, 26);
+      context.font = "bold 49px Arial";
+      context.fillText("FROTA " + selectedFleet.numero, 20, 105, 330);
+      context.fillStyle = "#444444";
+      context.font = "17px Arial";
+      context.fillText("Aponte a câmera para consultar", 20, 184, 330);
+      context.fillText("os dispositivos", 20, 208, 330);
+      context.fillStyle = "#555555";
+      context.font = "12px Arial";
+      context.fillText(publicFleetUrl, 20, 286, 340);
+      context.drawImage(qrImage, 390, 42, 180, 180);
+
+      const link = document.createElement("a");
+      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast.success("Etiqueta em PNG gerada no formato 50 × 30 mm.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível gerar a imagem da etiqueta.");
+    }
+  }
+
   function printFleetQrLabel() {
     if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
     const printWindow = window.open("", "_blank", "width=640,height=440");
@@ -761,6 +806,7 @@ function CentralFrotaPage() {
                 <p className="break-all text-xs text-muted-foreground">{publicFleetUrl}</p>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" size="sm" variant="outline" onClick={() => void copyFleetPublicLink()}><Copy className="mr-2 size-4" />Copiar link</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => void downloadFleetQrLabelImage()}><QrCode className="mr-2 size-4" />Gerar imagem PNG</Button>
                   <Button type="button" size="sm" onClick={printFleetQrLabel}><QrCode className="mr-2 size-4" />Imprimir etiqueta</Button>
                 </div>
                 <p className="text-xs text-muted-foreground">O endereço e o QR Code não mudam quando os dispositivos são instalados, retirados ou substituídos.</p>
