@@ -301,6 +301,9 @@ function CentralFrotaPage() {
   const [fleetForm, setFleetForm] = useState({ unidade_id: "", numero: "", tipo: "trator", marca: "", modelo: "" });
   const [componentForm, setComponentForm] = useState({ unidade_id: "", tipo: "monitor", tipoPersonalizado: "", fabricante: "", modelo: "", numero_serie: "" });
   const [installForm, setInstallForm] = useState({ frota_id: "", componente_id: "" });
+  const [installFleetSearch, setInstallFleetSearch] = useState("");
+  const [installComponentSearch, setInstallComponentSearch] = useState("");
+  const [removalSearch, setRemovalSearch] = useState("");
   const [removal, setRemoval] = useState({ id: "", motivo: "", status: "disponivel" });
   const [editingFleet, setEditingFleet] = useState(false);
   const [editingComponent, setEditingComponent] = useState(false);
@@ -1037,18 +1040,21 @@ function CentralFrotaPage() {
         {tab === "instalacoes" && <section className="space-y-4">
           <form onSubmit={installComponent} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-3">
             <h2 className="font-semibold sm:col-span-3">Instalar componente em uma frota</h2>
+            <Input placeholder="Buscar frota por número, marca ou modelo..." value={installFleetSearch} onChange={e => setInstallFleetSearch(e.target.value)} />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.frota_id} onChange={e => setInstallForm({ ...installForm, frota_id: e.target.value, componente_id: "" })} required>
-              <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa").map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1]}</option>)}
+              <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa" && `${f.numero} ${f.marca ?? ""} ${f.modelo ?? ""} ${f.tipo}`.toLowerCase().includes(installFleetSearch.toLowerCase())).map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1]} {f.marca ?? ""} {f.modelo ?? ""}</option>)}
             </select>
+            <Input placeholder="Buscar componente por série, tipo, fabricante ou modelo..." value={installComponentSearch} onChange={e => setInstallComponentSearch(e.target.value)} />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.componente_id} onChange={e => setInstallForm({ ...installForm, componente_id: e.target.value })} required>
-              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && !activeInstallations.some(item => item.componente_id === c.id) && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {nomeTipoComponente(c.tipo)}</option>)}
+              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && !activeInstallations.some(item => item.componente_id === c.id) && `${c.numero_serie} ${c.tipo} ${c.fabricante ?? ""} ${c.modelo ?? ""}`.toLowerCase().includes(installComponentSearch.toLowerCase()) && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {nomeTipoComponente(c.tipo)} {c.fabricante ?? ""} {c.modelo ?? ""}</option>)}
             </select>
             <Button type="submit" disabled={saving || !installForm.frota_id || !installForm.componente_id}><Wrench className="mr-2 size-4" />Registrar instalação</Button>
           </form>
           <form onSubmit={removeComponent} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
             <h2 className="font-semibold sm:col-span-4">Retirar componente instalado</h2>
+            <Input placeholder="Buscar por frota, número de série, tipo ou modelo..." value={removalSearch} onChange={e => setRemovalSearch(e.target.value)} className="sm:col-span-4" />
             <select className="h-10 rounded-md border bg-background px-3 text-sm sm:col-span-2" value={removal.id} onChange={e => setRemoval({ ...removal, id: e.target.value })} required>
-              <option value="">Instalação ativa</option>{activeInstallations.map(item => <option key={item.id} value={item.id}>Frota {item.frotas?.numero ?? "—"} · Série {item.componentes_frota?.numero_serie ?? "—"}</option>)}
+              <option value="">Instalação ativa</option>{activeInstallations.filter(item => ` ${item.frotas?.numero ?? ""} ${item.componentes_frota?.numero_serie ?? ""} ${item.componentes_frota?.tipo ?? ""} ${item.componentes_frota?.fabricante ?? ""} ${item.componentes_frota?.modelo ?? ""}`.toLowerCase().includes(removalSearch.toLowerCase())).map(item => <option key={item.id} value={item.id}>Frota {item.frotas?.numero ?? "—"} · Série {item.componentes_frota?.numero_serie ?? "—"} · {nomeTipoComponente(item.componentes_frota?.tipo ?? "")}</option>)}
             </select>
             <Input placeholder="Motivo da retirada" value={removal.motivo} onChange={e => setRemoval({ ...removal, motivo: e.target.value })} required />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={removal.status} onChange={e => setRemoval({ ...removal, status: e.target.value })}><option value="disponivel">Voltar para disponível</option><option value="backup">Reservar como backup</option><option value="manutencao">Enviar para manutenção</option><option value="descartado">Marcar como descartado</option></select>
