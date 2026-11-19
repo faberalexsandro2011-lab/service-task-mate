@@ -12,7 +12,7 @@ type Frota = { id: string; unidade_id: string; numero: string; tipo: string; mar
 type Componente = { id: string; unidade_id: string; tipo: string; fabricante: string | null; modelo: string | null; numero_serie: string; status: string; localizacao_estoque?: string | null };
 type LinhaImportacaoFrota = { numero: string; tipo: string; marca: string; modelo: string; componente_tipo: string; fabricante: string; componente_modelo: string; numero_serie: string; localizacao: string };
 type MovimentacaoEstoque = { id: string; componente_id: string; tipo: string; localizacao_origem: string | null; localizacao_destino: string | null; ocorrido_em: string; responsavel_email: string | null; observacoes: string | null };
-type TransferenciaFrota = { id: string; componente_id: string; numero_serie: string; tipo: string; fabricante: string | null; modelo: string | null; unidade_origem_id: string; unidade_origem_nome: string; unidade_destino_id: string; unidade_destino_nome: string; status: "enviada" | "recebida" | "recusada"; status_anterior: string; enviada_por: string; enviada_em: string; recebida_por: string | null; recebida_em: string | null; recusada_por: string | null; recusada_em: string | null; motivo_recusa: string | null; observacoes: string | null };
+type TransferenciaFrota = { id: string; componente_id: string; numero_serie: string; tipo: string; fabricante: string | null; modelo: string | null; unidade_origem_id: string; unidade_origem_nome: string; unidade_destino_id: string; unidade_destino_nome: string; status: "enviada" | "recebida" | "recusada" | "cancelada"; status_anterior: string; enviada_por: string; enviada_em: string; recebida_por: string | null; recebida_em: string | null; recusada_por: string | null; recusada_em: string | null; motivo_recusa: string | null; observacoes: string | null };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
   instalado_em: string; instalado_por_email: string | null; instalado_por_nome: string | null; retirado_em: string | null;
@@ -707,6 +707,16 @@ function CentralFrotaPage() {
     await load();
   }
 
+  async function cancelComponentTransfer(id: string) {
+    if (!window.confirm("Cancelar esta transferência? O equipamento voltará ao estoque da unidade de origem.")) return;
+    setSaving(true);
+    const { error } = await (supabase as any).rpc("central_frota_cancelar_transferencia", { p_transferencia_id: id });
+    setSaving(false);
+    if (error) return toast.error("Não foi possível cancelar a transferência: " + error.message);
+    toast.success("Transferência cancelada. O equipamento voltou ao estoque de origem.");
+    await load();
+  }
+
   async function installComponent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fleet = fleets.find(item => item.id === installForm.frota_id);
@@ -1069,10 +1079,11 @@ function CentralFrotaPage() {
                 {transfers.map(move => {
                   const canReceive = move.status === "enviada" && (isCentralManager || adminUnitIds.includes(move.unidade_destino_id));
                   return <article key={move.id} className="space-y-3 border-b p-4 last:border-b-0">
-                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{move.numero_serie}</p><span className="text-xs text-muted-foreground">{nomeTipoComponente(move.tipo)}</span><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${move.status === "recebida" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : move.status === "recusada" ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>{move.status === "enviada" ? "Aguardando recebimento" : move.status === "recebida" ? "Recebida" : "Recusada · bloqueada"}</span></div><p className="mt-1 text-sm text-muted-foreground">{move.unidade_origem_nome} <span className="px-1">→</span> {move.unidade_destino_nome}</p><p className="mt-1 text-xs text-muted-foreground">Enviada em {new Date(move.enviada_em).toLocaleString("pt-BR")}{move.observacoes ? " · " + move.observacoes : ""}</p></div></div>
+                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold">{move.numero_serie}</p><span className="text-xs text-muted-foreground">{nomeTipoComponente(move.tipo)}</span><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${move.status === "recebida" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : move.status === "recusada" ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300" : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"}`}>{move.status === "enviada" ? "Aguardando recebimento" : move.status === "recebida" ? "Recebida" : move.status === "cancelada" ? "Cancelada" : "Recusada · bloqueada"}</span></div><p className="mt-1 text-sm text-muted-foreground">{move.unidade_origem_nome} <span className="px-1">→</span> {move.unidade_destino_nome}</p><p className="mt-1 text-xs text-muted-foreground">Enviada em {new Date(move.enviada_em).toLocaleString("pt-BR")}{move.observacoes ? " · " + move.observacoes : ""}</p></div></div>
                     {move.status === "recebida" && move.recebida_em && <p className="text-xs text-emerald-700 dark:text-emerald-300">Recebida em {new Date(move.recebida_em).toLocaleString("pt-BR")}</p>}
                     {move.status === "recusada" && <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-900 dark:bg-red-950/20"><p className="text-xs font-semibold text-red-800 dark:text-red-300">Motivo da recusa</p><p className="mt-1 text-sm text-red-900 dark:text-red-200">{move.motivo_recusa}</p><p className="mt-2 text-xs text-red-800/80 dark:text-red-300/80">O equipamento permanece vinculado à origem e bloqueado até a resolução.</p></div>}
                     {canReceive && <div className="rounded-xl bg-muted/40 p-3"><p className="mb-2 text-sm font-medium">Conferência de recebimento</p><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" disabled={saving} onClick={() => void confirmComponentTransfer(move.id)}>Confirmar recebimento</Button><div className="flex min-w-0 flex-1 gap-2"><Input placeholder="Motivo da recusa" value={rejectReasons[move.id] ?? ""} onChange={e => setRejectReasons(current => ({ ...current, [move.id]: e.target.value }))} /><Button type="button" variant="destructive" disabled={saving || !(rejectReasons[move.id] ?? "").trim()} onClick={() => void refuseComponentTransfer(move.id)}>Recusar</Button></div></div></div>}
+                    {move.status === "enviada" && (isCentralManager || adminUnitIds.includes(move.unidade_origem_id)) && <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => void cancelComponentTransfer(move.id)}><X className="mr-2 size-4" />Cancelar transferência</Button>}
                   </article>;
                 })}
                 {!transfers.length && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma transferência registrada até o momento.</p>}
