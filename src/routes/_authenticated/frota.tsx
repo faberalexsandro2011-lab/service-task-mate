@@ -344,7 +344,7 @@ function CentralFrotaPage() {
       const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error || transferResult.error;
       if (failure) throw failure;
       const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
-      const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || memberUnitIds.has(unit.id));
+      const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || canViewComponentTotals || memberUnitIds.has(unit.id));
       setUnits(allowedUnits);
       setFleets(fleetResult.data ?? []);
       setComponents(componentResult.data ?? []);
