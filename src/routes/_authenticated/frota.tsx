@@ -414,20 +414,27 @@ function CentralFrotaPage() {
 
   function printFleetQrLabel() {
     if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
-    const printWindow = window.open("", "_blank", "width=520,height=640");
+    const printWindow = window.open("", "_blank", "width=640,height=440");
     if (!printWindow) {
       toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
       return;
     }
     const fleetNumber = selectedFleet.numero.replace(/[&<>"']/g, "");
     printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta frota ${fleetNumber}</title><style>
-      *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;text-align:center}
-      .label{width:100%;max-width:360px;margin:0 auto;border:2px solid #222;border-radius:16px;padding:20px}
-      h1{font-size:25px;margin:0 0 4px}p{font-size:13px;margin:0;color:#555}
-      img{display:block;width:250px;height:250px;margin:14px auto}
-      .url{font-size:9px;overflow-wrap:anywhere;color:#666}
-      @media print{body{padding:0}.label{border:1.5px solid #111;break-inside:avoid}}
-    </style></head><body><div class="label"><h1>FROTA ${fleetNumber}</h1><p>Central OS · Central Frota</p><img src="${fleetQrImageUrl}" alt="QR Code da frota"><p class="url">${publicFleetUrl}</p></div><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+      @page{size:50mm 30mm;margin:0}
+      *{box-sizing:border-box}
+      html,body{width:50mm;height:30mm;margin:0;padding:0}
+      body{font-family:Arial,sans-serif;color:#111}
+      .label{width:50mm;height:30mm;padding:1.5mm 2mm;display:grid;grid-template-columns:1fr 24mm;align-items:center;gap:1.5mm;overflow:hidden}
+      .info{min-width:0;text-align:left}
+      .brand{font-size:7pt;font-weight:700;letter-spacing:.2pt;margin:0 0 1mm}
+      h1{font-size:12pt;line-height:1.05;margin:0 0 1mm;overflow-wrap:anywhere}
+      .hint{font-size:6pt;line-height:1.1;margin:0;color:#444}
+      img{display:block;width:24mm;height:24mm;object-fit:contain}
+      .url{font-size:4.5pt;line-height:1.05;margin-top:1mm;overflow-wrap:anywhere;color:#555}
+      @media screen{body{margin:12px}.label{outline:1px dashed #aaa}}
+      @media print{.label{break-inside:avoid}}
+    </style></head><body><div class="label"><div class="info"><p class="brand">CENTRAL OS · FROTAS</p><h1>FROTA ${fleetNumber}</h1><p class="hint">Aponte a câmera para consultar os dispositivos</p><p class="url">${publicFleetUrl}</p></div><img src="${fleetQrImageUrl}" alt="QR Code da frota"></div><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
     printWindow.document.close();
   }
 
