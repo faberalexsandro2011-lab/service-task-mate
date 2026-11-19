@@ -658,6 +658,11 @@ function CentralFrotaPage() {
     const component = components.find(item => item.id === installForm.componente_id);
     if (!fleet || !component) return toast.error("Selecione a frota e o componente.");
     if (fleet.unidade_id !== component.unidade_id) return toast.error("A frota e o componente precisam pertencer à mesma unidade.");
+    const existingInstallation = activeInstallations.find(item => item.componente_id === component.id);
+    if (existingInstallation) {
+      const currentFleet = fleets.find(item => item.id === existingInstallation.frota_id);
+      return toast.error(`Este dispositivo já está instalado na frota ${currentFleet?.numero ?? "registrada"}. Registre a retirada antes de instalar novamente.`);
+    }
     const sameTypeAlreadyInstalled = activeInstallations.some(item =>
       item.frota_id === fleet.id && item.componentes_frota?.tipo === component.tipo
     );
@@ -1036,7 +1041,7 @@ function CentralFrotaPage() {
               <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa").map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1]}</option>)}
             </select>
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.componente_id} onChange={e => setInstallForm({ ...installForm, componente_id: e.target.value })} required>
-              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {nomeTipoComponente(c.tipo)}</option>)}
+              <option value="">Componente disponível</option>{components.filter(c => c.status === "disponivel" && !activeInstallations.some(item => item.componente_id === c.id) && (!installForm.frota_id || (c.unidade_id === fleets.find(f => f.id === installForm.frota_id)?.unidade_id && !activeInstallations.some(item => item.frota_id === installForm.frota_id && item.componentes_frota?.tipo === c.tipo)))).map(c => <option key={c.id} value={c.id}>{c.numero_serie} — {nomeTipoComponente(c.tipo)}</option>)}
             </select>
             <Button type="submit" disabled={saving || !installForm.frota_id || !installForm.componente_id}><Wrench className="mr-2 size-4" />Registrar instalação</Button>
           </form>
