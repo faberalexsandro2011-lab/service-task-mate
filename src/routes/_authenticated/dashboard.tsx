@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Trash2,
   Tractor,
+  Truck,
   Wrench,
   Ban,
   History,
@@ -95,25 +96,34 @@ async function getDashboardData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const [ordersResult, profileResult, roleResult] = await Promise.all([
+  const [ordersResult, profileResult, unitRolesResult] = await Promise.all([
     supabase.from("ordens_servico").select("*").order("created_at", { ascending: false }),
     supabase.from("profiles").select("*").order("nome", { ascending: true }),
-    supabase.from("user_roles").select("user_id, role"),
+    // No banco oficial, os perfis de acesso ficam em usuarios_unidades.
+    // A tabela user_roles não existe neste projeto.
+    supabase.from("usuarios_unidades").select("user_id, perfil, ativo").eq("ativo", true),
   ]);
   if (ordersResult.error) throw ordersResult.error;
   if (profileResult.error) throw profileResult.error;
-  if (roleResult.error) throw roleResult.error;
+  if (unitRolesResult.error) throw unitRolesResult.error;
 
-  const role = roleResult.data.find((item) => item.user_id === authData.user.id)?.role ?? "tecnico";
+  const unitRoles = unitRolesResult.data ?? [];
+  const myRoles = unitRoles.filter((item) => item.user_id === authData.user.id).map((item) => item.perfil);
+  // Se o usuário tiver mais de um vínculo, prioriza o perfil ADM para não esconder as ações administrativas.
+  const role = myRoles.includes("admin_unidade") ? "admin_unidade" : myRoles.includes("gestor_central") ? "gestor_central" : myRoles.includes("gestor") ? "gestor" : myRoles.includes("visualizador") ? "visualizador" : "tecnico";
   const technicians = profileResult.data
-    .filter((profile) => roleResult.data.some((item) => item.user_id === profile.id && item.role === "tecnico"))
+    .filter((profile) => unitRoles.some((item) => item.user_id === profile.id && item.perfil === "tecnico"))
     .map((profile) => profile.nome?.trim().toLowerCase() === "alex" ? { ...profile, nome: "Alexsandro Faber" } : profile);
   const meRaw = profileResult.data.find((profile) => profile.id === authData.user.id);
   const me = meRaw && meRaw.nome?.trim().toLowerCase() === "alex" ? { ...meRaw, nome: "Alexsandro Faber" } : meRaw;
   const team = profileResult.data
     .map((rawProfile) => {
       const profile = rawProfile.nome?.trim().toLowerCase() === "alex" ? { ...rawProfile, nome: "Alexsandro Faber" } : rawProfile;
-      return { profile, role: roleResult.data.find((item) => item.user_id === profile.id)?.role ?? "tecnico" };
+      const storedRole = unitRoles.find((item) => item.user_id === profile.id)?.perfil;
+      const teamRole = storedRole === "admin_unidade" || storedRole === "gestor" || storedRole === "gestor_central"
+        ? "gestor"
+        : storedRole === "visualizador" ? "visualizador" : "tecnico";
+      return { profile, role: teamRole };
     })
     .filter((item) => item.profile.id !== authData.user.id);
 
@@ -139,7 +149,7 @@ const STATUS_LABEL: Record<Status, string> = {
   concluida: "Finalizada",
   cancelada: "Cancelada",
 };
-type Actor = { id: string; email: string; name: string; isManager: boolean };
+type Actor = { id: string; email: string; name: string; isManager: boolean; role: string };
 type TeamMember = { profile: Perfil; role: "gestor" | "tecnico" | "visualizador" };
 
 /** Traduz erros do backend para mensagens claras, incluindo falhas de permissão. */
@@ -311,7 +321,7 @@ function Dashboard() {
   }, [queryClient]);
 
   const data = dashboardQuery.data;
-  const isManager = data?.role === "gestor";
+  const isManager = ["gestor", "gestor_central", "admin_unidade"].includes(data?.role ?? "");
   const userId = data?.user.id;
   const userEmail = data?.user.email?.trim().toLowerCase();
   const allOrders = data?.orders ?? [];
@@ -504,6 +514,7 @@ function Dashboard() {
     email: data.user.email ?? "",
     name: data.me?.nome?.trim().toLowerCase() === "alex" ? "Alexsandro Faber" : (data.me?.nome ?? data.user.email ?? ""),
     isManager,
+    role: data.role,
   };
   const connected = online && live;
 
@@ -517,7 +528,7 @@ function Dashboard() {
     { value: "todas", label: "Todas", list: filtered },
     { value: "pendente", label: "Pendente", list: byStatus("pendente") },
     { value: "em_andamento", label: "Em andamento", list: byStatus("em_andamento") },
-    ...(isManager ? [{ value: "aguardando_fechamento", label: "Fechar no PIMS", list: waitingAdminClosure }] : []),
+    ...(isManager ? [{ value: "aguardando_fechamento", label: "Aguardando ADM", list: waitingAdminClosure }] : []),
     { value: "concluida", label: isManager ? "Fechadas" : "Concluídas", list: isManager ? closedOrders : byStatus("concluida") },
     { value: "cancelada", label: "Canceladas", list: byStatus("cancelada") },
   ];
@@ -563,6 +574,9 @@ function Dashboard() {
               </button>
             </>
           )}
+          <button type="button" onClick={() => void navigate({ to: "/frota" })} className="mt-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+            <Truck className="size-4" /> Central Frotas
+          </button>
         </nav>
         <UserPanel name={actor.name || "Utilizador"} email={actor.email} role={data.role} onSignOut={signOut} />
       </aside>
@@ -572,12 +586,13 @@ function Dashboard() {
           <Brand compact />
           <div className="flex items-center gap-2">
             {isManager && (
-              <>
-                <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
-                  <BarChart3 />
-                </Button>
-              </>
+              <Button variant="ghost" size="icon" onClick={() => void navigate({ to: "/analises" })} title="Análise técnica">
+                <BarChart3 />
+              </Button>
             )}
+            <Button variant="outline" size="sm" onClick={() => void navigate({ to: "/frota" })} title="Central Frotas">
+              <Truck className="size-4" /> Central Frotas
+            </Button>
             {!isManager && <ConnectionPill connected={connected} online={online} />}
             <Button variant="ghost" size="icon" onClick={signOut} title="Terminar sessão"><LogOut /></Button>
           </div>
@@ -681,6 +696,23 @@ function Dashboard() {
               </div>
             )}
           </div>
+
+          {isManager && (
+            <div className="mt-5 flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Truck className="size-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Central Frotas</p>
+                  <p className="text-xs text-muted-foreground">Acesse o cadastro de equipamentos, estoque e transferências.</p>
+                </div>
+              </div>
+              <Button type="button" className="gap-2" onClick={() => void navigate({ to: "/frota" })}>
+                <Truck className="size-4" /> Abrir Central Frotas
+              </Button>
+            </div>
+          )}
 
           {!isManager && (
             <div className="mt-6 inline-flex rounded-md border bg-card p-1">
@@ -939,7 +971,7 @@ function Dashboard() {
                     </div>
                   )}
                   {isManager && t.list.length > 0 && (
-                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_auto_190px] lg:items-center lg:gap-x-3">
+                    <div className="hidden border-b bg-muted/30 px-1.5 py-2 lg:grid lg:grid-cols-[24px_110px_65px_110px_130px_minmax(125px,1fr)_150px_95px_110px_auto_190px] lg:items-center lg:gap-x-3">
                       <span aria-hidden="true" />
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OS</span>
                       {(["frota", "setor", "localizacao", "tecnico", "status", "data"] as const).map((field) => {
@@ -1184,25 +1216,108 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   const [busy, setBusy] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const status = order.status as Status;
   const isMine = order.tecnico_id === actor.id;
   const isPrimaryAdmin = actor.email.trim().toLowerCase() === "faber.alexsandro2011@gmail.com";
-  const canStart = status === "pendente" && (actor.isManager || (!order.tecnico_id || isMine));
-  const canFinish = status === "em_andamento" && (isMine || actor.isManager);
+  const canStart = status === "pendente" && (isPrimaryAdmin || actor.role === "admin_unidade" || actor.isManager || (!order.tecnico_id || isMine));
+  const canFinish = (status === "em_andamento" && (actor.role === "admin_unidade" || isMine || actor.isManager)) || (status === "pendente" && (actor.role === "admin_unidade" || actor.isManager));
   const isClosed = Boolean((order as Ordem & { fechada_em?: string | null }).fechada_em);
-  const canClose = actor.isManager && status === "concluida" && !isClosed;
+  const canClose = actor.role === "admin_unidade" && (status === "em_andamento" || status === "concluida") && !isClosed;
   const canCancel = actor.isManager && (status === "pendente" || status === "em_andamento");
   const canDelete = isPrimaryAdmin || actor.email.trim().toLowerCase() === "juliocesar@coa.com";
   const priorityAgeDays = getOrderAgeInDays(order);
   const priority = actor.isManager && isPriorityOrder(order);
 
+  async function updateMaintenanceClass(value: string) {
+    if (!isPrimaryAdmin || value === String(order.classe_manutencao ?? "")) return;
+    setBusy(true);
+    const { error } = await supabase.from("ordens_servico").update({
+      classe_manutencao: value || null,
+    }).eq("id", order.id);
+    setBusy(false);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível atualizar a classe de manutenção."));
+      return;
+    }
+    try {
+      await logHistory(order.id, actor, "edicao_administrativa", "Classe de manutenção alterada para " + (value || "não informada") + ".");
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar alteração da classe:", historyError);
+    }
+    toast.success("Classe de manutenção atualizada na OS.");
+    await onChanged();
+  }
+
+  async function saveOrderEdits(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!isPrimaryAdmin) return;
+    const form = new FormData(event.currentTarget);
+    const value = (name: string) => String(form.get(name) ?? "").trim();
+    const dateValue = (name: string) => {
+      const raw = value(name);
+      return raw ? new Date(raw).toISOString() : null;
+    };
+    const numericValue = value("edit_valor_total");
+    const payload = {
+      numero_os: value("edit_numero_os"),
+      frota: value("edit_frota"),
+      setor: value("edit_setor") || null,
+      localizacao: value("edit_localizacao") || null,
+      tecnico_nome: value("edit_tecnico_nome") || null,
+      tecnico_email: value("edit_tecnico_email") || null,
+      descricao: value("edit_descricao") || null,
+      status: value("edit_status"),
+      data_inicio: dateValue("edit_data_inicio"),
+      concluida_em: dateValue("edit_concluida_em"),
+      notas_fecho: value("edit_notas_fecho") || null,
+      pecas_utilizadas: value("edit_pecas_utilizadas") || null,
+      valor_total: numericValue ? Number(numericValue) : null,
+    };
+    if (!payload.numero_os || !payload.frota) {
+      toast.error("Número da OS e frota são obrigatórios.");
+      return;
+    }
+    if (numericValue && !Number.isFinite(payload.valor_total)) {
+      toast.error("Informe um valor total válido.");
+      return;
+    }
+    setEditSaving(true);
+    const { error } = await supabase.from("ordens_servico").update(payload).eq("id", order.id);
+    setEditSaving(false);
+    if (error) {
+      toast.error(friendlyError(error, "Não foi possível salvar as alterações da OS."));
+      return;
+    }
+    try {
+      await logHistory(order.id, actor, "edicao_administrativa", "Dados da OS editados pelo Gestor Principal.");
+    } catch (historyError) {
+      console.error("[OS] Falha ao registrar edição administrativa:", historyError);
+    }
+    toast.success("Todas as informações editáveis da OS foram atualizadas.");
+    setEditOpen(false);
+    setDetailsOpen(false);
+    await onChanged();
+  }
+
   async function start() {
     setBusy(true);
+    if (actor.role === "admin_unidade") {
+      const { error } = await (supabase as any).rpc("iniciar_os_pelo_adm", { p_os_id: order.id });
+      setBusy(false);
+      if (error) {
+        toast.error(friendlyError(error, error.message || "Não foi possível iniciar a OS como ADM."));
+        await onChanged();
+        return;
+      }
+      toast.success(`OS ${order.numero_os} iniciada pelo ADM da unidade.`);
+      await onChanged();
+      return;
+    }
     const { data, error } = await supabase
       .from("ordens_servico")
-      .update(actor.isManager
-        ? { status: "em_andamento", data_inicio: new Date().toISOString() }
-        : { status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
+      .update({ status: "em_andamento", data_inicio: new Date().toISOString(), tecnico_id: actor.id, tecnico_email: actor.email, tecnico_nome: actor.name })
       .eq("id", order.id)
       .eq("status", "pendente")
       .select("id");
@@ -1224,29 +1339,22 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
   }
 
   async function closeOrder() {
-    if (!actor.isManager || status !== "concluida" || isClosed) return;
-    if (!confirm(`Fechar oficialmente a OS ${order.numero_os}? Depois disso, o técnico não poderá mais editá-la.`)) return;
+    if (actor.role !== "admin_unidade" || (status !== "em_andamento" && status !== "concluida") || isClosed) return;
+    if (!confirm(`Confirmar a finalização administrativa da OS ${order.numero_os}? O sistema registrará seu usuário e horário.`)) return;
     setBusy(true);
-    const closedAt = new Date().toISOString();
-    const { data: closedRows, error } = await (supabase as any).from("ordens_servico").update({
-      fechada_em: closedAt,
-      fechada_por_email: actor.email,
-    }).eq("id", order.id).eq("status", "concluida").is("fechada_em", null).select("id");
-    if (error || !closedRows?.length) {
-      setBusy(false);
-      toast.error(error ? friendlyError(error, "Não foi possível fechar a OS.") : "Esta OS já foi fechada ou alterada. Atualize o painel.");
+    const { error } = await (supabase as any).rpc("fechar_os_pelo_adm", {
+      p_os_id: order.id,
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(friendlyError(error, error.message || "Não foi possível fechar a OS."));
       await onChanged();
       return;
     }
-    try {
-      await logHistory(order.id, actor, "fechada", `OS fechada oficialmente por ${actor.email}`);
-    } catch (historyError) {
-      console.error("[OS] Falha ao registrar fechamento no histórico:", historyError);
-    }
-    setBusy(false);
-    toast.success(`OS ${order.numero_os} fechada. O técnico não poderá mais editá-la.`);
+    toast.success(`OS ${order.numero_os} finalizada pelo ADM da unidade.`);
     await onChanged();
   }
+
 
   async function cancel() {
     if (!confirm(`Cancelar a OS ${order.numero_os}?`)) return;
@@ -1364,6 +1472,32 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           )}
 
           {actor.isManager && (
+            <div className="min-w-[150px] max-w-[190px]" onClick={(event) => event.stopPropagation()}>
+              <span className="mb-1 block text-[10px] font-semibold uppercase text-muted-foreground">Classe</span>
+              {isPrimaryAdmin ? (
+                <select
+                  aria-label={"Editar classe de manutenção da OS " + order.numero_os}
+                  value={order.classe_manutencao ?? ""}
+                  disabled={busy}
+                  onChange={(event) => void updateMaintenanceClass(event.target.value)}
+                  className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                >
+                  <option value="">Não informada</option>
+                  <option value="GPS">GPS</option>
+                  <option value="SOLINFTEC">SOLINFTEC</option>
+                  <option value="RÁDIO">RÁDIO</option>
+                  <option value="RASTREADOR">RASTREADOR</option>
+                  <option value="AUTM. IRR">AUTM. IRR</option>
+                  <option value="AUTM. PLANT">AUTM. PLANT</option>
+                  <option value="STARLINK/CONCENT.">STARLINK/CONCENT.</option>
+                </select>
+              ) : (
+                <p className="break-words text-xs font-medium">{order.classe_manutencao || "Não informada"}</p>
+              )}
+            </div>
+          )}
+
+          {actor.isManager && (
             <div className="min-w-[130px] max-w-[220px]">
               <p className="break-words text-sm font-medium">{order.localizacao?.trim() || "Não informada"}</p>
             </div>
@@ -1400,8 +1534,8 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
             <span><strong className="text-foreground/70">Fim:</strong> {fmtDate(order.concluida_em)}</span>
           </div>
 
-          {!actor.isManager && (
-            <div className="ml-auto w-full sm:w-auto sm:min-w-[160px]" onClick={(event) => event.stopPropagation()}>
+          {(actor.role === "admin_unidade" || !actor.isManager) && (
+            <div className={actor.isManager ? "col-span-2 w-full pt-2 lg:col-span-9" : "ml-auto w-full sm:w-auto sm:min-w-[160px]"} onClick={(event) => event.stopPropagation()}>
               {actionButtons}
             </div>
           )}
@@ -1416,6 +1550,11 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
               <StatusBadge status={status} />
             </div>
           </DialogHeader>
+          {isPrimaryAdmin && <div className="mb-1 flex flex-wrap gap-2">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setEditOpen(true)}>
+              <Pencil /> Editar todas as informações
+            </Button>
+          </div>}
           <div className="mb-1 flex flex-wrap gap-2">
             <Button className="w-full sm:w-auto" onClick={() => { void shareOrderAsImage(order).catch((error) => { if (!(error instanceof DOMException && error.name === "AbortError")) toast.error("Não foi possível compartilhar a imagem da OS."); }); }}>
               <Share2 /> Enviar print pelo WhatsApp
@@ -1462,6 +1601,39 @@ function OrderCard({ order, actor, onChanged, selected, onToggleSelect, canSelec
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar todas as informações — OS {order.numero_os}</DialogTitle>
+            <DialogDescription>Somente o Gestor Principal pode alterar estes dados. As alterações serão registradas no histórico.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={saveOrderEdits} className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1"><Label htmlFor="edit_numero_os">Número da OS *</Label><Input id="edit_numero_os" name="edit_numero_os" defaultValue={order.numero_os} required /></div>
+              <div className="space-y-1"><Label htmlFor="edit_frota">Frota *</Label><Input id="edit_frota" name="edit_frota" defaultValue={order.frota} required /></div>
+              <div className="space-y-1"><Label htmlFor="edit_setor">Setor</Label><Input id="edit_setor" name="edit_setor" defaultValue={order.setor ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_localizacao">Localização</Label><Input id="edit_localizacao" name="edit_localizacao" defaultValue={order.localizacao ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_tecnico_nome">Técnico responsável</Label><Input id="edit_tecnico_nome" name="edit_tecnico_nome" defaultValue={order.tecnico_nome ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_tecnico_email">E-mail do técnico</Label><Input id="edit_tecnico_email" name="edit_tecnico_email" type="email" defaultValue={order.tecnico_email ?? ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_status">Status</Label>
+                <select id="edit_status" name="edit_status" defaultValue={order.status} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="pendente">Pendente</option><option value="em_andamento">Em andamento</option><option value="concluida">Finalizada</option><option value="cancelada">Cancelada</option>
+                </select>
+              </div>
+              <div className="space-y-1"><Label htmlFor="edit_data_inicio">Data de início</Label><Input id="edit_data_inicio" name="edit_data_inicio" type="datetime-local" defaultValue={order.data_inicio ? new Date(order.data_inicio).toISOString().slice(0,16) : ""} /></div>
+              <div className="space-y-1"><Label htmlFor="edit_concluida_em">Data de conclusão</Label><Input id="edit_concluida_em" name="edit_concluida_em" type="datetime-local" defaultValue={order.concluida_em ? new Date(order.concluida_em).toISOString().slice(0,16) : ""} /></div>
+              <div className="space-y-1 sm:col-span-2"><Label htmlFor="edit_valor_total">Valor total</Label><Input id="edit_valor_total" name="edit_valor_total" type="number" min="0" step="0.01" defaultValue={order.valor_total ?? ""} /></div>
+            </div>
+            <div className="space-y-1"><Label htmlFor="edit_descricao">Descrição do serviço</Label><Textarea id="edit_descricao" name="edit_descricao" rows={3} defaultValue={order.descricao ?? ""} /></div>
+            <div className="space-y-1"><Label htmlFor="edit_notas_fecho">Serviço realizado / notas de fechamento</Label><Textarea id="edit_notas_fecho" name="edit_notas_fecho" rows={3} defaultValue={order.notas_fecho ?? ""} /></div>
+            <div className="space-y-1"><Label htmlFor="edit_pecas_utilizadas">Peças utilizadas (registro)</Label><Textarea id="edit_pecas_utilizadas" name="edit_pecas_utilizadas" rows={3} defaultValue={order.pecas_utilizadas ?? ""} /></div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={editSaving}>{editSaving ? "Salvando..." : "Salvar todas as alterações"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <FinishDialog open={finishOpen} onOpenChange={setFinishOpen} order={order} actor={actor} onDone={onChanged} />
     </>
   );
@@ -1483,24 +1655,32 @@ function FinishDialog({ open, onOpenChange, order, actor, onDone }: { open: bool
     const alreadyRecordedFinishTime = Boolean(order.concluida_em);
     const finishedAt = order.concluida_em ?? new Date().toISOString();
     // Sem número de OS, registra o horário e aguarda o ADM antes de concluir.
+    const isAdm = actor.role === "admin_unidade" || actor.isManager;
+    const admCloseFields = isAdm && hasOsNumber
+      ? { fechada_em: finishedAt, fechada_por_email: actor.email, fechada_por_id: actor.id }
+      : {};
     const updateValues = !hasOsNumber
       ? { notas_fecho: solucao, concluida_em: finishedAt }
-      : { status: "concluida", notas_fecho: solucao, concluida_em: finishedAt };
+      : { status: "concluida", notas_fecho: solucao, concluida_em: finishedAt, ...admCloseFields };
+    const allowedStatuses = isAdm ? ["pendente", "em_andamento"] : ["em_andamento"];
     const { data, error } = await supabase
       .from("ordens_servico")
       .update(updateValues)
       .eq("id", order.id)
-      .eq("status", "em_andamento")
+      .in("status", allowedStatuses)
       .select("id");
     if (error || !data?.length) {
       setSaving(false);
       toast.error(error ? friendlyError(error, "Não foi possível registrar a finalização.") : "Esta OS já não está em andamento.");
       return;
     }
-    const historyAction = !hasOsNumber ? "horario_finalizacao_registrado" : "finalizada";
+    const responsibleName = actor.name?.trim() || actor.email;
+    const historyAction = !hasOsNumber
+      ? (isAdm ? "horario_finalizacao_registrado_pelo_adm" : "horario_finalizacao_registrado")
+      : (isAdm ? "finalizada_pelo_adm" : "finalizada");
     const historyDetail = !hasOsNumber
-      ? `Horário de finalização registrado por ${actor.email}: ${finishedAt}. Aguardando o ADM informar o número da OS. ${solucao}`
-      : `${alreadyRecordedFinishTime ? "Serviço concluído após receber o número da OS" : "Finalizada"} por ${actor.email}: ${solucao}`;
+      ? `Horário de finalização registrado por ${isAdm ? "ADM " : ""}${responsibleName}: ${finishedAt}. Aguardando o ADM informar o número da OS. ${solucao}`
+      : `${isAdm ? "OS finalizada pelo ADM" : (alreadyRecordedFinishTime ? "Serviço concluído após receber o número da OS" : "Finalizada")} por ${responsibleName} (${actor.email}): ${solucao}`;
     await logHistory(order.id, actor, historyAction, historyDetail);
     setSaving(false);
     toast.success(!hasOsNumber
@@ -2012,8 +2192,7 @@ function PasteOrdersDialog({ open, onOpenChange, technicians, creator, onImporte
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
-        // Atualiza os dados vindos da planilha sem reabrir a OS nem trocar
-        // quem a criou originalmente. O status e os metadados de criação ficam preservados.
+        // Atualiza os dados importados sem reabrir a OS nem trocar seu criador original.
         const updatePayload = { ...item };
         delete updatePayload.status;
         delete updatePayload.criado_por_email;
@@ -2286,8 +2465,7 @@ function ImportDialog({ open, onOpenChange, technicians, creator, onImported }: 
       const { data: existing, error: lookupError } = await supabase.from("ordens_servico").select("id, tecnico_email, tecnico_nome").eq("numero_os", String(item.numero_os)).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (lookupError) throw lookupError;
       if (existing) {
-        // Atualiza os dados vindos da planilha sem reabrir a OS nem trocar
-        // quem a criou originalmente. O status e os metadados de criação ficam preservados.
+        // Atualiza os dados importados sem reabrir a OS nem trocar seu criador original.
         const updatePayload = { ...item };
         delete updatePayload.status;
         delete updatePayload.criado_por_email;

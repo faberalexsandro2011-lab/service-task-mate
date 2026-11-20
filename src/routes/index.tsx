@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Wrench, Tractor, Wheat } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getCentralOSDeviceId, getCentralOSDeviceLabel, getCentralOSUserAgent } from "@/lib/deviceAccess";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,6 +80,58 @@ function Index() {
         setError("Não foi possível entrar. Tente novamente ou contacte o gestor.");
       }
       return;
+    }
+    const { data: deviceCheck, error: deviceCheckError } = await supabase.rpc("registrar_dispositivo_acesso", {
+      p_device_id: getCentralOSDeviceId(),
+      p_nome_dispositivo: getCentralOSDeviceLabel(),
+      p_user_agent: getCentralOSUserAgent(),
+    });
+    if (deviceCheckError || deviceCheck?.permitido !== true) {
+      await supabase.auth.signOut();
+      setBusy(false);
+      setError(deviceCheck?.motivo || "Não foi possível validar este dispositivo. Tente novamente ou contacte o Gestor Geral.");
+      return;
+    }
+    // Ao autenticar, este aparelho passa a ser o único dispositivo ativo da conta.
+    const { error: exclusiveSessionError } = await supabase.rpc("registrar_sessao_dispositivo", {
+      p_device_id: getCentralOSDeviceId(),
+    });
+    if (exclusiveSessionError) {
+      await supabase.auth.signOut();
+      setBusy(false);
+      setError("Não foi possível ativar a sessão exclusiva. Tente novamente.");
+      return;
+    }
+    setBusy(false);
+    // No sistema multiunidade, direciona o Gestor Geral ao painel operacional,
+    // sem abrir o dashboard legado que depende da tabela public.profiles.
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData.user) {
+      const { data: centralProfile, error: centralProfileError } = await supabase
+        .from("usuarios_unidades")
+        .select("perfil")
+        .eq("user_id", authData.user.id)
+        .eq("ativo", true)
+        .in("perfil", ["gestor_central", "gestor"])
+        .limit(1)
+        .maybeSingle();
+
+      if (!centralProfileError && (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor")) {
+        await navigate({ to: "/painel", replace: true });
+        return;
+      }
+      const { data: unitProfile } = await supabase
+        .from("usuarios_unidades")
+        .select("perfil")
+        .eq("user_id", authData.user.id)
+        .eq("ativo", true)
+        .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
+        .limit(1)
+        .maybeSingle();
+      if (unitProfile?.perfil === "admin_unidade") {
+        await navigate({ to: "/painel", replace: true });
+        return;
+      }
     }
     await navigate({ to: "/dashboard", replace: true });
   }

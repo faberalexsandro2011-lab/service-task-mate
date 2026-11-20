@@ -1,60 +1,118 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getOfflineRole, saveOfflineRole } from "@/lib/offline";
+import { getCentralOSDeviceId, getCentralOSDeviceLabel, getCentralOSUserAgent } from "@/lib/deviceAccess";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
     const { data } = await supabase.auth.getSession();
     if (!data.session?.user) throw redirect({ to: "/" });
-
-    let role: "gestor" | "tecnico" | "visualizador" = "tecnico";
     if (navigator.onLine) {
-      // Use the SECURITY DEFINER helper so the role check is not blocked by
-      // RLS on user_roles. This is important for fresh Supabase projects.
+      const { data: deviceCheck, error: deviceCheckError } = await supabase.rpc("registrar_dispositivo_acesso", {
+        p_device_id: getCentralOSDeviceId(),
+        p_nome_dispositivo: getCentralOSDeviceLabel(),
+        p_user_agent: getCentralOSUserAgent(),
+      });
+      if (deviceCheckError || deviceCheck?.permitido !== true) {
+        await supabase.auth.signOut();
+        throw redirect({ to: "/", replace: true });
+      }
+      const { data: exclusiveAllowed, error: exclusiveError } = await supabase.rpc("verificar_sessao_dispositivo", {
+        p_device_id: getCentralOSDeviceId(),
+      });
+      if (exclusiveError || exclusiveAllowed !== true) {
+        await supabase.auth.signOut();
+        throw redirect({ to: "/", replace: true });
+      }
+    }
+
+    let role: "gestor" | "admin_unidade" | "tecnico" | "visualizador" = "tecnico";
+    if (navigator.onLine) {
+      const userId = data.session.user.id;
       const { data: isManager, error: managerRoleError } = await supabase.rpc("has_role", {
-        _user_id: data.session.user.id,
+        _user_id: userId,
         _role: "gestor",
       });
-
-      const { data: isOsManager, error: osManagerRoleError } = await supabase.rpc("has_role", {
-        _user_id: data.session.user.id,
+      const { data: isOsManager } = await supabase.rpc("has_role", {
+        _user_id: userId,
         _role: "gestor_os",
       });
 
-      if ((!managerRoleError && isManager === true) || (!osManagerRoleError && isOsManager === true)) {
-        // gestor_os é o perfil operacional de gestão no banco oficial.
+      // Na instalação oficial, gestor_os é o perfil de gestão operacional.
+      if ((!managerRoleError && isManager === true) || isOsManager === true) {
         role = "gestor";
       } else {
-        const { data: isViewer } = await supabase.rpc("has_role", { _user_id: data.session.user.id, _role: "visualizador" });
-        if (isViewer === true) role = "visualizador";
-        else {
-          const { data: roleRow, error: roleError } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", data.session.user.id)
+        const { data: isViewer } = await supabase.rpc("has_role", { _user_id: userId, _role: "visualizador" });
+        if (isViewer === true) {
+          role = "visualizador";
+        } else {
+          // The multi-unit project uses usuarios_unidades instead
+          // of the production user_roles table. This check is intentionally
+          // scoped to this project's authenticated session.
+          const { data: centralProfile } = await supabase
+            .from("usuarios_unidades")
+            .select("perfil")
+            .eq("user_id", userId)
+            .eq("ativo", true)
+            .in("perfil", ["gestor_central", "gestor"])
+            .limit(1)
             .maybeSingle();
 
-          if (!roleError && (roleRow?.role === "gestor" || roleRow?.role === "gestor_os")) {
+          if (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor") {
             role = "gestor";
           } else {
-            role = "tecnico";
+            const { data: unitProfile } = await supabase
+              .from("usuarios_unidades")
+              .select("perfil")
+              .eq("user_id", userId)
+              .eq("ativo", true)
+              .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
+              .limit(1)
+              .maybeSingle();
+
+            if (unitProfile?.perfil === "admin_unidade") {
+              role = "admin_unidade";
+            } else if (unitProfile?.perfil === "visualizador") {
+              role = "visualizador";
+            } else if (unitProfile?.perfil === "tecnico") {
+              role = "tecnico";
+            } else {
+              const { data: roleRow, error: roleError } = await supabase
+                .from("user_roles")
+                .select("role")
+                .eq("user_id", userId)
+                .maybeSingle();
+
+              role = !roleError && roleRow?.role === "gestor" ? "gestor" : "tecnico";
+            }
           }
         }
       }
 
       await saveOfflineRole(role);
     } else {
-      role = (await getOfflineRole<"gestor" | "tecnico" | "visualizador">()) ?? "tecnico";
+      role = (await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">()) ?? "tecnico";
     }
+
+    // /painel-teste permanece apenas como rota de compatibilidade.
+    // Qualquer usuário autenticado que acessar essa URL vai para o painel oficial.
+    if (location.pathname === "/painel-teste") {
+      throw redirect({ to: "/painel", replace: true });
+    }
+
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
+    const isFleetArea = location.pathname.endsWith("/frota");
     const isViewerArea = location.pathname.endsWith("/visualizacao");
 
+    const isTestPanel = location.pathname.endsWith("/painel") || location.pathname.endsWith("/painel-teste");
+    if (role === "admin_unidade" && !isTestPanel && !isFleetArea) throw redirect({ to: "/painel", replace: true });
     if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
-    if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : "/tecnico", replace: true });
+    if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : role === "admin_unidade" ? "/painel-teste" : "/tecnico", replace: true });
 
-    if (role === "tecnico" && !isTechnicianArea && !isRequestArea) {
+    if (role === "tecnico" && !isTechnicianArea && !isRequestArea && !isFleetArea) {
       throw redirect({ to: "/tecnico", replace: true });
     }
 
@@ -63,8 +121,75 @@ export const Route = createFileRoute("/_authenticated")({
     }
     return { user: data.session.user, role };
   },
-  component: () => (
+  component: AuthenticatedLayout,
+});
+
+function AuthenticatedLayout() {
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+
+  const handleVoltar = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    const fallback = pathname.endsWith("/painel") || pathname.endsWith("/painel-teste") ? "/painel"
+      : pathname.endsWith("/tecnico") ? "/tecnico"
+      : pathname.endsWith("/visualizacao") ? "/visualizacao"
+      : "/dashboard";
+    void navigate({ to: fallback });
+  };
+
+  useEffect(() => {
+    let checking = false;
+    const timer = window.setInterval(async () => {
+      if (checking || !navigator.onLine) return;
+      checking = true;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session?.user) return;
+        const { data, error } = await supabase.rpc("registrar_dispositivo_acesso", {
+          p_device_id: getCentralOSDeviceId(),
+          p_nome_dispositivo: getCentralOSDeviceLabel(),
+          p_user_agent: getCentralOSUserAgent(),
+        });
+        // Falhas transitórias de rede ao voltar do background não encerram a sessão.
+        if (error) return;
+        if (data?.permitido === false) {
+          await supabase.auth.signOut();
+          window.location.assign("/");
+          return;
+        }
+        const { data: exclusiveAllowed, error: exclusiveError } = await supabase.rpc("verificar_sessao_dispositivo", {
+          p_device_id: getCentralOSDeviceId(),
+        });
+        if (exclusiveError) return;
+        if (exclusiveAllowed === false) {
+          await supabase.auth.signOut();
+          window.location.assign("/");
+        }
+      } finally {
+        checking = false;
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
     <div className="flex min-h-screen flex-col">
+      {!["/painel", "/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
+        <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
+          <button
+            type="button"
+            onClick={handleVoltar}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Voltar para a tela anterior"
+          >
+            <span aria-hidden="true">←</span>
+            Voltar
+          </button>
+        </div>
+      )}
       <main className="flex-1">
         <Outlet />
       </main>
@@ -72,5 +197,5 @@ export const Route = createFileRoute("/_authenticated")({
         Desenvolvido por: <span className="font-semibold text-foreground">ALEX FABER</span>
       </footer>
     </div>
-  ),
-});
+  );
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -63,14 +63,32 @@ async function getAnalysisData() {
   const { data: authData, error: authError } = await supabase.auth.getUser();
   if (authError || !authData.user) throw new Error("A sessão terminou. Entre novamente.");
 
-  const { data: roleRows, error: roleError } = await supabase
-    .from("user_roles")
-    .select("user_id, role")
-    .eq("user_id", authData.user.id);
+  // O banco isolado de teste multiunidade usa usuarios_unidades;
+  // a produção tradicional usa user_roles. Consultamos primeiro o modelo
+  // multiunidade e só recorremos ao legado quando essa tabela não existir.
+  const { data: unitProfile, error: unitProfileError } = await supabase
+    .from("usuarios_unidades")
+    .select("perfil")
+    .eq("user_id", authData.user.id)
+    .eq("ativo", true)
+    .maybeSingle();
 
-  if (roleError) throw roleError;
-  const role = roleRows?.[0]?.role ?? "tecnico";
-  if (role !== "gestor") throw new Error("A análise técnica está disponível apenas para gestores.");
+  let role: string | null = null;
+  if (!unitProfileError) {
+    role = unitProfile?.perfil ?? null;
+  } else {
+    const { data: roleRows, error: roleError } = await supabase
+      .from("user_roles")
+      .select("user_id, role")
+      .eq("user_id", authData.user.id);
+
+    if (roleError) throw roleError;
+    role = roleRows?.[0]?.role ?? null;
+  }
+
+  if (role !== "gestor" && role !== "gestor_central") {
+    throw new Error("A análise técnica está disponível apenas para gestores.");
+  }
 
   const { data: orders, error } = await supabase
     .from("ordens_servico")
@@ -80,7 +98,7 @@ async function getAnalysisData() {
 
   if (error) throw error;
 
-  return { user: authData.user, orders: orders ?? [] };
+  return { user: authData.user, role, orders: orders ?? [] };
 }
 
 function TechnicalAnalysis() {
@@ -90,6 +108,7 @@ function TechnicalAnalysis() {
   const [search, setSearch] = useState("");
   const [selectedFleet, setSelectedFleet] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const sectorDetailsRef = useRef<HTMLDivElement | null>(null);
   const [selectedSectorCard, setSelectedSectorCard] = useState<"total" | "completed" | "open" | "fleets">("total");
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<{
@@ -138,6 +157,12 @@ function TechnicalAnalysis() {
     await queryClient.invalidateQueries({ queryKey: ["technical-analysis"] });
     window.alert("Base técnica atualizada. Os indicadores serão recalculados com os dados salvos.");
   }
+
+  useEffect(() => {
+    if (selectedSector && window.matchMedia("(max-width: 1279px)").matches) {
+      sectorDetailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedSector]);
 
   useEffect(() => {
     const channel = supabase
@@ -323,13 +348,15 @@ function TechnicalAnalysis() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
           <Kpi icon={<ClipboardList />} label="OS analisadas" value={formatNumber(metrics.total)} detail={periodLabel(period)} />
           <Kpi icon={<CheckCircle2 />} label="Serviços realizados" value={formatNumber(metrics.completed)} detail={metrics.total ? metrics.completionRate + "% concluídas" : "Sem registros"} />
           <Kpi icon={<Activity />} label="OS abertas" value={formatNumber(metrics.open)} detail={metrics.inProgress + " em andamento"} />
           <Kpi icon={<Package />} label="Peças lançadas" value={formatNumber(metrics.partsLines)} detail={metrics.uniqueParts + " tipos diferentes"} />
           <Kpi icon={<TrendingUpIcon />} label="OS em recorrência" value={formatNumber(metrics.recurrentOrders)} detail={metrics.recurrenceRate + "% do período"} />
-          <Kpi icon={<Clock3 />} label="Tempo médio" value={formatDuration(metrics.averageHours)} detail="Início → fechamento" />
+          <Kpi icon={<Clock3 />} label="Até iniciar" value={formatDuration(metrics.averageStartDelayHours)} detail="Abertura → início" />
+          <Kpi icon={<Wrench />} label="Tempo de execução" value={formatDuration(metrics.averageHours)} detail="Início → conclusão técnica" />
+          <Kpi icon={<ShieldAlert />} label="Tipos recorrentes" value={formatNumber(metrics.recurrenceTypes)} detail="Frota + tipo de serviço" />
         </section>
 
         <section className="grid gap-5">
@@ -473,7 +500,7 @@ function TechnicalAnalysis() {
         <section className="grid gap-5 xl:grid-cols-[1.35fr_1fr]">
           <Panel
             title="Recorrências de manutenção"
-            subtitle="Mesmo tipo de serviço na mesma frota aparece como recorrência a partir da 2ª ocorrência."
+            subtitle="Sinaliza repetição da mesma categoria de serviço na mesma frota. É um alerta analítico, não uma confirmação automática de defeito idêntico."
             icon={<ShieldAlert className="size-4" />}
             tone={recurrenceRows.length ? "warning" : "normal"}
           >
@@ -506,7 +533,7 @@ function TechnicalAnalysis() {
               <div className="rounded-xl border border-dashed p-7 text-center">
                 <CheckCircle2 className="mx-auto size-8 text-emerald-600" />
                 <p className="mt-2 text-sm font-semibold">Nenhuma recorrência identificada</p>
-                <p className="mt-1 text-xs text-muted-foreground">O período selecionado não possui duas ocorrências do mesmo serviço na mesma frota.</p>
+                <p className="mt-1 text-xs text-muted-foreground">Não há pares frota + tipo de serviço com duas ou mais OS no período selecionado.</p>
               </div>
             )}
           </Panel>
@@ -580,8 +607,8 @@ function TechnicalAnalysis() {
                 {!selectedSector ? (
                   <div className="flex min-h-[260px] items-center justify-center rounded-xl border border-dashed p-8 text-center"><div><Activity className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 text-sm font-semibold">Selecione um setor</p><p className="mt-1 text-xs text-muted-foreground">Os indicadores detalhados e todas as OS do setor serão exibidos aqui.</p></div></div>
                 ) : (
-                  <div className="min-w-0 space-y-4">
-                    <div><h3 className="text-lg font-bold">{selectedSector}</h3><p className="text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado</p></div>
+                  <div ref={sectorDetailsRef} className="min-w-0 scroll-mt-4 space-y-4">
+                    <div className="rounded-xl border border-primary/30 bg-primary/5 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-primary">Setor selecionado</p><h3 className="mt-1 text-lg font-bold">{selectedSector}</h3><p className="mt-1 text-xs text-muted-foreground">{selectedSectorOrders.length} OS no período selecionado. O detalhamento foi aberto abaixo da lista.</p></div>
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                       {([
                         { key: "total" as const, icon: <ClipboardList />, label: "Total de OS", value: selectedSectorOrders.length, detail: "Todas as ordens" },
@@ -737,8 +764,8 @@ function TechnicalAnalysis() {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="flex items-center gap-2"><ClipboardList className="size-4 text-primary" /><h2 className="font-bold">Base técnica · todas as OS</h2></div>
-                <p className="mt-1 text-xs text-muted-foreground">{orders.length} registros exibidos · dados persistidos na base oficial do Central OS.</p>
-                {canEditBase && <p className="mt-1 text-xs font-medium text-primary">Edição habilitada para o gestor Faber; os indicadores serão recalculados após salvar.</p>}
+                <p className="mt-1 text-xs text-muted-foreground">{orders.length} registros exibidos · dados persistidos na base do ambiente atual.</p>
+                {canEditBase && <p className="mt-1 text-xs font-medium text-primary">Edição direta na linha: clique em Editar, altere os campos aqui mesmo e salve nesta mesma linha.</p>}
               </div>
               <span className="text-xs font-medium text-muted-foreground">{periodLabel(period)}</span>
             </div>
@@ -759,7 +786,7 @@ function TechnicalAnalysis() {
                     <td className="px-3 py-3">{isEditing ? editInput("setor","Setor") : order.setor || "—"}</td>
                     <td className="px-3 py-3">{isEditing ? editInput("localizacao","Localização") : order.localizacao || "—"}</td>
                     <td className="max-w-[320px] px-3 py-3">{isEditing ? <textarea value={editDraft?.descricao ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, descricao: event.target.value } : current)} placeholder="Descrição do serviço" className="min-h-20 w-56 rounded-md border bg-background p-2 text-xs" /> : <><div className="max-w-[260px] whitespace-normal font-medium">{order.descricao || "Sem descrição"}</div><div className="mt-1 text-[11px] text-muted-foreground">{serviceCategory(order)}</div></>}</td>
-                    <td className="px-3 py-3">{isEditing ? editInput("classe_manutencao","Classe de manutenção") : order.classe_manutencao || "—"}</td>
+                    <td className="px-3 py-3">{isEditing ? <select value={editDraft?.classe_manutencao ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, classe_manutencao: event.target.value } : current)} className="h-8 min-w-36 rounded-md border bg-background px-2 text-xs"><option value="">Sem classe</option>{MAINTENANCE_CLASSES.map((item) => <option key={item} value={item}>{item}</option>)}</select> : order.classe_manutencao || "—"}</td>
                     <td className="px-3 py-3">{isEditing ? <textarea value={editDraft?.pecas_utilizadas ?? ""} onChange={(event) => setEditDraft((current) => current ? { ...current, pecas_utilizadas: event.target.value } : current)} placeholder="Peças utilizadas (uma por linha)" className="min-h-20 w-48 rounded-md border bg-background p-2 text-xs" /> : partCount ? partCount + " lançada(s)" : "—"}</td>
                     <td className="px-3 py-3">{isEditing ? <div className="grid gap-1.5">{editInput("tecnico_nome","Nome do técnico")}{editInput("tecnico_email","E-mail do técnico")}</div> : order.tecnico_nome || order.tecnico_email || "Sem técnico"}</td>
                     <td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{formatDate(order.created_at)}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.data_inicio ? formatDate(order.data_inicio) : "Não iniciado"}</td><td className="whitespace-nowrap px-3 py-3 text-xs text-muted-foreground">{order.concluida_em ? formatDate(order.concluida_em) : "Em andamento"}</td><td className="px-3 py-3"><StatusBadge status={order.status} /></td>
@@ -938,13 +965,22 @@ function buildMetrics(orders: Ordem[]) {
   ).size;
 
   const durations = orders
-    .filter((order) => order.data_inicio && order.concluida_em)
+    .filter((order) => order.data_inicio && order.concluida_em && order.status === "concluida")
     .map((order) => (new Date(order.concluida_em!).getTime() - new Date(order.data_inicio!).getTime()) / 3_600_000)
     .filter((hours) => Number.isFinite(hours) && hours > 0);
   const averageHours = durations.length ? durations.reduce((sum, hours) => sum + hours, 0) / durations.length : 0;
 
+  const startDelays = orders
+    .filter((order) => order.data_inicio)
+    .map((order) => (new Date(order.data_inicio!).getTime() - new Date(order.created_at).getTime()) / 3_600_000)
+    .filter((hours) => Number.isFinite(hours) && hours >= 0);
+  const averageStartDelayHours = startDelays.length
+    ? startDelays.reduce((sum, hours) => sum + hours, 0) / startDelays.length
+    : 0;
+
   const recurrenceRows = buildRecurrenceRows(orders);
   const recurrentOrders = recurrenceRows.reduce((sum, row) => sum + row.total, 0);
+  const recurrenceTypes = recurrenceRows.length;
 
   return {
     total,
@@ -956,6 +992,8 @@ function buildMetrics(orders: Ordem[]) {
     partsLines,
     uniqueParts,
     averageHours,
+    averageStartDelayHours,
+    recurrenceTypes,
     recurrentOrders,
     recurrenceRate: total ? Math.round((recurrentOrders / total) * 100) : 0,
     completionRate: total ? Math.round((completed / total) * 100) : 0,
