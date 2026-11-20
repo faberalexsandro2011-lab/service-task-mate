@@ -614,7 +614,7 @@ function CentralFrotaPage() {
             ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
             ["trator", "trator"],
           ];
-          const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}"));
+          const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}`));
           if (!matchedFleetType) {
             throw new Error(`Tipo "${row.tipo}" da frota ${row.numero} não reconhecido. Use Trator, Colheitadeira, Caminhão ou Veículo. Nenhum tipo será convertido automaticamente para Trator.`);
           }
