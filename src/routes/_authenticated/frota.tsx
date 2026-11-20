@@ -776,29 +776,37 @@ function CentralFrotaPage() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-primary/10 p-2 text-primary"><Truck className="size-6" /></div>
-            <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950 text-white shadow-lg shadow-slate-950/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3.5 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="rounded-xl border border-white/15 bg-white/10 p-2.5 text-white shadow-inner"><Truck className="size-6" /></div>
+            <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-blue-200">Central OS · Gestão operacional</p><h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Central Frota</h1></div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
+          <div className="flex shrink-0 gap-2">
+            <Button className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
+            <Button className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Frotas cadastradas</p><p className="mt-1 text-3xl font-bold tabular-nums">{fleets.length}</p></div>
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Componentes registrados</p><p className="mt-1 text-3xl font-bold tabular-nums">{components.length}</p></div>
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Instalações ativas</p><p className="mt-1 text-3xl font-bold tabular-nums">{activeInstallations.length}</p></div>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-950 via-blue-950 to-blue-800 p-5 text-white shadow-xl shadow-blue-950/10 sm:p-7">
+          <div className="pointer-events-none absolute -right-10 -top-20 size-64 rounded-full border-[28px] border-white/5" />
+          <div className="relative flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-200">Controle de equipamentos</p><h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Gestão de Frotas</h2><p className="mt-1 max-w-xl text-sm text-blue-100/80">Acompanhe veículos, dispositivos, estoque e movimentações em um só lugar.</p></div>
+            <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur"><p className="text-[11px] font-semibold uppercase tracking-wider text-blue-100">Unidades acessíveis</p><p className="mt-1 text-2xl font-bold tabular-nums">{units.length}</p></div>
+          </div>
         </section>
 
-        <nav className="flex flex-wrap gap-2" aria-label="Seções do Central Frota">
-          {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"><div className="rounded-xl bg-blue-50 p-3 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><CarFront className="size-5" /></div><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Frotas cadastradas</p><p className="mt-1 text-2xl font-bold tabular-nums">{fleets.length}</p></div></div>
+          <div className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"><div className="rounded-xl bg-indigo-50 p-3 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"><Boxes className="size-5" /></div><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Componentes registrados</p><p className="mt-1 text-2xl font-bold tabular-nums">{components.length}</p></div></div>
+          <div className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"><div className="rounded-xl bg-emerald-50 p-3 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><Wrench className="size-5" /></div><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Instalações ativas</p><p className="mt-1 text-2xl font-bold tabular-nums">{activeInstallations.length}</p></div></div>
+        </section>
+
+        <nav className="sticky top-[68px] z-20 -mx-1 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:top-[76px]" aria-label="Seções do Central Frota">
+          {tabs.map(item => <Button key={item.id} className="shrink-0 rounded-xl" size="sm" variant={tab === item.id ? "default" : "ghost"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
         </nav>
 
 
