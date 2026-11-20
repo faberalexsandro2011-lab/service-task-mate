@@ -173,12 +173,12 @@ function AuthenticatedLayout() {
         <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
           <button
             type="button"
-            onClick={handleVoltar}
+            onClick={() => pathname.endsWith("/frota") ? navigate({ to: "/painel" }) : handleVoltar()}
             className="inline-flex min-h-10 items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Voltar para a tela anterior"
+            aria-label={pathname.endsWith("/frota") ? "Ir para a Central OS" : "Voltar para a tela anterior"}
           >
-            <span aria-hidden="true">←</span>
-            Voltar
+            <span aria-hidden="true">{pathname.endsWith("/frota") ? "⌂" : "←"}</span>
+            {pathname.endsWith("/frota") ? "Central OS" : "Voltar"}
           </button>
         </div>
       )}
