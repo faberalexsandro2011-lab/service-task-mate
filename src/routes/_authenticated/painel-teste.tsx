@@ -80,7 +80,7 @@ function formatarIdade(data: string | null) {
   return dias > 0 ? `${dias}d ${resto}h` : `${horas}h`;
 }
 
-function PainelTeste() {
+export function PainelTeste() {
   const [unidades, setUnidades] = useState<Unidade[]>([]);
   const [ordens, setOrdens] = useState<Ordem[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioUnidade[]>([]);
