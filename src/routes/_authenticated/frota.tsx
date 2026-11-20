@@ -336,8 +336,16 @@ function CentralFrotaPage() {
       setCanViewComponentTotals(canViewComponentTotals);
       setStockUnitIds(managedUnits);
       setTransferUnitIds(transferManagedUnits);
+      const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
+      let unitsQuery = (supabase as any).from("unidades").select("id,nome").order("nome");
+      if (!central) {
+        const scopedUnitIds = [...memberUnitIds];
+        unitsQuery = scopedUnitIds.length
+          ? unitsQuery.in("id", scopedUnitIds)
+          : unitsQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
       const [unitResult, fleetResult, componentResult, installationResult, movementResult, transferResult] = await Promise.all([
-        (supabase as any).from("unidades").select("id,nome").order("nome"),
+        unitsQuery,
         (supabase as any).from("frotas").select("*").order("numero"),
         (supabase as any).from("componentes_frota").select("*").order("numero_serie"),
         (supabase as any).from("instalacoes_frota")
@@ -348,8 +356,7 @@ function CentralFrotaPage() {
       ]);
       const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error || transferResult.error;
       if (failure) throw failure;
-      const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
-      const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || canViewComponentTotals || memberUnitIds.has(unit.id));
+      const allowedUnits = (unitResult.data ?? []) as Unidade[];
       setUnits(allowedUnits);
       setFleets(fleetResult.data ?? []);
       setComponents(componentResult.data ?? []);
