@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, House, MapPin, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -784,7 +784,7 @@ function CentralFrotaPage() {
             <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-blue-200">Central OS · Gestão operacional</p><h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">Central Frota</h1></div>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
+            <Button className="border-blue-300/30 bg-blue-500/15 text-blue-50 shadow-sm hover:border-blue-200/50 hover:bg-blue-500/25 hover:text-white" variant="outline" size="sm" onClick={() => { window.location.href = "/painel"; }}><House className="mr-2 size-4" /> Central OS</Button>
             <Button className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
           </div>
         </div>
