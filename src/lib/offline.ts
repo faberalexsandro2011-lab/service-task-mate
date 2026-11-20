@@ -18,6 +18,16 @@ export type OfflineAction =
       pieces?: Array<{ id: string; nome: string; quantidade: number }> | string[];
       classeManutencao?: string;
       createdAt: string;
+    }
+  | {
+      id: string;
+      type: "record_finish_time";
+      orderId: string;
+      actorId: string;
+      actorEmail: string;
+      notes: string;
+      classeManutencao: string;
+      createdAt: string;
     };
 
 const DB_NAME = "central-os-offline";
