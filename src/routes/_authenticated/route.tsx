@@ -99,8 +99,8 @@ export const Route = createFileRoute("/_authenticated")({
     const isFleetArea = location.pathname.endsWith("/frota");
     const isViewerArea = location.pathname.endsWith("/visualizacao");
 
-    const isTestPanel = location.pathname.endsWith("/painel-teste");
-    if (role === "admin_unidade" && !isTestPanel && !isFleetArea) throw redirect({ to: "/painel-teste", replace: true });
+    const isTestPanel = location.pathname.endsWith("/painel") || location.pathname.endsWith("/painel-teste");
+    if (role === "admin_unidade" && !isTestPanel && !isFleetArea) throw redirect({ to: "/painel", replace: true });
     if (role === "visualizador" && !isViewerArea) throw redirect({ to: "/visualizacao", replace: true });
     if (role !== "visualizador" && isViewerArea) throw redirect({ to: role === "gestor" ? "/dashboard" : role === "admin_unidade" ? "/painel-teste" : "/tecnico", replace: true });
 
@@ -125,7 +125,7 @@ function AuthenticatedLayout() {
       window.history.back();
       return;
     }
-    const fallback = pathname.endsWith("/painel-teste") ? "/painel-teste"
+    const fallback = pathname.endsWith("/painel") || pathname.endsWith("/painel-teste") ? "/painel"
       : pathname.endsWith("/tecnico") ? "/tecnico"
       : pathname.endsWith("/visualizacao") ? "/visualizacao"
       : "/dashboard";
@@ -169,7 +169,7 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!["/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
+      {!["/painel", "/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
         <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
           <button
             type="button"
