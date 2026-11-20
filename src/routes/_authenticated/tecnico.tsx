@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole, Share2 } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, MapPin, Play, Tractor, Wifi, WifiOff, Search, Bell, Sparkles, Menu, X, Home, ClipboardList, History, UserCircle, LogOut, FilePlus2, LockKeyhole, Share2, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
@@ -526,8 +526,33 @@ function TechnicianPage() {
             : rawPieces;
           const rpcArgs: Record<string, unknown> = { p_os_id: action.orderId, p_notas: action.notes, p_pecas: pieces };
           if (action.classeManutencao) rpcArgs.p_classe_manutencao = action.classeManutencao;
-          const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
-          if (error) throw error;
+          // A RPC pode ter sido concluída no servidor mesmo que a resposta de rede se perca.
+          // Consultamos o estado antes de repetir a baixa e reaplicamos o horário real salvo no aparelho.
+          const { data: currentOrder, error: currentOrderError } = await supabase
+            .from("ordens_servico")
+            .select("status, tecnico_id, tecnico_email")
+            .eq("id", action.orderId)
+            .maybeSingle();
+          if (currentOrderError) throw currentOrderError;
+          if (!currentOrder) throw new Error("OS não encontrada durante a sincronização offline.");
+          const belongsToActor = currentOrder.tecnico_id === action.actorId ||
+            String(currentOrder.tecnico_email ?? "").trim().toLowerCase() === action.actorEmail.trim().toLowerCase();
+          if (!belongsToActor) throw new Error("A OS não está mais atribuída ao técnico que registrou a finalização offline.");
+          if (currentOrder.status !== "concluida") {
+            if (currentOrder.status !== "em_andamento") {
+              throw new Error("A OS mudou de estado antes da sincronização da finalização offline.");
+            }
+            const { error } = await (supabase as any).rpc("finalizar_os_com_estoque", rpcArgs);
+            if (error) throw error;
+          }
+          const { data: restoredTime, error: timeError } = await supabase
+            .from("ordens_servico")
+            .update({ concluida_em: action.createdAt })
+            .eq("id", action.orderId)
+            .eq("status", "concluida")
+            .select("id");
+          if (timeError) throw timeError;
+          if (!restoredTime?.length) throw new Error("Não foi possível restaurar o horário original da finalização offline.");
         }
 
         await removeOfflineAction(action.id);
@@ -606,16 +631,14 @@ function TechnicianPage() {
 
         const receivedNewOrder = payload.eventType === "INSERT" || (assignedToTechnician && previous.tecnico_id !== actorId && previousEmail !== actorEmail);
         const requestReceivedOfficialNumber = assignedToTechnician && !String(previous.numero_os || "").trim() && !!String(next.numero_os || "").trim() && (next.solicitacao_status === "regularizada" || previous.solicitacao_os === true);
-        const receivedTransfer = payload.eventType === "UPDATE" && assignedToTechnician &&
-          (previous.tecnico_id !== actorId || previousEmail !== actorEmail) &&
-          !!String(next.numero_os || "").trim();
+        const requestReceivedExistingOrder = assignedToTechnician && !!next.os_vinculada_id && previous.os_vinculada_id !== next.os_vinculada_id;
 
-        if (receivedNewOrder || requestReceivedOfficialNumber || receivedTransfer) {
-          const title = requestReceivedOfficialNumber ? "OS regularizada" : receivedTransfer ? "OS transferida" : "Nova OS recebida";
-          const body = requestReceivedOfficialNumber
-            ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
-            : receivedTransfer
-              ? "A OS " + String(next.numero_os || "") + " foi transferida para você."
+        if (receivedNewOrder || requestReceivedOfficialNumber || requestReceivedExistingOrder) {
+          const title = requestReceivedExistingOrder ? "OS existente encaminhada" : requestReceivedOfficialNumber ? "OS regularizada" : "Nova OS recebida";
+          const body = requestReceivedExistingOrder
+            ? "A OS " + String(next.numero_os_referencia || "já existente") + " foi vinculada e está disponível na sua fila."
+            : requestReceivedOfficialNumber
+              ? "A solicitação recebeu o número " + String(next.numero_os || "") + " e voltou para sua fila."
               : "Uma nova ordem de serviço foi enviada para você.";
           toast.success(body);
           try { playFieldAlert(); } catch {}
@@ -937,6 +960,7 @@ function TechnicianPage() {
     { label: "OS finalizada", href: "/tecnico", icon: ClipboardList },
     { label: "Solicitar OS", href: "/solicitacoes", icon: FilePlus2 },
     { label: "Histórico", href: "/historico", icon: History },
+    { label: "Central Frota", href: "/frota", icon: Truck },
   ];
 
   return (<><main className="min-h-screen bg-[var(--agri-straw)] text-foreground">
@@ -950,7 +974,7 @@ function TechnicianPage() {
         <button type="button" className="grid size-10 place-items-center rounded-xl bg-white/10 hover:bg-white/20 md:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu"><X className="size-5" /></button>
       </div>
       <nav className="flex-1 space-y-2 p-4">
-        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "OS finalizada" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "OS finalizada") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
+        {menuItems.map(item => { const Icon = item.icon; const selected = (item.label === "OS finalizada" && tab === "minhas") || (item.label === "Histórico" && tab === "historico") || (item.label === "Início" && tab !== "minhas" && tab !== "historico"); const className = `flex min-h-12 items-center gap-3 rounded-2xl px-4 text-sm font-bold transition hover:bg-white/10 hover:text-white ${selected ? "bg-white/15 text-white" : "text-white/75"}`; if (item.label === "Solicitar OS" || item.label === "Central Frota") return <a key={item.label} href={item.href} onClick={() => setMenuOpen(false)} className={className}><Icon className="size-5" />{item.label}</a>; return <button key={item.label} type="button" onClick={() => { setMenuOpen(false); if (item.label === "OS finalizada") setTab("minhas"); else if (item.label === "Histórico") setTab("historico"); else if (item.label === "Início") setTab("todas"); }} className={className}><Icon className="size-5" />{item.label}</button>; })}
         <div className="my-4 border-t border-white/10" />
         <div className="px-4 pb-2 text-[10px] font-black uppercase tracking-widest text-white/40">Conta</div>
         <button type="button" onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-4 text-left text-sm font-bold text-white/75 transition hover:bg-white/10 hover:text-white"><UserCircle className="size-5" />Meu perfil</button>
@@ -985,11 +1009,12 @@ function TechnicianPage() {
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/70"><Sparkles className="size-4" /> Operação em campo</div>
           <h2 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">Bom trabalho, {actor?.name?.split(" ")[0] || "técnico"}!</h2>
           <p className="mt-1 max-w-xl text-sm text-white/75">Acompanhe suas ordens e atualize o serviço em poucos toques.</p>
-          <div className="mt-5 grid grid-cols-3 gap-2 sm:max-w-xl sm:gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "pendente").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Pendentes</div></div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "em_andamento").length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Em campo</div></div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur"><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="text-[10px] font-semibold uppercase text-white/65">Concluídas</div></div>
+          <div className="mt-5 grid grid-cols-3 gap-2 sm:max-w-xl sm:gap-3" aria-label="Resumo de ordens por status">
+            <button type="button" onClick={() => setTab("pendente")} aria-label="Filtrar ordens pendentes" aria-pressed={tab === "pendente"} className={`rounded-2xl border p-3 text-left backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-[var(--agri-wheat)] ${tab === "pendente" ? "border-[var(--agri-wheat)] bg-white/25 ring-2 ring-[var(--agri-wheat)]/50" : "border-white/10 bg-white/10"}`}><div className="text-2xl font-black">{orders.filter(o => o.status === "pendente" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase text-white/80"><span className="size-2 rounded-full bg-amber-300" />Pendentes</div></button>
+            <button type="button" onClick={() => setTab("em_andamento")} aria-label="Filtrar ordens em andamento" aria-pressed={tab === "em_andamento"} className={`rounded-2xl border p-3 text-left backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-[var(--agri-wheat)] ${tab === "em_andamento" ? "border-[var(--agri-wheat)] bg-white/25 ring-2 ring-[var(--agri-wheat)]/50" : "border-white/10 bg-white/10"}`}><div className="text-2xl font-black">{orders.filter(o => o.status === "em_andamento" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase text-white/80"><span className="size-2 rounded-full bg-sky-300" />Em andamento</div></button>
+            <button type="button" onClick={() => setTab("minhas")} aria-label="Ver ordens finalizadas aguardando ADM" aria-pressed={tab === "minhas"} className={`rounded-2xl border p-3 text-left backdrop-blur transition-all hover:-translate-y-0.5 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-[var(--agri-wheat)] ${tab === "minhas" ? "border-[var(--agri-wheat)] bg-white/25 ring-2 ring-[var(--agri-wheat)]/50" : "border-white/10 bg-white/10"}`}><div className="text-2xl font-black">{orders.filter(o => o.status === "concluida" && !(o as Ordem & { fechada_em?: string | null }).fechada_em).length}</div><div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase text-white/80"><span className="size-2 rounded-full bg-emerald-300" />Finalizadas</div></button>
           </div>
+          <p className="mt-3 text-xs text-white/65">Toque em um dos indicadores para filtrar as OS pelo status.</p>
         </div>
       </div>
 
@@ -1013,7 +1038,7 @@ function TechnicianPage() {
         {visible.map(order => <article key={order.id} role="button" tabIndex={0} onClick={() => setDetails(order)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetails(order); } }} className="group cursor-pointer rounded-3xl border bg-card p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-primary sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div><div className="text-xs font-bold uppercase tracking-wider text-primary">Frota {order.frota}</div><h2 className="mt-1 text-xl font-black tracking-tight sm:text-2xl">OS {order.numero_os}</h2></div>
-            <div className="rounded-full bg-accent px-3 py-1.5 text-xs font-bold shadow-sm">{tab === "historico" ? "Fechada pelo ADM" : order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
+            <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold shadow-sm ${tab === "historico" ? "bg-slate-200 text-slate-700" : order.status === "concluida" ? "bg-emerald-100 text-emerald-800" : order.status === "em_andamento" ? "bg-sky-100 text-sky-800" : "bg-amber-100 text-amber-900"}`}><span className={`size-2 rounded-full ${tab === "historico" ? "bg-slate-500" : order.status === "concluida" ? "bg-emerald-500" : order.status === "em_andamento" ? "bg-sky-500" : "bg-amber-500"}`} />{tab === "historico" ? "Fechada pelo ADM" : order.status === "concluida" ? "Finalizada · aguardando ADM" : order.status === "em_andamento" ? "Em andamento" : "Pendente"}</div>
           </div>
           <div className="mt-5 grid gap-3 text-sm">
             <div className="flex items-start gap-2 rounded-2xl bg-muted/50 p-3"><MapPin className="mt-0.5 size-5 shrink-0 text-primary" /><span>{order.localizacao || "Localização não informada"}</span></div>

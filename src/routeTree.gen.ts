@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAnalisesRouteImport } from './routes/_authenticated/analises'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedHistoricoRouteImport } from './routes/_authenticated/historico'
+import { Route as AuthenticatedPainelTesteRouteImport } from './routes/_authenticated/painel-teste'
 import { Route as AuthenticatedSolicitacoesRouteImport } from './routes/_authenticated/solicitacoes'
 import { Route as AuthenticatedTecnicoRouteImport } from './routes/_authenticated/tecnico'
 import { Route as AuthenticatedVisualizacaoRouteImport } from './routes/_authenticated/visualizacao'
@@ -35,6 +36,11 @@ const AuthenticatedAnalisesRoute = AuthenticatedAnalisesRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPainelTesteRoute = AuthenticatedPainelTesteRouteImport.update({
+  id: '/painel-teste',
+  path: '/painel-teste',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedHistoricoRoute = AuthenticatedHistoricoRouteImport.update({
@@ -64,6 +70,8 @@ export interface FileRoutesByFullPath {
   '/analises': typeof AuthenticatedAnalisesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/historico': typeof AuthenticatedHistoricoRoute
+  '/painel-teste': typeof AuthenticatedPainelTesteRoute
+  '/painel-teste': typeof AuthenticatedPainelTesteRoute
   '/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/tecnico': typeof AuthenticatedTecnicoRoute
   '/visualizacao': typeof AuthenticatedVisualizacaoRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/_authenticated/analises': typeof AuthenticatedAnalisesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/historico': typeof AuthenticatedHistoricoRoute
+  '/_authenticated/painel-teste': typeof AuthenticatedPainelTesteRoute
   '/_authenticated/solicitacoes': typeof AuthenticatedSolicitacoesRoute
   '/_authenticated/tecnico': typeof AuthenticatedTecnicoRoute
   '/_authenticated/visualizacao': typeof AuthenticatedVisualizacaoRoute
@@ -124,6 +133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/painel-teste': {
+      id: '/_authenticated/painel-teste'
+      path: '/painel-teste'
+      fullPath: '/painel-teste'
+      preLoaderRoute: typeof AuthenticatedPainelTesteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/historico': {
       id: '/_authenticated/historico'
       path: '/historico'
@@ -159,6 +175,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAnalisesRoute: typeof AuthenticatedAnalisesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHistoricoRoute: typeof AuthenticatedHistoricoRoute
+  AuthenticatedPainelTesteRoute: typeof AuthenticatedPainelTesteRoute
   AuthenticatedSolicitacoesRoute: typeof AuthenticatedSolicitacoesRoute
   AuthenticatedTecnicoRoute: typeof AuthenticatedTecnicoRoute
   AuthenticatedVisualizacaoRoute: typeof AuthenticatedVisualizacaoRoute
@@ -168,6 +185,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAnalisesRoute: AuthenticatedAnalisesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHistoricoRoute: AuthenticatedHistoricoRoute,
+  AuthenticatedPainelTesteRoute: AuthenticatedPainelTesteRoute,
   AuthenticatedSolicitacoesRoute: AuthenticatedSolicitacoesRoute,
   AuthenticatedTecnicoRoute: AuthenticatedTecnicoRoute,
   AuthenticatedVisualizacaoRoute: AuthenticatedVisualizacaoRoute,
