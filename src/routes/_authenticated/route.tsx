@@ -57,6 +57,7 @@ export const Route = createFileRoute("/_authenticated")({
             .eq("user_id", userId)
             .eq("ativo", true)
             .in("perfil", ["gestor_central", "gestor"])
+            .limit(1)
             .maybeSingle();
 
           if (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor") {
@@ -68,6 +69,7 @@ export const Route = createFileRoute("/_authenticated")({
               .eq("user_id", userId)
               .eq("ativo", true)
               .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
+              .limit(1)
               .maybeSingle();
 
             if (unitProfile?.perfil === "admin_unidade") {
