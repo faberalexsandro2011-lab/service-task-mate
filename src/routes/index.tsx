@@ -116,7 +116,7 @@ function Index() {
         .maybeSingle();
 
       if (!centralProfileError && (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor")) {
-        await navigate({ to: "/painel-teste", replace: true });
+        await navigate({ to: "/painel", replace: true });
         return;
       }
       const { data: unitProfile } = await supabase
@@ -127,7 +127,7 @@ function Index() {
         .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
         .maybeSingle();
       if (unitProfile?.perfil === "admin_unidade") {
-        await navigate({ to: "/painel-teste", replace: true });
+        await navigate({ to: "/painel", replace: true });
         return;
       }
     }
