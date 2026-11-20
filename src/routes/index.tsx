@@ -113,6 +113,7 @@ function Index() {
         .eq("user_id", authData.user.id)
         .eq("ativo", true)
         .in("perfil", ["gestor_central", "gestor"])
+        .limit(1)
         .maybeSingle();
 
       if (!centralProfileError && (centralProfile?.perfil === "gestor_central" || centralProfile?.perfil === "gestor")) {
@@ -125,6 +126,7 @@ function Index() {
         .eq("user_id", authData.user.id)
         .eq("ativo", true)
         .in("perfil", ["admin_unidade", "tecnico", "visualizador"])
+        .limit(1)
         .maybeSingle();
       if (unitProfile?.perfil === "admin_unidade") {
         await navigate({ to: "/painel", replace: true });
