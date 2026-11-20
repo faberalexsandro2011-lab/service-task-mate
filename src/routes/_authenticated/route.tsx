@@ -96,6 +96,12 @@ export const Route = createFileRoute("/_authenticated")({
       role = (await getOfflineRole<"gestor" | "admin_unidade" | "tecnico" | "visualizador">()) ?? "tecnico";
     }
 
+    // /painel-teste permanece apenas como rota de compatibilidade.
+    // Qualquer usuário autenticado que acessar essa URL vai para o painel oficial.
+    if (location.pathname === "/painel-teste") {
+      throw redirect({ to: "/painel", replace: true });
+    }
+
     const isTechnicianArea = location.pathname.endsWith("/tecnico");
     const isRequestArea = location.pathname.endsWith("/solicitacoes");
     const isFleetArea = location.pathname.endsWith("/frota");
