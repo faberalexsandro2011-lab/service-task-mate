@@ -806,7 +806,23 @@ function CentralFrotaPage() {
         </section>
 
         <nav className="sticky top-[68px] z-20 -mx-1 flex gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 sm:top-[76px]" aria-label="Seções do Central Frota">
-          {tabs.map(item => <Button key={item.id} className="shrink-0 rounded-xl" size="sm" variant={tab === item.id ? "default" : "ghost"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
+          {tabs.map(item => {
+            const palette = item.id === "frotas" ? "blue"
+              : item.id === "componentes" ? "violet"
+              : item.id === "instalacoes" ? "emerald"
+              : item.id === "estoque" ? "amber"
+              : item.id === "transferencias" ? "cyan"
+              : "slate";
+            const colors = {
+              blue: tab === item.id ? "bg-blue-600 text-white hover:bg-blue-700" : "border-blue-200 bg-blue-50 text-blue-800 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/50 dark:text-blue-200 dark:hover:bg-blue-900/60",
+              violet: tab === item.id ? "bg-violet-600 text-white hover:bg-violet-700" : "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100 dark:border-violet-900 dark:bg-violet-950/50 dark:text-violet-200 dark:hover:bg-violet-900/60",
+              emerald: tab === item.id ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
+              amber: tab === item.id ? "bg-amber-500 text-white hover:bg-amber-600" : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-200 dark:hover:bg-amber-900/60",
+              cyan: tab === item.id ? "bg-cyan-600 text-white hover:bg-cyan-700" : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:bg-cyan-100 dark:border-cyan-900 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/60",
+              slate: tab === item.id ? "bg-slate-700 text-white hover:bg-slate-800" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-700",
+            }[palette];
+            return <Button key={item.id} className={`shrink-0 rounded-xl border shadow-sm transition-all ${colors}`} size="sm" variant="outline" onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>;
+          })}
         </nav>
 
 
