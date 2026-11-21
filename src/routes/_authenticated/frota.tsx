@@ -384,7 +384,7 @@ function CentralFrotaPage() {
     ? `${window.location.origin}/frota-publica/${selectedFleet.qr_publico_token}`
     : "";
   const fleetQrImageUrl = publicFleetUrl
-    ? `https://quickchart.io/qr?text=${encodeURIComponent(publicFleetUrl)}&size=320&margin=2&ecLevel=M`
+    ? `https://quickchart.io/qr?text=${encodeURIComponent(publicFleetUrl)}&size=1200&margin=4&ecLevel=H`
     : "";
   const fleetInstallations = selectedFleet ? installations.filter(item => item.frota_id === selectedFleet.id) : [];
   const componentInstallations = selectedComponent ? installations.filter(item => item.componente_id === selectedComponent.id) : [];
@@ -457,7 +457,7 @@ function CentralFrotaPage() {
       context.fillStyle = "#555555";
       context.font = "12px Arial";
       context.fillText(publicFleetUrl, 20, 286, 340);
-      context.drawImage(qrImage, 390, 42, 180, 180);
+      // QR Code em alta resolução, preservando a zona silenciosa para leitura após impressão.\n      context.imageSmoothingEnabled = false;\n      context.drawImage(qrImage, 285, 35, 275, 275);
 
       const link = document.createElement("a");
       link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm.png`;
@@ -482,12 +482,12 @@ function CentralFrotaPage() {
       *{box-sizing:border-box}
       html,body{width:50mm;height:30mm;margin:0;padding:0}
       body{font-family:Arial,sans-serif;color:#111}
-      .label{width:50mm;height:30mm;padding:1.5mm 2mm;display:grid;grid-template-columns:1fr 24mm;align-items:center;gap:1.5mm;overflow:hidden}
+      .label{width:50mm;height:30mm;padding:1.2mm 1.5mm;display:grid;grid-template-columns:1fr 25mm;align-items:center;gap:1mm;overflow:hidden}
       .info{min-width:0;text-align:left}
       .brand{font-size:7pt;font-weight:700;letter-spacing:.2pt;margin:0 0 1mm}
       h1{font-size:12pt;line-height:1.05;margin:0 0 1mm;overflow-wrap:anywhere}
       .hint{font-size:6pt;line-height:1.1;margin:0;color:#444}
-      img{display:block;width:24mm;height:24mm;object-fit:contain}
+      img{display:block;width:25mm;height:25mm;object-fit:contain;image-rendering:pixelated}
       .url{font-size:4.5pt;line-height:1.05;margin-top:1mm;overflow-wrap:anywhere;color:#555}
       @media screen{body{margin:12px}.label{outline:1px dashed #aaa}}
       @media print{.label{break-inside:avoid}}
