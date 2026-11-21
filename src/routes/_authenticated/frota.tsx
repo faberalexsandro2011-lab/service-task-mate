@@ -461,9 +461,9 @@ function CentralFrotaPage() {
         qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
       });
 
-      // BT-260: raster nativo de 203 DPI (8 pontos/mm), etiqueta de 50 x 30 mm.
+      // BT-260: raster nativo de 203 DPI (8 pontos/mm), etiqueta quadrada de 30 x 30 mm.
       const canvas = document.createElement("canvas");
-      canvas.width = 384;
+      canvas.width = 240;
       canvas.height = 240;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Não foi possível criar a imagem da etiqueta.");
@@ -471,18 +471,18 @@ function CentralFrotaPage() {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = "#000000";
-      context.font = "bold 20px Arial, sans-serif";
+      context.font = "bold 18px Arial, sans-serif";
       context.textAlign = "center";
       context.textBaseline = "middle";
-      context.fillText(`FROTA ${selectedFleet.numero}`, 192, 8, 360);
-      context.drawImage(qrImage, 80, 16, 224, 224);
+      context.fillText(`FROTA ${selectedFleet.numero}`, 120, 12, 224);
+      context.drawImage(qrImage, 16, 24, 208, 208);
 
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("O navegador não conseguiu criar o arquivo PNG.")), "image/png");
       });
       const objectUrl = URL.createObjectURL(pngBlob);
       const link = document.createElement("a");
-      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm-203dpi.png`;
+      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-30x30mm-203dpi.png`;
       link.href = objectUrl;
       link.style.display = "none";
       document.body.appendChild(link);
@@ -503,13 +503,13 @@ function CentralFrotaPage() {
       return;
     }
     printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR da frota</title><style>
-      @page{size:50mm 30mm;margin:0}
+      @page{size:30mm 30mm;margin:0}
       *{box-sizing:border-box}
-      html,body{width:50mm;height:30mm;margin:0;padding:0}
+      html,body{width:30mm;height:30mm;margin:0;padding:0}
       body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
-      .fleet{height:4mm;line-height:4mm;font:bold 3.2mm/4mm Arial,sans-serif;text-align:center;white-space:nowrap;max-width:48mm;overflow:hidden}
-      img{display:block;width:28mm;height:28mm;object-fit:contain;image-rendering:pixelated}
-      @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
+      .fleet{height:3mm;line-height:3mm;font:bold 2.6mm/3mm Arial,sans-serif;text-align:center;white-space:nowrap;max-width:29mm;overflow:hidden}
+      img{display:block;width:26mm;height:26mm;object-fit:contain;image-rendering:pixelated}
+      @media screen{body{margin:12px;width:30mm;height:30mm;outline:1px dashed #aaa}}
       @media print{img{break-inside:avoid}}
     </style></head><body><div class="fleet">FROTA ${selectedFleet.numero}</div><img src="${fleetQrImageUrl}" alt="QR Code da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
     printWindow.document.close();
@@ -872,11 +872,11 @@ function CentralFrotaPage() {
           </div>
           <section className="rounded-2xl border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h3 className="font-semibold">Etiqueta QR Code da frota</h3><p className="text-sm text-muted-foreground">Um código permanente para esta frota. A consulta mostra somente os dispositivos instalados atualmente.</p></div>
+              <div><h3 className="font-semibold">Etiqueta QR Code da frota</h3><p className="text-sm text-muted-foreground">Etiqueta quadrada 30 × 30 mm para a BT-260. Um código permanente; a consulta mostra somente os dispositivos instalados atualmente.</p></div>
               {!selectedFleet.qr_publico_token && <Button type="button" onClick={() => void generateFleetQr()} disabled={qrLoading}><QrCode className="mr-2 size-4" />{qrLoading ? "Gerando..." : "Gerar QR Code"}</Button>}
             </div>
             {selectedFleet.qr_publico_token && <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-              <div className="rounded-xl border bg-white p-2"><img src={fleetQrImageUrl} alt={`QR Code permanente da frota ${selectedFleet.numero}`} className="size-56 object-contain" /></div>
+              <div className="rounded-xl border bg-white p-2"><div className="flex size-60 flex-col items-center justify-start bg-white p-1 text-black"><span className="h-5 text-center text-[10px] font-bold leading-5">FROTA {selectedFleet.numero}</span><img src={fleetQrImageUrl} alt={`QR Code permanente da frota ${selectedFleet.numero}`} className="size-52 object-contain" /></div></div>
               <div className="min-w-0 flex-1 space-y-2">
                 <p className="font-semibold">QR Code ativo · Frota {selectedFleet.numero}</p>
                 <p className="break-all text-xs text-muted-foreground">{publicFleetUrl}</p>
