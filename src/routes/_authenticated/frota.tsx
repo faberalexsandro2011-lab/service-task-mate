@@ -464,11 +464,11 @@ function CentralFrotaPage() {
         return factory;
       };
       const makeQr = await getQrFactory();
-      const qr = makeQr(0, "H");
+      const qr = makeQr(0, "Q");
       qr.addData(publicFleetUrl);
       qr.make();
       const qrImage = new Image();
-      qrImage.src = qr.createDataURL(8, 32);
+      qrImage.src = qr.createDataURL(8, 4);
       await new Promise<void>((resolve, reject) => {
         qrImage.onload = () => resolve();
         qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
