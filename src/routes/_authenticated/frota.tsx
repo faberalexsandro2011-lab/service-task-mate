@@ -425,17 +425,41 @@ function CentralFrotaPage() {
   }
 
   async function downloadFleetQrLabelImage() {
-    if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
+    if (!selectedFleet || !publicFleetUrl) return;
     try {
+      // Gera o QR localmente no navegador para evitar bloqueios de CORS no canvas.
+      const qrGlobal = window as Window & { QRCode?: { toDataURL: (text: string, options: Record<string, unknown>) => Promise<string> } };
+      if (!qrGlobal.QRCode?.toDataURL) {
+        await new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector<HTMLScriptElement>('script[data-central-frota-qrcode="true"]');
+          if (existing) {
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener("error", () => reject(new Error("Não foi possível carregar o gerador do QR Code.")), { once: true });
+            return;
+          }
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+          script.async = true;
+          script.dataset.centralFrotaQrcode = "true";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Falha ao carregar o gerador do QR Code. Verifique a conexão com a internet."));
+          document.head.appendChild(script);
+        });
+      }
+      const QRCode = (window as Window & { QRCode?: { toDataURL: (text: string, options: Record<string, unknown>) => Promise<string> } }).QRCode;
+      if (!QRCode?.toDataURL) throw new Error("O gerador do QR Code não ficou disponível.");
+      const qrDataUrl = await QRCode.toDataURL(publicFleetUrl, {
+        errorCorrectionLevel: "H", margin: 4, width: 1200,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
       const qrImage = new Image();
-      qrImage.crossOrigin = "anonymous";
-      qrImage.src = fleetQrImageUrl;
+      qrImage.src = qrDataUrl;
       await new Promise<void>((resolve, reject) => {
         qrImage.onload = () => resolve();
-        qrImage.onerror = () => reject(new Error("Não foi possível carregar o QR Code para montar a imagem."));
+        qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
       });
 
-      // 50 x 30 mm em 300 DPI: imagem pronta para impressão em etiqueta horizontal.
+      // 50 x 30 mm em 300 DPI.
       const canvas = document.createElement("canvas");
       canvas.width = 591;
       canvas.height = 354;
@@ -457,13 +481,14 @@ function CentralFrotaPage() {
       context.fillStyle = "#555555";
       context.font = "12px Arial";
       context.fillText(publicFleetUrl, 20, 286, 340);
-      // QR Code em alta resolução, preservando a zona silenciosa para leitura após impressão.\n      context.imageSmoothingEnabled = false;\n      context.drawImage(qrImage, 285, 35, 275, 275);
+      context.imageSmoothingEnabled = false;
+      context.drawImage(qrImage, 285, 35, 275, 275);
 
       const link = document.createElement("a");
       link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      toast.success("Etiqueta em PNG gerada no formato 50 × 30 mm.");
+      toast.success("Etiqueta em PNG gerada com QR Code no formato 50 × 30 mm.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível gerar a imagem da etiqueta.");
     }
