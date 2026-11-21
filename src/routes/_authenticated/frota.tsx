@@ -427,12 +427,16 @@ function CentralFrotaPage() {
   async function downloadFleetQrLabelImage() {
     if (!selectedFleet || !publicFleetUrl) return;
     try {
-      // Carrega o gerador com controle de estado para evitar travar em uma tag
-      // script que já disparou load/error em uma tentativa anterior.
-      type QRCodeApi = { toDataURL: (text: string, options: Record<string, unknown>) => Promise<string> };
-      const getQrApi = async (): Promise<QRCodeApi> => {
-        const getGlobal = () => (window as Window & { QRCode?: QRCodeApi }).QRCode;
-        if (getGlobal()?.toDataURL) return getGlobal()!;
+      // Gerador QR incorporado ao próprio aplicativo: não depende de CDN externo.
+      type QRInstance = {
+        addData: (value: string) => void;
+        make: () => void;
+        createDataURL: (cellSize?: number, margin?: number) => string;
+      };
+      type QRFactory = (typeNumber: number, errorCorrectionLevel: "L" | "M" | "Q" | "H") => QRInstance;
+      const getQrFactory = async (): Promise<QRFactory> => {
+        const getGlobal = () => (window as Window & { qrcode?: QRFactory }).qrcode;
+        if (getGlobal()) return getGlobal()!;
         let script = document.querySelector<HTMLScriptElement>('script[data-central-frota-qrcode="true"]');
         if (script?.dataset.failed === "true") {
           script.remove();
@@ -440,37 +444,37 @@ function CentralFrotaPage() {
         }
         if (!script) {
           script = document.createElement("script");
-          script.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js";
+          script.src = "/vendor/qrcode-generator.js";
           script.async = true;
           script.dataset.centralFrotaQrcode = "true";
+          const loading = new Promise<void>((resolve, reject) => {
+            script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true });
+            script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Não foi possível carregar o gerador local do QR Code. Atualize a página e tente novamente.")); }, { once: true });
+          });
           document.head.appendChild(script);
-        }
-        if (script.dataset.loaded !== "true") {
+          await loading;
+        } else if (script.dataset.loaded !== "true") {
           await new Promise<void>((resolve, reject) => {
-            const onLoad = () => { script!.dataset.loaded = "true"; resolve(); };
-            const onError = () => { script!.dataset.failed = "true"; reject(new Error("Falha ao carregar o gerador do QR Code. Verifique a conexão e tente novamente.")); };
-            script!.addEventListener("load", onLoad, { once: true });
-            script!.addEventListener("error", onError, { once: true });
+            script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true });
+            script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Não foi possível carregar o gerador local do QR Code.")); }, { once: true });
           });
         }
-        const api = getGlobal();
-        if (!api?.toDataURL) throw new Error("O gerador do QR Code não ficou disponível. Atualize a página e tente novamente.");
-        return api;
+        const factory = getGlobal();
+        if (!factory) throw new Error("O gerador local do QR Code não ficou disponível. Atualize a página.");
+        return factory;
       };
-      const QRCode = await getQrApi();
-      const qrDataUrl = await QRCode.toDataURL(publicFleetUrl, {
-        errorCorrectionLevel: "H", margin: 4, width: 1200,
-        color: { dark: "#000000", light: "#ffffff" },
-      });
+      const makeQr = await getQrFactory();
+      const qr = makeQr(0, "H");
+      qr.addData(publicFleetUrl);
+      qr.make();
       const qrImage = new Image();
-      qrImage.src = qrDataUrl;
+      qrImage.src = qr.createDataURL(8, 32);
       await new Promise<void>((resolve, reject) => {
         qrImage.onload = () => resolve();
         qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
       });
 
-      // BT-260: raster nativo de 203 DPI (8 pontos/mm), respeitando
-      // os 48 mm de largura imprimível dentro da etiqueta de 50 x 30 mm.
+      // BT-260: raster nativo de 203 DPI (8 pontos/mm), etiqueta de 50 x 30 mm.
       const canvas = document.createElement("canvas");
       canvas.width = 384;
       canvas.height = 240;
@@ -491,10 +495,9 @@ function CentralFrotaPage() {
       context.fillText("consultar os dispositivos", 8, 127, 178);
       context.font = "7px Arial";
       context.fillText("Etiqueta QR permanente", 8, 194, 178);
-      // QR ampliado para 29 mm (232 pontos), aproveitando quase toda a altura.
+      // QR com 29 mm (232 pontos), aproveitando a área imprimível.
       context.drawImage(qrImage, 148, 4, 232, 232);
 
-      // Blob + link anexado ao documento é mais confiável que dataURL em alguns navegadores.
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("O navegador não conseguiu criar o arquivo PNG.")), "image/png");
       });
