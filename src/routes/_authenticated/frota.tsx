@@ -295,6 +295,50 @@ async function gerarQrLocal(valor: string): Promise<string> {
   const qr = factory(0, "Q"); qr.addData(valor); qr.make(); return qr.createDataURL(8, 4);
 }
 
+async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise<string> {
+  // Gera uma arte rasterizada diretamente na resolução nativa da BT-260:
+  // 240 x 240 pontos = 30 x 30 mm a 203 DPI. Cada módulo do QR é
+  // desenhado como um quadrado inteiro, sem redimensionamento/interpolação.
+  await gerarQrLocal(valor);
+  const factory = (window as Window & { qrcode?: (typeNumber: number, level: "L" | "M" | "Q" | "H") => {
+    addData: (value: string) => void; make: () => void;
+    getModuleCount: () => number; isDark: (row: number, col: number) => boolean;
+  } }).qrcode;
+  if (!factory) throw new Error("Gerador local do QR Code indisponível.");
+  const qr = factory(0, "M");
+  qr.addData(valor);
+  qr.make();
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 240;
+  canvas.height = 240;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Não foi possível criar a etiqueta.");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, 240, 240);
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 18px Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`FROTA ${numeroFrota}`, 120, 11, 224);
+
+  const count = qr.getModuleCount();
+  const quiet = 4;
+  const moduleSize = Math.floor(216 / (count + quiet * 2));
+  if (moduleSize < 2) throw new Error("O endereço gerou um QR muito denso para esta etiqueta. É necessário encurtar o link público.");
+  const qrPixels = (count + quiet * 2) * moduleSize;
+  const originX = Math.floor((240 - qrPixels) / 2) + quiet * moduleSize;
+  const originY = 22 + Math.floor((218 - qrPixels) / 2) + quiet * moduleSize;
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect(originX + col * moduleSize, originY + row * moduleSize, moduleSize, moduleSize);
+      }
+    }
+  }
+  return canvas.toDataURL("image/png");
+}
+
 function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "transferencias" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
@@ -454,33 +498,10 @@ function CentralFrotaPage() {
   async function downloadFleetQrLabelImage() {
     if (!selectedFleet || !publicFleetUrl) return;
     try {
-      const qrImage = new Image();
-      qrImage.src = await gerarQrLocal(publicFleetUrl);
-      await new Promise<void>((resolve, reject) => {
-        qrImage.onload = () => resolve();
-        qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
-      });
-
-      // BT-260: raster nativo de 203 DPI (8 pontos/mm), etiqueta quadrada de 30 x 30 mm.
-      const canvas = document.createElement("canvas");
-      canvas.width = 240;
-      canvas.height = 240;
-      const context = canvas.getContext("2d");
-      if (!context) throw new Error("Não foi possível criar a imagem da etiqueta.");
-      context.imageSmoothingEnabled = false;
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.fillStyle = "#000000";
-      context.font = "bold 18px Arial, sans-serif";
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillText(`FROTA ${selectedFleet.numero}`, 120, 12, 224);
-      context.drawImage(qrImage, 16, 24, 208, 208);
-
-      const pngBlob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("O navegador não conseguiu criar o arquivo PNG.")), "image/png");
-      });
-      const objectUrl = URL.createObjectURL(pngBlob);
+      const labelImage = await gerarQrEtiquetaLocal(publicFleetUrl, selectedFleet.numero);
+      const response = await fetch(labelImage);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-30x30mm-203dpi.png`;
       link.href = objectUrl;
@@ -489,30 +510,33 @@ function CentralFrotaPage() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-      toast.success("PNG da etiqueta gerado. Confira a pasta de downloads.");
+      toast.success("PNG 30×30 mm gerado com módulos QR nítidos para impressão térmica.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível gerar a imagem da etiqueta.");
     }
   }
 
-  function printFleetQrLabel() {
-    if (!selectedFleet || !publicFleetUrl || !fleetQrImageUrl) return;
-    const printWindow = window.open("", "_blank", "width=640,height=440");
-    if (!printWindow) {
-      toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
-      return;
+  async function printFleetQrLabel() {
+    if (!selectedFleet || !publicFleetUrl) return;
+    try {
+      const labelImage = await gerarQrEtiquetaLocal(publicFleetUrl, selectedFleet.numero);
+      const printWindow = window.open("", "_blank", "width=640,height=440");
+      if (!printWindow) {
+        toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
+        return;
+      }
+      printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR da frota</title><style>
+        @page{size:30mm 30mm;margin:0}
+        *{box-sizing:border-box}
+        html,body{width:30mm;height:30mm;margin:0;padding:0}
+        body{display:block}
+        img{display:block;width:30mm;height:30mm;max-width:none;image-rendering:pixelated}
+        @media screen{body{margin:12px;width:30mm;height:30mm;outline:1px dashed #aaa}}
+      </style></head><body><img src="${labelImage}" width="240" height="240" alt="Etiqueta QR da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+      printWindow.document.close();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta para impressão.");
     }
-    printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR da frota</title><style>
-      @page{size:30mm 30mm;margin:0}
-      *{box-sizing:border-box}
-      html,body{width:30mm;height:30mm;margin:0;padding:0}
-      body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
-      .fleet{height:3mm;line-height:3mm;font:bold 2.6mm/3mm Arial,sans-serif;text-align:center;white-space:nowrap;max-width:29mm;overflow:hidden}
-      img{display:block;width:26mm;height:26mm;object-fit:contain;image-rendering:pixelated}
-      @media screen{body{margin:12px;width:30mm;height:30mm;outline:1px dashed #aaa}}
-      @media print{img{break-inside:avoid}}
-    </style></head><body><div class="fleet">FROTA ${selectedFleet.numero}</div><img src="${fleetQrImageUrl}" alt="QR Code da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
-    printWindow.document.close();
   }
 
   async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
