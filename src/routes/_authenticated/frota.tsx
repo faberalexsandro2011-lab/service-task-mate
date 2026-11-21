@@ -607,34 +607,18 @@ function CentralFrotaPage() {
       for (const row of importRows) {
         const fleetKey = `${importUnitId}::${row.numero.toLocaleLowerCase("pt-BR")}`;
         let fleetId = fleetMap.get(fleetKey) ?? fleets.find(f => f.unidade_id === importUnitId && f.numero.toLocaleLowerCase("pt-BR") === row.numero.toLocaleLowerCase("pt-BR"))?.id;
-        const fleetType = normalizeExcelHeader(row.tipo);
-        const fleetTypeAliases: Array<[string, string]> = [
-          ["colheitadeira", "colheitadeira"],
-          ["caminhao", "caminhao"], ["caminhonete", "veiculo"],
-          // Modelos comerciais de caminhão também podem vir preenchidos na coluna Tipo da Frota.
-          ["arocs", "caminhao"], ["actros", "caminhao"], ["atego", "caminhao"],
-          ["axor", "caminhao"], ["accelo", "caminhao"], ["constellation", "caminhao"],
-          ["delivery", "caminhao"], ["cargo", "caminhao"], ["iveco", "caminhao"],
-          ["scania", "caminhao"], ["volvo", "caminhao"], ["daf", "caminhao"],
-          ["man", "caminhao"], ["mercedes_benz", "caminhao"],
-          ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
-          // Modelos John Deere 6xxxJ são tratores; manter o texto original como modelo.
-          ["6190j", "trator"],
-          ["trator", "trator"],
-        ];
-        const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}`));
-        if (!matchedFleetType) {
-          throw new Error(`Tipo "${row.tipo || "(vazio)"}" da frota ${row.numero} não reconhecido. Confira a coluna Tipo da Frota. Nenhum tipo será convertido automaticamente para Trator.`);
+        // O tipo da frota é importado literalmente da planilha. Não converter para
+        // categorias internas nem inferir Trator/Caminhão/Veículo pelo texto.
+        const importedFleetType = String(row.tipo ?? "").trim();
+        if (!importedFleetType) {
+          throw new Error(`A coluna Tipo da Frota está vazia na frota ${row.numero}. Preencha o tipo na planilha para continuar.`);
         }
-        const normalizedFleetType = matchedFleetType[1];
-        const inferredJohnDeereModel = fleetType.includes("6190j");
-        const importedModel = row.modelo || (inferredJohnDeereModel ? row.tipo : null);
         if (!fleetId) {
-          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: normalizedFleetType, marca: row.marca || (inferredJohnDeereModel ? "John Deere" : null), modelo: importedModel }).select("id").single();
+          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: importedFleetType, marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
           if (error) throw new Error(`Frota ${row.numero}: ${error.message}`);
           fleetId = data.id; createdFleets++;
         } else {
-          const { error } = await (supabase as any).from("frotas").update({ tipo: normalizedFleetType, ...(inferredJohnDeereModel && !row.modelo ? { marca: row.marca || "John Deere", modelo: importedModel } : {}) }).eq("id", fleetId);
+          const { error } = await (supabase as any).from("frotas").update({ tipo: importedFleetType, marca: row.marca || null, modelo: row.modelo || null }).eq("id", fleetId);
           if (error) throw new Error(`Não foi possível corrigir o tipo da frota ${row.numero}: ${error.message}`);
           skipped++;
         }
@@ -1198,7 +1182,7 @@ function CentralFrotaPage() {
             <h2 className="font-semibold sm:col-span-3">Instalar componente em uma frota</h2>
             <Input placeholder="Buscar frota por número, marca ou modelo..." value={installFleetSearch} onChange={e => setInstallFleetSearch(e.target.value)} />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.frota_id} onChange={e => setInstallForm({ ...installForm, frota_id: e.target.value, componente_id: "" })} required>
-              <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa" && `${f.numero} ${f.marca ?? ""} ${f.modelo ?? ""} ${f.tipo}`.toLowerCase().includes(installFleetSearch.toLowerCase())).map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1]} {f.marca ?? ""} {f.modelo ?? ""}</option>)}
+              <option value="">Selecione a frota</option>{fleets.filter(f => f.status === "ativa" && `${f.numero} ${f.marca ?? ""} ${f.modelo ?? ""} ${f.tipo}`.toLowerCase().includes(installFleetSearch.toLowerCase())).map(f => <option key={f.id} value={f.id}>{f.numero} — {tiposFrota.find(x => x[0] === f.tipo)?.[1] ?? f.tipo} {f.marca ?? ""} {f.modelo ?? ""}</option>)}
             </select>
             <Input placeholder="Buscar componente por série, tipo, fabricante ou modelo..." value={installComponentSearch} onChange={e => setInstallComponentSearch(e.target.value)} />
             <select className="h-10 rounded-md border bg-background px-3 text-sm" value={installForm.componente_id} onChange={e => setInstallForm({ ...installForm, componente_id: e.target.value })} required>
