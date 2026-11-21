@@ -609,7 +609,14 @@ function CentralFrotaPage() {
         let fleetId = fleetMap.get(fleetKey) ?? fleets.find(f => f.unidade_id === importUnitId && f.numero.toLocaleLowerCase("pt-BR") === row.numero.toLocaleLowerCase("pt-BR"))?.id;
         const fleetType = normalizeExcelHeader(row.tipo);
         const fleetTypeAliases: Array<[string, string]> = [
-          ["colheitadeira", "colheitadeira"], ["caminhao", "caminhao"], ["caminhonete", "veiculo"],
+          ["colheitadeira", "colheitadeira"],
+          ["caminhao", "caminhao"], ["caminhonete", "veiculo"],
+          // Modelos comerciais de caminhão também podem vir preenchidos na coluna Tipo da Frota.
+          ["arocs", "caminhao"], ["actros", "caminhao"], ["atego", "caminhao"],
+          ["axor", "caminhao"], ["accelo", "caminhao"], ["constellation", "caminhao"],
+          ["delivery", "caminhao"], ["cargo", "caminhao"], ["iveco", "caminhao"],
+          ["scania", "caminhao"], ["volvo", "caminhao"], ["daf", "caminhao"],
+          ["man", "caminhao"], ["mercedes_benz", "caminhao"],
           ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
           ["trator", "trator"],
         ];
