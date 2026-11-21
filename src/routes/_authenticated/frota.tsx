@@ -484,19 +484,9 @@ function CentralFrotaPage() {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = "#000000";
-      context.textAlign = "left";
-      context.textBaseline = "top";
-      context.font = "bold 13px Arial";
-      context.fillText("CENTRAL OS · FROTAS", 8, 12, 178);
-      context.font = "bold 25px Arial";
-      context.fillText("FROTA " + selectedFleet.numero, 8, 62, 178);
-      context.font = "10px Arial";
-      context.fillText("Aponte a câmera para", 8, 112, 178);
-      context.fillText("consultar os dispositivos", 8, 127, 178);
-      context.font = "7px Arial";
-      context.fillText("Etiqueta QR permanente", 8, 194, 178);
-      // QR com 29 mm (232 pontos), aproveitando a área imprimível.
-      context.drawImage(qrImage, 148, 4, 232, 232);
+      // Etiqueta sem textos: QR maximizado para ocupar toda a altura útil (30 mm).
+      // Centralizado na largura imprimível de 48 mm da BT-260.
+      context.drawImage(qrImage, 72, 0, 240, 240);
 
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("O navegador não conseguiu criar o arquivo PNG.")), "image/png");
@@ -523,22 +513,15 @@ function CentralFrotaPage() {
       toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
       return;
     }
-    const fleetNumber = selectedFleet.numero.replace(/[&<>"']/g, "");
-    printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiqueta frota ${fleetNumber}</title><style>
+    printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR da frota</title><style>
       @page{size:50mm 30mm;margin:0}
       *{box-sizing:border-box}
       html,body{width:50mm;height:30mm;margin:0;padding:0}
-      body{font-family:Arial,sans-serif;color:#111}
-      .label{width:48mm;height:30mm;margin:0 auto;padding:1mm 0;display:grid;grid-template-columns:25mm 22mm;align-items:center;gap:1mm;overflow:hidden}
-      .info{min-width:0;text-align:left}
-      .brand{font-size:7pt;font-weight:700;letter-spacing:.2pt;margin:0 0 1mm}
-      h1{font-size:12pt;line-height:1.05;margin:0 0 1mm;overflow-wrap:anywhere}
-      .hint{font-size:6pt;line-height:1.1;margin:0;color:#444}
-      img{display:block;width:22mm;height:22mm;object-fit:contain;image-rendering:pixelated}
-      .url{font-size:4.5pt;line-height:1.05;margin-top:1mm;overflow-wrap:anywhere;color:#555}
-      @media screen{body{margin:12px}.label{outline:1px dashed #aaa}}
-      @media print{.label{break-inside:avoid}}
-    </style></head><body><div class="label"><div class="info"><p class="brand">CENTRAL OS · FROTAS</p><h1>FROTA ${fleetNumber}</h1><p class="hint">Aponte a câmera para consultar os dispositivos</p><p class="url">${publicFleetUrl}</p></div><img src="${fleetQrImageUrl}" alt="QR Code da frota"></div><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+      body{display:flex;align-items:center;justify-content:center}
+      img{display:block;width:30mm;height:30mm;object-fit:contain;image-rendering:pixelated}
+      @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
+      @media print{img{break-inside:avoid}}
+    </style></head><body><img src="${fleetQrImageUrl}" alt="QR Code da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
     printWindow.document.close();
   }
 
