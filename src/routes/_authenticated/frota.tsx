@@ -457,21 +457,6 @@ function CentralFrotaPage() {
       const qrImage = new Image();
       qrImage.src = await gerarQrLocal(publicFleetUrl);
       await new Promise<void>((resolve, reject) => {
-            script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true });
-            script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Não foi possível carregar o gerador local do QR Code.")); }, { once: true });
-          });
-        }
-        const factory = getGlobal();
-        if (!factory) throw new Error("O gerador local do QR Code não ficou disponível. Atualize a página.");
-        return factory;
-      };
-      const makeQr = await getQrFactory();
-      const qr = makeQr(0, "Q");
-      qr.addData(publicFleetUrl);
-      qr.make();
-      const qrImage = new Image();
-      qrImage.src = qr.createDataURL(8, 4);
-      await new Promise<void>((resolve, reject) => {
         qrImage.onload = () => resolve();
         qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
       });
@@ -486,12 +471,10 @@ function CentralFrotaPage() {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = "#000000";
-      // Identificação da frota no topo e QR ampliado abaixo, mantendo a etiqueta 50 x 30 mm.
       context.font = "bold 20px Arial, sans-serif";
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(`FROTA ${selectedFleet.numero}`, 192, 8, 360);
-      // QR ampliado para 28 mm, mantendo a margem branca interna do próprio código.
       context.drawImage(qrImage, 80, 16, 224, 224);
 
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
