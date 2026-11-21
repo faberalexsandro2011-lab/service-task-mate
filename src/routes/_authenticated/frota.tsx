@@ -484,9 +484,13 @@ function CentralFrotaPage() {
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.fillStyle = "#000000";
-      // Etiqueta sem textos: QR maximizado para ocupar toda a altura útil (30 mm).
-      // Centralizado na largura imprimível de 48 mm da BT-260.
-      context.drawImage(qrImage, 72, 0, 240, 240);
+      // Identificação da frota no topo e QR ampliado abaixo, mantendo a etiqueta 50 x 30 mm.
+      context.font = "bold 25px Arial, sans-serif";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(`FROTA ${selectedFleet.numero}`, 192, 17, 360);
+      // QR com 25 mm de altura, centralizado na largura imprimível da BT-260.
+      context.drawImage(qrImage, 92, 32, 200, 200);
 
       const pngBlob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("O navegador não conseguiu criar o arquivo PNG.")), "image/png");
@@ -517,11 +521,12 @@ function CentralFrotaPage() {
       @page{size:50mm 30mm;margin:0}
       *{box-sizing:border-box}
       html,body{width:50mm;height:30mm;margin:0;padding:0}
-      body{display:flex;align-items:center;justify-content:center}
-      img{display:block;width:30mm;height:30mm;object-fit:contain;image-rendering:pixelated}
+      body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+      .fleet{height:4mm;line-height:4mm;font:bold 3.2mm/4mm Arial,sans-serif;text-align:center;white-space:nowrap;max-width:48mm;overflow:hidden}
+      img{display:block;width:25mm;height:25mm;object-fit:contain;image-rendering:pixelated}
       @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
       @media print{img{break-inside:avoid}}
-    </style></head><body><img src="${fleetQrImageUrl}" alt="QR Code da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+    </style></head><body><div class="fleet">FROTA ${selectedFleet.numero}</div><img src="${fleetQrImageUrl}" alt="QR Code da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
     printWindow.document.close();
   }
 
