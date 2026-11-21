@@ -562,7 +562,7 @@ function CentralFrotaPage() {
         const fleetKey = headers.find((key, index) => (index === 0 && key === "frota") || fleetHeaders.has(key) || (key.includes("frota") && (key.includes("numero") || key.startsWith("n_") || key.includes("codigo"))));
         return {
           numero: (fleetKey ? String(normalized[fleetKey] ?? "").trim() : "") || pick("numero_frota", "numero_da_frota", "n_frota", "n_da_frota", "nr_frota", "num_frota", "frota", "frota_numero", "numero", "identificacao_frota", "codigo_frota"),
-          tipo: pick("tipo_frota", "tipo_frota_sgpa", "tipo", "categoria") || "trator",
+          tipo: pick("tipo_frota", "tipo_frota_sgpa", "tipo", "categoria"),
           marca: pick("marca_frota", "marca"), modelo: pick("modelo_frota", "modelo", "desc_frota", "descricao_frota", "descricao"),
           componente_tipo: pick("tipo_dispositivo", "tipo_componente", "componente", "equipamento"),
           fabricante: pick("fabricante", "marca_dispositivo", "fabricante_dispositivo"),
@@ -607,22 +607,26 @@ function CentralFrotaPage() {
       for (const row of importRows) {
         const fleetKey = `${importUnitId}::${row.numero.toLocaleLowerCase("pt-BR")}`;
         let fleetId = fleetMap.get(fleetKey) ?? fleets.find(f => f.unidade_id === importUnitId && f.numero.toLocaleLowerCase("pt-BR") === row.numero.toLocaleLowerCase("pt-BR"))?.id;
+        const fleetType = normalizeExcelHeader(row.tipo);
+        const fleetTypeAliases: Array<[string, string]> = [
+          ["colheitadeira", "colheitadeira"], ["caminhao", "caminhao"], ["caminhonete", "veiculo"],
+          ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
+          ["trator", "trator"],
+        ];
+        const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}`));
+        if (!matchedFleetType) {
+          throw new Error(`Tipo "${row.tipo || "(vazio)"}" da frota ${row.numero} não reconhecido. Confira a coluna Tipo da Frota. Nenhum tipo será convertido automaticamente para Trator.`);
+        }
+        const normalizedFleetType = matchedFleetType[1];
         if (!fleetId) {
-          const fleetType = normalizeExcelHeader(row.tipo);
-          const fleetTypeAliases: Array<[string, string]> = [
-            ["colheitadeira", "colheitadeira"], ["caminhao", "caminhao"], ["caminhonete", "veiculo"],
-            ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
-            ["trator", "trator"],
-          ];
-          const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}`));
-          if (!matchedFleetType) {
-            throw new Error(`Tipo "${row.tipo}" da frota ${row.numero} não reconhecido. Use Trator, Colheitadeira, Caminhão ou Veículo. Nenhum tipo será convertido automaticamente para Trator.`);
-          }
-          const normalizedFleetType = matchedFleetType[1];
           const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: normalizedFleetType, marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
           if (error) throw new Error(`Frota ${row.numero}: ${error.message}`);
           fleetId = data.id; createdFleets++;
-        } else skipped++;
+        } else {
+          const { error } = await (supabase as any).from("frotas").update({ tipo: normalizedFleetType }).eq("id", fleetId);
+          if (error) throw new Error(`Não foi possível corrigir o tipo da frota ${row.numero}: ${error.message}`);
+          skipped++;
+        }
         fleetMap.set(fleetKey, fleetId);
         if (!row.numero_serie) continue;
         const serialKey = `${importUnitId}::${row.numero_serie.toLocaleLowerCase("pt-BR")}`;
