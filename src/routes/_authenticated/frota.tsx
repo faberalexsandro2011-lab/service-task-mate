@@ -275,6 +275,26 @@ function SerialCameraScanner({ onCapture, onClose }: { onCapture: (value: string
   );
 }
 
+
+async function gerarQrLocal(valor: string): Promise<string> {
+  type QRInstance = { addData: (value: string) => void; make: () => void; createDataURL: (cellSize?: number, margin?: number) => string };
+  type QRFactory = (typeNumber: number, errorCorrectionLevel: "L" | "M" | "Q" | "H") => QRInstance;
+  const getGlobal = () => (window as Window & { qrcode?: QRFactory }).qrcode;
+  if (!getGlobal()) {
+    let script = document.querySelector<HTMLScriptElement>('script[data-central-frota-qrcode="true"]');
+    if (script?.dataset.failed === "true") { script.remove(); script = null; }
+    if (!script) {
+      script = document.createElement("script"); script.src = "/vendor/qrcode-generator.js"; script.async = true; script.dataset.centralFrotaQrcode = "true";
+      const loading = new Promise<void>((resolve, reject) => { script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true }); script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Falha ao carregar o gerador local do QR Code.")); }, { once: true }); });
+      document.head.appendChild(script); await loading;
+    } else if (script.dataset.loaded !== "true") {
+      await new Promise<void>((resolve, reject) => { script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true }); script!.addEventListener("error", () => reject(new Error("Falha ao carregar o gerador local do QR Code.")), { once: true }); });
+    }
+  }
+  const factory = getGlobal(); if (!factory) throw new Error("Gerador local do QR Code indisponível.");
+  const qr = factory(0, "Q"); qr.addData(valor); qr.make(); return qr.createDataURL(8, 4);
+}
+
 function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "transferencias" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
@@ -296,6 +316,7 @@ function CentralFrotaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
+  const [fleetQrImageUrl, setFleetQrImageUrl] = useState("");
   const [search, setSearch] = useState("");
   const [selectedFleetId, setSelectedFleetId] = useState<string | null>(null);
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
@@ -381,11 +402,17 @@ function CentralFrotaPage() {
   const selectedFleet = fleets.find(item => item.id === selectedFleetId) ?? null;
   const selectedComponent = components.find(item => item.id === selectedComponentId) ?? null;
   const publicFleetUrl = selectedFleet?.qr_publico_token
-    ? `${window.location.origin}/frota-publica/${selectedFleet.qr_publico_token}`
+    ? `${window.location.origin}/f/${selectedFleet.qr_publico_token}`
     : "";
-  const fleetQrImageUrl = publicFleetUrl
-    ? `https://quickchart.io/qr?text=${encodeURIComponent(publicFleetUrl)}&size=1200&margin=4&ecLevel=H`
-    : "";
+  useEffect(() => {
+    let active = true;
+    if (!publicFleetUrl) { setFleetQrImageUrl(""); return; }
+    void gerarQrLocal(publicFleetUrl).then(url => { if (active) setFleetQrImageUrl(url); }).catch(error => {
+      if (active) { setFleetQrImageUrl(""); toast.error(error instanceof Error ? error.message : "Não foi possível gerar o QR Code."); }
+    });
+    return () => { active = false; };
+  }, [publicFleetUrl]);
+
   const fleetInstallations = selectedFleet ? installations.filter(item => item.frota_id === selectedFleet.id) : [];
   const componentInstallations = selectedComponent ? installations.filter(item => item.componente_id === selectedComponent.id) : [];
   const currentComponentInstallation = selectedComponent ? activeInstallations.find(item => item.componente_id === selectedComponent.id) : null;
@@ -427,34 +454,9 @@ function CentralFrotaPage() {
   async function downloadFleetQrLabelImage() {
     if (!selectedFleet || !publicFleetUrl) return;
     try {
-      // Gerador QR incorporado ao próprio aplicativo: não depende de CDN externo.
-      type QRInstance = {
-        addData: (value: string) => void;
-        make: () => void;
-        createDataURL: (cellSize?: number, margin?: number) => string;
-      };
-      type QRFactory = (typeNumber: number, errorCorrectionLevel: "L" | "M" | "Q" | "H") => QRInstance;
-      const getQrFactory = async (): Promise<QRFactory> => {
-        const getGlobal = () => (window as Window & { qrcode?: QRFactory }).qrcode;
-        if (getGlobal()) return getGlobal()!;
-        let script = document.querySelector<HTMLScriptElement>('script[data-central-frota-qrcode="true"]');
-        if (script?.dataset.failed === "true") {
-          script.remove();
-          script = null;
-        }
-        if (!script) {
-          script = document.createElement("script");
-          script.src = "/vendor/qrcode-generator.js";
-          script.async = true;
-          script.dataset.centralFrotaQrcode = "true";
-          const loading = new Promise<void>((resolve, reject) => {
-            script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true });
-            script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Não foi possível carregar o gerador local do QR Code. Atualize a página e tente novamente.")); }, { once: true });
-          });
-          document.head.appendChild(script);
-          await loading;
-        } else if (script.dataset.loaded !== "true") {
-          await new Promise<void>((resolve, reject) => {
+      const qrImage = new Image();
+      qrImage.src = await gerarQrLocal(publicFleetUrl);
+      await new Promise<void>((resolve, reject) => {
             script!.addEventListener("load", () => { script!.dataset.loaded = "true"; resolve(); }, { once: true });
             script!.addEventListener("error", () => { script!.dataset.failed = "true"; reject(new Error("Não foi possível carregar o gerador local do QR Code.")); }, { once: true });
           });
