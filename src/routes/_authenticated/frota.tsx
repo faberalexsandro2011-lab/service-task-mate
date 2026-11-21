@@ -459,36 +459,36 @@ function CentralFrotaPage() {
         qrImage.onerror = () => reject(new Error("Não foi possível preparar o QR Code para a etiqueta."));
       });
 
-      // 50 x 30 mm em 300 DPI.
+      // BT-260: raster nativo de 203 DPI (8 pontos/mm), respeitando
+      // os 48 mm de largura imprimível dentro da etiqueta de 50 x 30 mm.
       const canvas = document.createElement("canvas");
-      canvas.width = 591;
-      canvas.height = 354;
+      canvas.width = 384;
+      canvas.height = 240;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Não foi possível criar a imagem da etiqueta.");
+      context.imageSmoothingEnabled = false;
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
-      context.fillStyle = "#111111";
+      context.fillStyle = "#000000";
       context.textAlign = "left";
       context.textBaseline = "top";
-      context.font = "bold 26px Arial";
-      context.fillText("CENTRAL OS · FROTAS", 20, 26);
-      context.font = "bold 49px Arial";
-      context.fillText("FROTA " + selectedFleet.numero, 20, 105, 330);
-      context.fillStyle = "#444444";
-      context.font = "17px Arial";
-      context.fillText("Aponte a câmera para consultar", 20, 184, 330);
-      context.fillText("os dispositivos", 20, 208, 330);
-      context.fillStyle = "#555555";
-      context.font = "12px Arial";
-      context.fillText(publicFleetUrl, 20, 286, 340);
-      context.imageSmoothingEnabled = false;
-      context.drawImage(qrImage, 285, 35, 275, 275);
+      context.font = "bold 13px Arial";
+      context.fillText("CENTRAL OS · FROTAS", 8, 12, 178);
+      context.font = "bold 25px Arial";
+      context.fillText("FROTA " + selectedFleet.numero, 8, 62, 178);
+      context.font = "10px Arial";
+      context.fillText("Aponte a câmera para", 8, 112, 178);
+      context.fillText("consultar os dispositivos", 8, 127, 178);
+      context.font = "7px Arial";
+      context.fillText("Etiqueta QR permanente", 8, 194, 178);
+      // QR em 22 mm (176 pontos), sem interpolação para preservar os módulos.
+      context.drawImage(qrImage, 200, 32, 176, 176);
 
       const link = document.createElement("a");
-      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm.png`;
+      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm-203dpi.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      toast.success("Etiqueta em PNG gerada com QR Code no formato 50 × 30 mm.");
+      toast.success("Etiqueta PNG gerada para BT-260: 50 × 30 mm, 203 DPI.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível gerar a imagem da etiqueta.");
     }
@@ -507,12 +507,12 @@ function CentralFrotaPage() {
       *{box-sizing:border-box}
       html,body{width:50mm;height:30mm;margin:0;padding:0}
       body{font-family:Arial,sans-serif;color:#111}
-      .label{width:50mm;height:30mm;padding:1.2mm 1.5mm;display:grid;grid-template-columns:1fr 25mm;align-items:center;gap:1mm;overflow:hidden}
+      .label{width:48mm;height:30mm;margin:0 auto;padding:1mm 0;display:grid;grid-template-columns:25mm 22mm;align-items:center;gap:1mm;overflow:hidden}
       .info{min-width:0;text-align:left}
       .brand{font-size:7pt;font-weight:700;letter-spacing:.2pt;margin:0 0 1mm}
       h1{font-size:12pt;line-height:1.05;margin:0 0 1mm;overflow-wrap:anywhere}
       .hint{font-size:6pt;line-height:1.1;margin:0;color:#444}
-      img{display:block;width:25mm;height:25mm;object-fit:contain;image-rendering:pixelated}
+      img{display:block;width:22mm;height:22mm;object-fit:contain;image-rendering:pixelated}
       .url{font-size:4.5pt;line-height:1.05;margin-top:1mm;overflow-wrap:anywhere;color:#555}
       @media screen{body{margin:12px}.label{outline:1px dashed #aaa}}
       @media print{.label{break-inside:avoid}}
