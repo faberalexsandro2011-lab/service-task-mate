@@ -618,6 +618,8 @@ function CentralFrotaPage() {
           ["scania", "caminhao"], ["volvo", "caminhao"], ["daf", "caminhao"],
           ["man", "caminhao"], ["mercedes_benz", "caminhao"],
           ["veiculo", "veiculo"], ["carro", "veiculo"], ["utilitario", "veiculo"],
+          // Modelos John Deere 6xxxJ são tratores; manter o texto original como modelo.
+          ["6190j", "trator"],
           ["trator", "trator"],
         ];
         const matchedFleetType = fleetTypeAliases.find(([alias]) => fleetType === alias || fleetType.startsWith(alias) || fleetType.includes(`_${alias}`));
@@ -625,12 +627,14 @@ function CentralFrotaPage() {
           throw new Error(`Tipo "${row.tipo || "(vazio)"}" da frota ${row.numero} não reconhecido. Confira a coluna Tipo da Frota. Nenhum tipo será convertido automaticamente para Trator.`);
         }
         const normalizedFleetType = matchedFleetType[1];
+        const inferredJohnDeereModel = fleetType.includes("6190j");
+        const importedModel = row.modelo || (inferredJohnDeereModel ? row.tipo : null);
         if (!fleetId) {
-          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: normalizedFleetType, marca: row.marca || null, modelo: row.modelo || null }).select("id").single();
+          const { data, error } = await (supabase as any).from("frotas").insert({ unidade_id: importUnitId, numero: row.numero, tipo: normalizedFleetType, marca: row.marca || (inferredJohnDeereModel ? "John Deere" : null), modelo: importedModel }).select("id").single();
           if (error) throw new Error(`Frota ${row.numero}: ${error.message}`);
           fleetId = data.id; createdFleets++;
         } else {
-          const { error } = await (supabase as any).from("frotas").update({ tipo: normalizedFleetType }).eq("id", fleetId);
+          const { error } = await (supabase as any).from("frotas").update({ tipo: normalizedFleetType, ...(inferredJohnDeereModel && !row.modelo ? { marca: row.marca || "John Deere", modelo: importedModel } : {}) }).eq("id", fleetId);
           if (error) throw new Error(`Não foi possível corrigir o tipo da frota ${row.numero}: ${error.message}`);
           skipped++;
         }
