@@ -21,6 +21,7 @@ function App() {
   const [tab, setTab] = useState("visao");
   const [search, setSearch] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [selectedTrip, setSelectedTrip] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -92,21 +93,43 @@ function App() {
             <Stat label="Motoristas" value={data.summary.drivers} hint="Cadastros identificados"/>
             <Stat label="Dispositivos" value={data.summary.devices} hint={`${data.summary.activeDevices} ativos`}/>
           </div>
-          <section className="panel"><div className="panel-head"><div><h2>Viagens recentes</h2><p>Últimos registros recebidos do aplicativo SOL 7</p></div><button className="text-button" onClick={()=>setTab("viagens")}>Ver todas →</button></div><TripTable trips={trips.slice(0,8)} equipment={data.equipment}/></section>
+          <section className="panel"><div className="panel-head"><div><h2>Viagens recentes</h2><p>Últimos registros recebidos do aplicativo SOL 7</p></div><button className="text-button" onClick={()=>setTab("viagens")}>Ver todas →</button></div><TripTable trips={trips.slice(0,8)} equipment={data.equipment} onSelect={setSelectedTrip}/></section>
           <div className="two-col"><section className="panel"><h2>Motoristas</h2>{data.drivers.slice(0,5).map(d=><div className="list-row" key={d.id}><div><b>{d.nome}</b><small>Matrícula {d.matricula}</small></div><span className={d.ativo?"dot on":"dot"} /></div>)}</section><section className="panel"><h2>Dispositivos</h2>{data.devices.map(d=><div className="list-row" key={d.id}><div><b>{d.nome}</b><small>Frota vinculada: {d.frota_id.slice(0,8)}…</small></div><span className={d.ativo?"tag green":"tag"}>{d.ativo?"Ativo":"Inativo"}</span></div>)}</section></div>
         </>}
         {tab!=="visao" && <section className="panel full-panel"><div className="panel-head"><div><h2>{tab==="viagens"?"Histórico de viagens":tab==="motoristas"?"Motoristas cadastrados":"Dispositivos cadastrados"}</h2><p>{tab==="viagens"?"Até 200 viagens mais recentes":tab==="motoristas"?"Motoristas identificados nas sincronizações":"Instalações vinculadas a caminhões"}</p></div><input className="search" placeholder="Buscar..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          {tab==="viagens" ? <TripTable trips={filteredTrips} equipment={data.equipment}/> : tab==="motoristas" ? <div className="table-wrap"><table><thead><tr><th>Nome</th><th>Matrícula</th><th>Último registro</th><th>Situação</th></tr></thead><tbody>{filteredDrivers.map(d=><tr key={d.id}><td><b>{d.nome}</b></td><td>{d.matricula}</td><td>{fmt(d.ultimo_registro_em)}</td><td><span className={d.ativo?"tag green":"tag"}>{d.ativo?"Ativo":"Inativo"}</span></td></tr>)}</tbody></table>{!filteredDrivers.length&&<div className="empty">Nenhum motorista encontrado.</div>}</div> : <div className="table-wrap"><table><thead><tr><th>Dispositivo</th><th>Identificador da frota</th><th>Última comunicação</th><th>Situação</th></tr></thead><tbody>{filteredDevices.map(d=><tr key={d.id}><td><b>{d.nome}</b><small className="subline">{d.id}</small></td><td className="mono">{d.frota_id}</td><td>{fmt(d.ultimo_acesso_em)}</td><td><span className={d.ativo?"tag green":"tag"}>{d.ativo?"Ativo":"Inativo"}</span></td></tr>)}</tbody></table>{!filteredDevices.length&&<div className="empty">Nenhum dispositivo encontrado.</div>}</div>}
+          {tab==="viagens" ? <TripTable trips={filteredTrips} equipment={data.equipment} onSelect={setSelectedTrip}/> : tab==="motoristas" ? <div className="table-wrap"><table><thead><tr><th>Nome</th><th>Matrícula</th><th>Último registro</th><th>Situação</th></tr></thead><tbody>{filteredDrivers.map(d=><tr key={d.id}><td><b>{d.nome}</b></td><td>{d.matricula}</td><td>{fmt(d.ultimo_registro_em)}</td><td><span className={d.ativo?"tag green":"tag"}>{d.ativo?"Ativo":"Inativo"}</span></td></tr>)}</tbody></table>{!filteredDrivers.length&&<div className="empty">Nenhum motorista encontrado.</div>}</div> : <div className="table-wrap"><table><thead><tr><th>Dispositivo</th><th>Identificador da frota</th><th>Última comunicação</th><th>Situação</th></tr></thead><tbody>{filteredDevices.map(d=><tr key={d.id}><td><b>{d.nome}</b><small className="subline">{d.id}</small></td><td className="mono">{d.frota_id}</td><td>{fmt(d.ultimo_acesso_em)}</td><td><span className={d.ativo?"tag green":"tag"}>{d.ativo?"Ativo":"Inativo"}</span></td></tr>)}</tbody></table>{!filteredDevices.length&&<div className="empty">Nenhum dispositivo encontrado.</div>}</div>}
         </section>}
         <footer>Dados atualizados {lastUpdated?fmt(lastUpdated):"—"} · Ambiente isolado de testes</footer>
       </>}
     </main>
+    {selectedTrip && <TripDetails trip={selectedTrip} equipment={data?.equipment || []} events={data?.events || []} onClose={() => setSelectedTrip(null)}/>}
   </div>;
 }
 
 function Stat({label,value,hint}) { return <article className="stat"><span>{label}</span><strong>{value ?? 0}</strong><small>{hint}</small></article>; }
-function TripTable({trips,equipment}) {
+function TripTable({trips,equipment,onSelect}) {
   if (!trips.length) return <div className="empty">Ainda não há viagens para exibir.</div>;
-  return <div className="table-wrap"><table><thead><tr><th>Motorista</th><th>Trajeto</th><th>Tipo</th><th>Início</th><th>Equipamentos</th><th>Status</th></tr></thead><tbody>{trips.map(t=>{const items=equipment.filter(e=>e.viagem_id===t.id);return <tr key={t.id}><td><b>{t.motorista_nome}</b><small className="subline">Matrícula {t.motorista_matricula}</small></td><td>{t.origem} <span className="arrow">→</span> {t.destino}</td><td><span className="tag">{t.tipo==="LOADED"?"Carregada":"Vazia"}</span></td><td>{fmt(t.started_at)}<small className="subline">Fim: {fmt(t.ended_at)}</small></td><td>{items.length?items.map(i=><span className={i.removido_em?"equipment removed":"equipment"} key={i.id}>{i.nome}{i.removido_em?" · removido":""}</span>):"—"}</td><td><span className={t.status==="COMPLETED"?"tag green":"tag amber"}>{statusLabel(t.status)}</span></td></tr>})}</tbody></table></div>;
+  return <div className="table-wrap"><table><thead><tr><th>Motorista</th><th>Trajeto</th><th>Tipo</th><th>Início</th><th>Equipamentos</th><th>Status</th><th></th></tr></thead><tbody>{trips.map(t=>{const items=equipment.filter(e=>e.viagem_id===t.id);return <tr key={t.id} className="clickable-row" onClick={()=>onSelect?.(t)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onSelect?.(t);}}} tabIndex={0} title="Abrir detalhes da viagem"><td><b>{t.motorista_nome}</b><small className="subline">Matrícula {t.motorista_matricula}</small></td><td>{t.origem} <span className="arrow">→</span> {t.destino}</td><td><span className="tag">{t.tipo==="LOADED"?"Carregada":"Vazia"}</span></td><td>{fmt(t.started_at)}<small className="subline">Fim: {fmt(t.ended_at)}</small></td><td>{items.length?items.map(i=><span className={i.removido_em?"equipment removed":"equipment"} key={i.id}>{i.nome}{i.removido_em?" · removido":""}</span>):"—"}</td><td><span className={t.status==="COMPLETED"?"tag green":"tag amber"}>{statusLabel(t.status)}</span></td><td><button className="open-trip" onClick={e=>{e.stopPropagation();onSelect?.(t);}}>Ver detalhes</button></td></tr>})}</tbody></table></div>;
+}
+function TripDetails({trip,equipment,events,onClose}) {
+  const items = equipment.filter(e=>e.viagem_id===trip.id);
+  const history = events.filter(e=>e.viagem_id===trip.id).sort((a,b)=>new Date(a.ocorrido_em)-new Date(b.ocorrido_em));
+  return <div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <section className="trip-modal" role="dialog" aria-modal="true" aria-labelledby="trip-detail-title">
+      <header className="modal-head"><div><p className="eyebrow">DETALHES DA VIAGEM</p><h2 id="trip-detail-title">{trip.origem} <span className="arrow">→</span> {trip.destino}</h2></div><button className="modal-close" onClick={onClose} aria-label="Fechar">×</button></header>
+      <div className="detail-grid">
+        <div><small>Motorista</small><b>{trip.motorista_nome}</b><span>Matrícula {trip.motorista_matricula}</span></div>
+        <div><small>Tipo</small><b>{trip.tipo==="LOADED"?"Viagem carregada":"Deslocamento vazio"}</b></div>
+        <div><small>Status</small><b><span className={trip.status==="COMPLETED"?"tag green":"tag amber"}>{statusLabel(trip.status)}</span></b></div>
+        <div><small>Início</small><b>{fmt(trip.started_at)}</b></div>
+        <div><small>Finalização</small><b>{fmt(trip.ended_at)}</b></div>
+        <div><small>Identificador</small><b className="mono">{trip.trip_uuid}</b></div>
+      </div>
+      <section className="detail-section"><h3>Equipamentos da viagem</h3>{items.length ? <div className="detail-list">{items.map(item=><div className="detail-item" key={item.id}><div><b>{item.nome}</b><small>Adicionado: {fmt(item.adicionado_em)}</small>{item.frota_item_id && <small>Item de frota: {item.frota_item_id}</small>}</div><span className={item.removido_em?"tag":"tag green"}>{item.removido_em ? "Removido em " + fmt(item.removido_em) : "Permanece ativo"}</span></div>)}</div> : <p className="muted-line">Nenhum equipamento registrado.</p>}</section>
+      <section className="detail-section"><h3>Histórico de alterações</h3>{history.length ? <div className="timeline">{history.map(ev=><div className="timeline-item" key={ev.id}><span className={ev.acao==="REMOVED"?"timeline-dot removed":"timeline-dot"}></span><div><b>{ev.acao==="ADDED"?"Equipamento adicionado":"Equipamento removido"}</b><small>{fmt(ev.ocorrido_em)}</small><small>Equipamento local: {ev.equipamento_local_id || "—"}</small></div></div>)}</div> : <p className="muted-line">Nenhuma alteração registrada.</p>}</section>
+      <section className="detail-section"><h3>Observação de finalização</h3><p className="note-box">{trip.final_note || "Nenhuma observação informada."}</p></section>
+      <footer className="modal-footer"><button className="refresh" onClick={onClose}>Fechar detalhes</button></footer>
+    </section>
+  </div>;
 }
 createRoot(document.getElementById("root")).render(<App />);
