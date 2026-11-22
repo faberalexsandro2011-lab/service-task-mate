@@ -50,7 +50,7 @@ function App() {
   const sendLink = async (e) => {
     e.preventDefault(); setBusy(true); setError("");
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: window.location.origin } });
+      const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: "https://central-transporte-admin-test.vercel.app" } });
       if (error) throw error;
       setSent(true);
     } catch (e) { setError(e.message || "Não foi possível enviar o link."); }
