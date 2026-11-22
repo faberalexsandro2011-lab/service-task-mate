@@ -14,8 +14,8 @@ const communicationLabel = (last) => {
   if (!last) return "Ainda não comunicou";
   const age = Date.now() - new Date(last).getTime();
   if (!Number.isFinite(age) || age < 0) return "Horário indisponível";
-  if (age < 5 * 60 * 1000) return "Conectado recentemente";
-  if (age < 60 * 60 * 1000) return "Sem comunicação recente";
+  if (age < 20 * 60 * 1000) return "Conectado recentemente";
+  if (age < 60 * 60 * 1000) return "Sem comunicação há 20–60 min";
   return "Sem comunicação há mais de 1 hora";
 };
 
