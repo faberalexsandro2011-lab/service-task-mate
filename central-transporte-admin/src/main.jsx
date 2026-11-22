@@ -59,11 +59,42 @@ function App() {
   };
 
   const signOut = async () => { await supabase.auth.signOut(); setData(null); setSent(false); };
+  const adminAction = async (action, fields={}) => {
+    const response = await fetch(FUNCTION_URL,{method:"POST",headers:{"Content-Type":"application/json",apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token},body:JSON.stringify({action,...fields})});
+    const payload = await response.json();
+    if(!response.ok || !payload.ok) throw new Error(payload.error || "Não foi possível concluir a operação.");
+    return payload;
+  };
+  const saveDriver = async (driver=null) => {
+    const matricula = window.prompt("Matrícula do motorista:",driver?.matricula || "");
+    if(matricula===null) return;
+    const nome = window.prompt("Nome do motorista:",driver?.nome || "");
+    if(nome===null) return;
+    const unidade_id = driver?.unidade_id || data?.units?.find(u=>u.ativo)?.id;
+    if(!unidade_id){window.alert("Não há unidade de teste ativa.");return;}
+    try { await adminAction("admin_save_driver",{id:driver?.id,matricula,nome,unidade_id}); await load(); }
+    catch(e){window.alert(e.message);}
+  };
+  const toggleDriver = async d => { try{await adminAction("admin_toggle_driver",{id:d.id,ativo:!d.ativo});await load();}catch(e){window.alert(e.message);} };
+  const provisionDevice = async () => {
+    const trucks=(data?.trucks||[]).filter(t=>t.ativo);
+    if(!trucks.length){window.alert("Cadastre um caminhão de teste antes.");return;}
+    const choices=trucks.map((t,i)=>(i+1)+" - "+t.codigo+" ("+t.descricao+")").join("\n");
+    const pick=window.prompt("Escolha o caminhão pelo número:\n"+choices,"1");
+    if(pick===null)return;
+    const truck=trucks[Number(pick)-1];
+    if(!truck){window.alert("Número inválido.");return;}
+    const nome=window.prompt("Nome do dispositivo:","SOL 7 - "+truck.codigo);
+    if(nome===null)return;
+    try{const result=await adminAction("admin_provision_device",{frota_id:truck.id,nome});window.alert("Dispositivo criado. Copie e guarde este token; ele será exibido somente agora:\n\n"+result.device_token);await load();}catch(e){window.alert(e.message);}
+  };
+  const toggleDevice = async d => {try{await adminAction("admin_toggle_device",{id:d.id,ativo:!d.ativo});await load();}catch(e){window.alert(e.message);}};
+  const truckFor = id => (data?.trucks||[]).find(t=>t.id===id);
 
   const trips = data?.trips || [];
   const filteredTrips = useMemo(() => trips.filter(t => [t.motorista_nome,t.motorista_matricula,t.origem,t.destino,t.tipo,t.status].join(" ").toLowerCase().includes(search.toLowerCase())), [trips, search]);
   const filteredDrivers = (data?.drivers || []).filter(d => [d.nome,d.matricula].join(" ").toLowerCase().includes(search.toLowerCase()));
-  const filteredDevices = (data?.devices || []).filter(d => [d.nome,d.frota_id].join(" ").toLowerCase().includes(search.toLowerCase()));
+  const filteredDevices = (data?.devices || []).filter(d => [d.nome,d.frota_id,truckFor(d.frota_id)?.codigo,truckFor(d.frota_id)?.descricao].join(" ").toLowerCase().includes(search.toLowerCase()));
 
   if (!SUPABASE_URL || !SUPABASE_KEY) return <main className="login-shell"><section className="login-card"><h1>Configuração pendente</h1><p>Defina as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no ambiente de testes.</p></section></main>;
 
@@ -78,11 +109,11 @@ function App() {
 
   return <div className="app">
     <aside className="sidebar"><div className="brand"><span className="brand-mark small">CT</span><div><b>Central Transporte</b><small>ADMINISTRAÇÃO</small></div></div>
-      <nav>{[["visao","Visão geral"],["viagens","Viagens"],["motoristas","Motoristas"],["dispositivos","Dispositivos"]].map(([id,label])=><button key={id} className={tab===id?"active":""} onClick={()=>{setTab(id);setSearch("");}}>{label}</button>)}</nav>
+      <nav>{[["visao","Visão geral"],["viagens","Viagens"],["motoristas","Motoristas"],["dispositivos","Dispositivos"],["caminhoes","Caminhões"]].map(([id,label])=><button key={id} className={tab===id?"active":""} onClick={()=>{setTab(id);setSearch("");}}>{label}</button>)}</nav>
       <div className="sidebar-bottom"><span>{session.user.email}</span><button className="ghost" onClick={signOut}>Sair</button></div>
     </aside>
     <main className="content">
-      <header className="topbar"><div><p className="eyebrow">CENTRAL OS · MÓDULO DE TRANSPORTE</p><h1>{({visao:"Visão geral",viagens:"Viagens",motoristas:"Motoristas",dispositivos:"Dispositivos"})[tab]}</h1></div><div className="actions"><span className="test-pill">TESTE</span><button className="refresh" onClick={load} disabled={busy}>{busy?"Atualizando...":"↻ Atualizar"}</button></div></header>
+      <header className="topbar"><div><p className="eyebrow">CENTRAL OS · MÓDULO DE TRANSPORTE</p><h1>{({visao:"Visão geral",viagens:"Viagens",motoristas:"Motoristas",dispositivos:"Dispositivos",caminhoes:"Caminhões"})[tab]}</h1></div><div className="actions"><span className="test-pill">TESTE</span><button className="refresh" onClick={load} disabled={busy}>{busy?"Atualizando...":"↻ Atualizar"}</button></div></header>
       {error && <div className="error-banner">{error}</div>}
       {busy && !data ? <div className="loading">Carregando dados...</div> : !data ? <div className="empty">Nenhum dado disponível.</div> : <>
         {tab==="visao" && <>
