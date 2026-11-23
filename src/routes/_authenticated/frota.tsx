@@ -295,6 +295,34 @@ async function gerarQrLocal(valor: string): Promise<string> {
   const qr = factory(0, "L"); qr.addData(valor); qr.make(); return qr.createDataURL(8, 4);
 }
 
+async function gerarQrEtiquetaSvg(valor: string, numeroFrota: string): Promise<string> {
+  await gerarQrLocal(valor);
+  const factory = (window as Window & { qrcode?: (typeNumber: number, level: "L" | "M" | "Q" | "H") => {
+    addData: (value: string) => void; make: () => void;
+    getModuleCount: () => number; isDark: (row: number, col: number) => boolean;
+  } }).qrcode;
+  if (!factory) throw new Error("Gerador local do QR Code indisponível.");
+  const qr = factory(0, "L");
+  qr.addData(valor);
+  qr.make();
+  const count = qr.getModuleCount();
+  const quiet = 4;
+  const qrArea = 224;
+  const moduleSize = Math.floor(qrArea / (count + quiet * 2));
+  if (moduleSize < 2) throw new Error("O endereço gerou um QR muito denso para esta etiqueta. É necessário encurtar o link público.");
+  const qrPixels = (count + quiet * 2) * moduleSize;
+  const originX = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  const originY = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  const modules: string[] = [];
+  for (let row = 0; row < count; row++) {
+    for (let col = 0; col < count; col++) {
+      if (qr.isDark(row, col)) modules.push(`M${originX + col * moduleSize} ${originY + row * moduleSize}h${moduleSize}v${moduleSize}h-${moduleSize}z`);
+    }
+  }
+  const safeNumber = numeroFrota.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[char] || char));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="50mm" height="30mm" viewBox="0 0 400 240"><rect width="400" height="240" fill="#fff"/><path d="${modules.join("")}" fill="#000"/><g fill="#000" font-family="Arial,sans-serif" font-weight="700" text-anchor="middle"><text x="316" y="95" font-size="20">FROTA</text><text x="316" y="149" font-size="34">${safeNumber}</text></g></svg>`;
+}
+
 async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise<string> {
   // Etiqueta horizontal 50 x 30 mm na resolução nativa de 203 DPI: 400 x 240 pixels.
   // QR de até 28 mm, com zona silenciosa de 4 módulos e módulos em pixels inteiros.
@@ -524,7 +552,7 @@ function CentralFrotaPage() {
   async function printFleetQrLabel() {
     if (!selectedFleet || !publicFleetUrl) return;
     try {
-      const labelImage = await gerarQrEtiquetaLocal(publicFleetUrl, selectedFleet.numero);
+      const labelSvg = await gerarQrEtiquetaSvg(publicFleetUrl, selectedFleet.numero);
       const printWindow = window.open("", "_blank", "width=640,height=440");
       if (!printWindow) {
         toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
@@ -535,9 +563,9 @@ function CentralFrotaPage() {
         *{box-sizing:border-box}
         html,body{width:50mm;height:30mm;margin:0;padding:0}
         body{display:block}
-        img{display:block;width:50mm;height:30mm;max-width:none;image-rendering:pixelated}
+        svg{display:block;width:50mm;height:30mm;shape-rendering:crispEdges}
         @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
-      </style></head><body><img src="${labelImage}" width="400" height="240" alt="Etiqueta QR da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+      </style></head><body>${labelSvg}<script>window.onload=()=>window.print();</script></body></html>`);
       printWindow.document.close();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta para impressão.");
