@@ -451,7 +451,7 @@ function CentralFrotaPage() {
   const selectedFleet = fleets.find(item => item.id === selectedFleetId) ?? null;
   const selectedComponent = components.find(item => item.id === selectedComponentId) ?? null;
   const publicFleetUrl = selectedFleet?.qr_publico_token
-    ? `${window.location.origin}/f/${selectedFleet.qr_publico_token}`
+    ? `https://www.centralos.tec.br/f/${selectedFleet.qr_publico_token}`
     : "";
   useEffect(() => {
     let active = true;
