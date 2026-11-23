@@ -292,7 +292,7 @@ async function gerarQrLocal(valor: string): Promise<string> {
     }
   }
   const factory = getGlobal(); if (!factory) throw new Error("Gerador local do QR Code indisponível.");
-  const qr = factory(0, "Q"); qr.addData(valor); qr.make(); return qr.createDataURL(8, 4);
+  const qr = factory(0, "L"); qr.addData(valor); qr.make(); return qr.createDataURL(8, 4);
 }
 
 async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise<string> {
@@ -305,7 +305,7 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
     getModuleCount: () => number; isDark: (row: number, col: number) => boolean;
   } }).qrcode;
   if (!factory) throw new Error("Gerador local do QR Code indisponível.");
-  const qr = factory(0, "M");
+  const qr = factory(0, "L");
   qr.addData(valor);
   qr.make();
 
