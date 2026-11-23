@@ -296,9 +296,9 @@ async function gerarQrLocal(valor: string): Promise<string> {
 }
 
 async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise<string> {
-  // Etiqueta horizontal 50 x 30 mm a 203 DPI: 400 x 240 pixels.
-  // O QR ocupa uma área quadrada de até 28 x 28 mm à esquerda;
-  // o número da frota fica à direita. Módulos desenhados em pixels inteiros.
+  // Etiqueta horizontal 50 x 30 mm renderizada em 300 DPI: 591 x 354 pixels.
+  // QR ampliado para aproximadamente 29 mm, mantendo zona silenciosa de 4 módulos.
+  // A BT-260 imprime fisicamente em 203 DPI; o driver fará a conversão para a resolução nativa.
   await gerarQrLocal(valor);
   const factory = (window as Window & { qrcode?: (typeNumber: number, level: "L" | "M" | "Q" | "H") => {
     addData: (value: string) => void; make: () => void;
@@ -310,21 +310,21 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
   qr.make();
 
   const canvas = document.createElement("canvas");
-  canvas.width = 400;
-  canvas.height = 240;
+  canvas.width = 591;
+  canvas.height = 354;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível criar a etiqueta.");
   ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, 400, 240);
+  ctx.fillRect(0, 0, 591, 354);
 
   const count = qr.getModuleCount();
   const quiet = 4;
-  const qrArea = 224;
+  const qrArea = 348;
   const moduleSize = Math.floor(qrArea / (count + quiet * 2));
   if (moduleSize < 2) throw new Error("O endereço gerou um QR muito denso para esta etiqueta. É necessário encurtar o link público.");
   const qrPixels = (count + quiet * 2) * moduleSize;
-  const originX = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
-  const originY = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  const originX = 12 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  const originY = 3 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
   ctx.fillStyle = "#000";
   for (let row = 0; row < count; row++) {
     for (let col = 0; col < count; col++) {
@@ -337,10 +337,10 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#000";
-  ctx.font = "bold 16px Arial, sans-serif";
-  ctx.fillText("FROTA", 316, 94, 150);
-  ctx.font = "bold 26px Arial, sans-serif";
-  ctx.fillText(numeroFrota, 316, 132, 150);
+  ctx.font = "bold 24px Arial, sans-serif";
+  ctx.fillText("FROTA", 474, 139, 190);
+  ctx.font = "bold 38px Arial, sans-serif";
+  ctx.fillText(numeroFrota, 474, 195, 190);
   return canvas.toDataURL("image/png");
 }
 
@@ -508,7 +508,7 @@ function CentralFrotaPage() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm-203dpi.png`;
+      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm-300dpi.png`;
       link.href = objectUrl;
       link.style.display = "none";
       document.body.appendChild(link);
