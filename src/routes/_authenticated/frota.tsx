@@ -296,9 +296,9 @@ async function gerarQrLocal(valor: string): Promise<string> {
 }
 
 async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise<string> {
-  // Gera uma arte rasterizada diretamente na resolução nativa da BT-260:
-  // 240 x 240 pontos = 30 x 30 mm a 203 DPI. Cada módulo do QR é
-  // desenhado como um quadrado inteiro, sem redimensionamento/interpolação.
+  // Etiqueta horizontal 50 x 30 mm a 203 DPI: 400 x 240 pixels.
+  // O QR ocupa uma área quadrada de até 28 x 28 mm à esquerda;
+  // o número da frota fica à direita. Módulos desenhados em pixels inteiros.
   await gerarQrLocal(valor);
   const factory = (window as Window & { qrcode?: (typeNumber: number, level: "L" | "M" | "Q" | "H") => {
     addData: (value: string) => void; make: () => void;
@@ -310,25 +310,22 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
   qr.make();
 
   const canvas = document.createElement("canvas");
-  canvas.width = 240;
+  canvas.width = 400;
   canvas.height = 240;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível criar a etiqueta.");
   ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, 240, 240);
-  ctx.fillStyle = "#000";
-  ctx.font = "bold 18px Arial, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`FROTA ${numeroFrota}`, 120, 11, 224);
+  ctx.fillRect(0, 0, 400, 240);
 
   const count = qr.getModuleCount();
   const quiet = 4;
-  const moduleSize = Math.floor(216 / (count + quiet * 2));
+  const qrArea = 224;
+  const moduleSize = Math.floor(qrArea / (count + quiet * 2));
   if (moduleSize < 2) throw new Error("O endereço gerou um QR muito denso para esta etiqueta. É necessário encurtar o link público.");
   const qrPixels = (count + quiet * 2) * moduleSize;
-  const originX = Math.floor((240 - qrPixels) / 2) + quiet * moduleSize;
-  const originY = 22 + Math.floor((218 - qrPixels) / 2) + quiet * moduleSize;
+  const originX = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  const originY = 8 + Math.floor((qrArea - qrPixels) / 2) + quiet * moduleSize;
+  ctx.fillStyle = "#000";
   for (let row = 0; row < count; row++) {
     for (let col = 0; col < count; col++) {
       if (qr.isDark(row, col)) {
@@ -336,6 +333,14 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
       }
     }
   }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#000";
+  ctx.font = "bold 16px Arial, sans-serif";
+  ctx.fillText("FROTA", 316, 94, 150);
+  ctx.font = "bold 26px Arial, sans-serif";
+  ctx.fillText(numeroFrota, 316, 132, 150);
   return canvas.toDataURL("image/png");
 }
 
@@ -503,14 +508,14 @@ function CentralFrotaPage() {
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-30x30mm-203dpi.png`;
+      link.download = `etiqueta-frota-${selectedFleet.numero.replace(/[^a-zA-Z0-9_-]/g, "_")}-50x30mm-203dpi.png`;
       link.href = objectUrl;
       link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
-      toast.success("PNG 30×30 mm gerado com módulos QR nítidos para impressão térmica.");
+      toast.success("PNG 50×30 mm gerado com módulos QR nítidos para impressão térmica.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível gerar a imagem da etiqueta.");
     }
@@ -526,13 +531,13 @@ function CentralFrotaPage() {
         return;
       }
       printWindow.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR da frota</title><style>
-        @page{size:30mm 30mm;margin:0}
+        @page{size:50mm 30mm;margin:0}
         *{box-sizing:border-box}
-        html,body{width:30mm;height:30mm;margin:0;padding:0}
+        html,body{width:50mm;height:30mm;margin:0;padding:0}
         body{display:block}
-        img{display:block;width:30mm;height:30mm;max-width:none;image-rendering:pixelated}
-        @media screen{body{margin:12px;width:30mm;height:30mm;outline:1px dashed #aaa}}
-      </style></head><body><img src="${labelImage}" width="240" height="240" alt="Etiqueta QR da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
+        img{display:block;width:50mm;height:30mm;max-width:none;image-rendering:pixelated}
+        @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
+      </style></head><body><img src="${labelImage}" width="400" height="240" alt="Etiqueta QR da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
       printWindow.document.close();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta para impressão.");
@@ -896,11 +901,11 @@ function CentralFrotaPage() {
           </div>
           <section className="rounded-2xl border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><h3 className="font-semibold">Etiqueta QR Code da frota</h3><p className="text-sm text-muted-foreground">Etiqueta quadrada 30 × 30 mm para a BT-260. Um código permanente; a consulta mostra somente os dispositivos instalados atualmente.</p></div>
+              <div><h3 className="font-semibold">Etiqueta QR Code da frota</h3><p className="text-sm text-muted-foreground">Etiqueta horizontal 50 × 30 mm para a BT-260. QR ampliado à esquerda e número da frota à direita. O código é permanente.</p></div>
               {!selectedFleet.qr_publico_token && <Button type="button" onClick={() => void generateFleetQr()} disabled={qrLoading}><QrCode className="mr-2 size-4" />{qrLoading ? "Gerando..." : "Gerar QR Code"}</Button>}
             </div>
             {selectedFleet.qr_publico_token && <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-start">
-              <div className="rounded-xl border bg-white p-2"><div className="flex size-60 flex-col items-center justify-start bg-white p-1 text-black"><span className="h-5 text-center text-[10px] font-bold leading-5">FROTA {selectedFleet.numero}</span><img src={fleetQrImageUrl} alt={`QR Code permanente da frota ${selectedFleet.numero}`} className="size-52 object-contain" /></div></div>
+              <div className="rounded-xl border bg-white p-2"><div className="flex h-[144px] w-[240px] items-center justify-start gap-2 bg-white p-1 text-black"><img src={fleetQrImageUrl} alt={`QR Code permanente da frota ${selectedFleet.numero}`} className="size-[132px] shrink-0 object-contain" /><div className="flex min-w-0 flex-1 flex-col items-center justify-center text-center"><span className="text-xs font-bold">FROTA</span><span className="break-all text-lg font-extrabold">{selectedFleet.numero}</span></div></div></div>
               <div className="min-w-0 flex-1 space-y-2">
                 <p className="font-semibold">QR Code ativo · Frota {selectedFleet.numero}</p>
                 <p className="break-all text-xs text-muted-foreground">{publicFleetUrl}</p>
