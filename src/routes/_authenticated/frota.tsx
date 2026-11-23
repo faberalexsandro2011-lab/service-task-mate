@@ -319,7 +319,7 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
 
   const count = qr.getModuleCount();
   const quiet = 4;
-  const qrArea = 224;
+  const qrArea = 224; // 28 x 28 mm na resolução nativa de 203 DPI.
   const moduleSize = Math.floor(qrArea / (count + quiet * 2));
   if (moduleSize < 2) throw new Error("O endereço gerou um QR muito denso para esta etiqueta. É necessário encurtar o link público.");
   const qrPixels = (count + quiet * 2) * moduleSize;
@@ -337,10 +337,10 @@ async function gerarQrEtiquetaLocal(valor: string, numeroFrota: string): Promise
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#000";
-  ctx.font = "bold 16px Arial, sans-serif";
-  ctx.fillText("FROTA", 316, 94, 150);
-  ctx.font = "bold 26px Arial, sans-serif";
-  ctx.fillText(numeroFrota, 316, 132, 150);
+  ctx.font = "bold 20px Arial, sans-serif";
+  ctx.fillText("FROTA", 316, 88, 150);
+  ctx.font = "bold 34px Arial, sans-serif";
+  ctx.fillText(numeroFrota, 316, 137, 150);
   return canvas.toDataURL("image/png");
 }
 
