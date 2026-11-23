@@ -552,7 +552,7 @@ function CentralFrotaPage() {
   async function printFleetQrLabel() {
     if (!selectedFleet || !publicFleetUrl) return;
     try {
-      const labelSvg = await gerarQrEtiquetaSvg(publicFleetUrl, selectedFleet.numero);
+      const labelImage = await gerarQrEtiquetaLocal(publicFleetUrl, selectedFleet.numero);
       const printWindow = window.open("", "_blank", "width=640,height=440");
       if (!printWindow) {
         toast.error("Permita a abertura de janelas para imprimir a etiqueta.");
@@ -563,9 +563,9 @@ function CentralFrotaPage() {
         *{box-sizing:border-box}
         html,body{width:50mm;height:30mm;margin:0;padding:0}
         body{display:block}
-        svg{display:block;width:50mm;height:30mm;shape-rendering:crispEdges}
+        img{display:block;width:50mm;height:30mm;max-width:none;image-rendering:pixelated}
         @media screen{body{margin:12px;width:50mm;height:30mm;outline:1px dashed #aaa}}
-      </style></head><body>${labelSvg}<script>window.onload=()=>window.print();</script></body></html>`);
+      </style></head><body><img src="${labelImage}" width="400" height="240" alt="Etiqueta QR da frota"><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
       printWindow.document.close();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível preparar a etiqueta para impressão.");
