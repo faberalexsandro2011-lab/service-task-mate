@@ -837,24 +837,24 @@ function CentralFrotaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-primary/10 p-2 text-primary"><Truck className="size-6" /></div>
-            <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
+      <header className="sticky top-0 z-20 border-b border-blue-900/20 bg-gradient-to-r from-blue-800 via-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-950/10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/15 shadow-inner shadow-white/10"><Truck className="size-7 text-white" /></div>
+            <div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-100">Central OS · Gestão de equipamentos</p><h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">Central Frota</h1><p className="hidden text-xs text-blue-100/90 sm:block">Frotas, componentes, instalações e controle de estoque</p></div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
+          <div className="flex shrink-0 gap-2">
+            <Button className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
+            <Button className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6">
         <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Frotas cadastradas</p><p className="mt-1 text-3xl font-bold tabular-nums">{fleets.length}</p></div>
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Componentes registrados</p><p className="mt-1 text-3xl font-bold tabular-nums">{components.length}</p></div>
-          <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Instalações ativas</p><p className="mt-1 text-3xl font-bold tabular-nums">{activeInstallations.length}</p></div>
+          <div className="relative overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/70 p-4 shadow-sm dark:border-blue-900/70 dark:from-blue-950/60 dark:to-blue-900/30"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-blue-800 dark:text-blue-200">Frotas cadastradas</p><p className="mt-1 text-3xl font-extrabold tabular-nums text-blue-950 dark:text-white">{fleets.length}</p></div><div className="grid size-12 place-items-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-900/20"><CarFront className="size-6" /></div></div><div className="absolute -bottom-7 -right-4 size-24 rounded-full bg-blue-500/10" /></div>
+          <div className="relative overflow-hidden rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100/70 p-4 shadow-sm dark:border-purple-900/70 dark:from-purple-950/60 dark:to-purple-900/30"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-purple-800 dark:text-purple-200">Componentes registrados</p><p className="mt-1 text-3xl font-extrabold tabular-nums text-purple-950 dark:text-white">{components.length}</p></div><div className="grid size-12 place-items-center rounded-xl bg-purple-600 text-white shadow-md shadow-purple-900/20"><Boxes className="size-6" /></div></div><div className="absolute -bottom-7 -right-4 size-24 rounded-full bg-purple-500/10" /></div>
+          <div className="relative overflow-hidden rounded-2xl border border-green-200 bg-gradient-to-br from-green-50 to-green-100/70 p-4 shadow-sm dark:border-green-900/70 dark:from-green-950/60 dark:to-green-900/30"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-green-800 dark:text-green-200">Instalações ativas</p><p className="mt-1 text-3xl font-extrabold tabular-nums text-green-950 dark:text-white">{activeInstallations.length}</p></div><div className="grid size-12 place-items-center rounded-xl bg-green-600 text-white shadow-md shadow-green-900/20"><Wrench className="size-6" /></div></div><div className="absolute -bottom-7 -right-4 size-24 rounded-full bg-green-500/10" /></div>
         </section>
 
         <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6" aria-label="Seções do Central Frota">
