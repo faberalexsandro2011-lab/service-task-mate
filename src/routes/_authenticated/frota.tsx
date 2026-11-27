@@ -496,7 +496,9 @@ function CentralFrotaPage() {
     if (!isRootAdmin) return toast.error("Somente o administrador principal pode excluir registros.");
     if (!window.confirm(`Confirma excluir ${label}? Esta ação ficará registrada na auditoria.`)) return;
     setSaving(true);
-    const { error } = await (supabase as any).from(table).delete().eq("id", id);
+    const { error } = table === "componentes_frota"
+      ? await (supabase as any).rpc("central_frota_excluir_componente_admin", { p_componente_id: id })
+      : await (supabase as any).from(table).delete().eq("id", id);
     setSaving(false);
     if (error) return toast.error("Não foi possível excluir. Verifique se ainda existem registros vinculados. " + error.message);
     toast.success(`${label} excluído. A ação foi registrada na auditoria.`);
