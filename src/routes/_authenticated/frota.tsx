@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Truck, Wrench, X } from "lucide-react";
+import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Trash2, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,7 @@ type Componente = { id: string; unidade_id: string; tipo: string; fabricante: st
 type LinhaImportacaoFrota = { numero: string; tipo: string; marca: string; modelo: string; componente_tipo: string; fabricante: string; componente_modelo: string; numero_serie: string; localizacao: string };
 type MovimentacaoEstoque = { id: string; componente_id: string; tipo: string; localizacao_origem: string | null; localizacao_destino: string | null; ocorrido_em: string; responsavel_email: string | null; observacoes: string | null };
 type TransferenciaFrota = { id: string; componente_id: string; numero_serie: string; tipo: string; fabricante: string | null; modelo: string | null; unidade_origem_id: string; unidade_origem_nome: string; unidade_destino_id: string; unidade_destino_nome: string; status: "enviada" | "recebida" | "recusada" | "cancelada"; status_anterior: string; enviada_por: string; enviada_em: string; recebida_por: string | null; recebida_em: string | null; recusada_por: string | null; recusada_em: string | null; motivo_recusa: string | null; observacoes: string | null };
+type AuditoriaFrota = { id: string; tabela: string; registro_id: string; acao: "UPDATE" | "DELETE"; dados_anteriores: Record<string, unknown> | null; dados_novos: Record<string, unknown> | null; usuario_email: string | null; ocorrido_em: string };
 type Instalacao = {
   id: string; frota_id: string; componente_id: string; unidade_id: string;
   instalado_em: string; instalado_por_email: string | null; instalado_por_nome: string | null; retirado_em: string | null;
@@ -279,6 +280,8 @@ function CentralFrotaPage() {
   const [tab, setTab] = useState<"frotas" | "componentes" | "instalacoes" | "estoque" | "transferencias" | "historico">("frotas");
   const [units, setUnits] = useState<Unidade[]>([]);
   const [isCentralManager, setIsCentralManager] = useState(false);
+  const [isRootAdmin, setIsRootAdmin] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditoriaFrota[]>([]);
   const [canViewComponentTotals, setCanViewComponentTotals] = useState(false);
   const [stockUnitIds, setStockUnitIds] = useState<string[]>([]);
   const [transferUnitIds, setTransferUnitIds] = useState<string[]>([]);
@@ -328,6 +331,8 @@ function CentralFrotaPage() {
       const { data: memberships, error: membershipError } = await (supabase as any)
         .from("usuarios_unidades").select("unidade_id,perfil").eq("user_id", authData.user.id).eq("ativo", true);
       if (membershipError) throw membershipError;
+      const rootAdmin = authData.user.id === "053fa1b6-f9ab-42b2-a726-ed5849170258";
+      setIsRootAdmin(rootAdmin);
       const central = (memberships ?? []).some((item: any) => item.perfil === "gestor_central" && item.unidade_id === null);
       const canViewComponentTotals = (memberships ?? []).some((item: any) => ["admin_unidade", "gestor"].includes(item.perfil) || (item.perfil === "gestor_central" && item.unidade_id === null));
       const managedUnits = (memberships ?? []).filter((item: any) => ["admin_unidade", "gestor"].includes(item.perfil) && item.unidade_id).map((item: any) => item.unidade_id);
@@ -346,7 +351,8 @@ function CentralFrotaPage() {
         (supabase as any).from("movimentacoes_componentes_frota").select("*").order("ocorrido_em", { ascending: false }).limit(200),
         (supabase as any).rpc("central_frota_listar_transferencias"),
       ]);
-      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error || transferResult.error;
+      const auditResult = rootAdmin ? await (supabase as any).from("central_frota_auditoria").select("*").order("ocorrido_em", { ascending: false }).limit(100) : { data: [], error: null };
+      const failure = unitResult.error || fleetResult.error || componentResult.error || installationResult.error || movementResult.error || transferResult.error || auditResult.error;
       if (failure) throw failure;
       const memberUnitIds = new Set((memberships ?? []).map((item: any) => item.unidade_id).filter(Boolean));
       const allowedUnits = (unitResult.data ?? []).filter((unit: Unidade) => central || canViewComponentTotals || memberUnitIds.has(unit.id));
@@ -356,6 +362,7 @@ function CentralFrotaPage() {
       setInstallations(installationResult.data ?? []);
       setStockMovements(movementResult.data ?? []);
       setTransfers(transferResult.data ?? []);
+      setAuditEntries(auditResult.data ?? []);
       setFleetForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
       setComponentForm(current => ({ ...current, unidade_id: allowedUnits.some((u: Unidade) => u.id === current.unidade_id) ? current.unidade_id : allowedUnits[0]?.id || "" }));
     } catch (error) {
@@ -486,6 +493,59 @@ function CentralFrotaPage() {
       @media print{.label{break-inside:avoid}}
     </style></head><body><div class="label"><div class="info"><p class="brand">CENTRAL OS · FROTAS</p><h1>FROTA ${fleetNumber}</h1><p class="hint">Aponte a câmera para consultar os dispositivos</p><p class="url">${publicFleetUrl}</p></div><img src="${fleetQrImageUrl}" alt="QR Code da frota"></div><script>window.onload=()=>{const img=document.querySelector('img');if(img.complete)window.print();else img.onload=()=>window.print();};</script></body></html>`);
     printWindow.document.close();
+  }
+
+  async function adminDeleteRecord(table: string, id: string, label: string, afterDelete?: () => void) {
+    if (!isRootAdmin) return toast.error("Somente o administrador principal pode excluir registros.");
+    if (!window.confirm(`Confirma excluir ${label}? Esta ação ficará registrada na auditoria.`)) return;
+    setSaving(true);
+    const { error } = table === "componentes_frota"
+      ? await (supabase as any).rpc("central_frota_excluir_componente_admin", { p_componente_id: id })
+      : await (supabase as any).from(table).delete().eq("id", id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível excluir. Verifique se ainda existem registros vinculados. " + error.message);
+    toast.success(`${label} excluído. A ação foi registrada na auditoria.`);
+    afterDelete?.();
+    await load();
+  }
+
+  async function editInstallationRecord(item: Instalacao) {
+    if (!isRootAdmin) return toast.error("Somente o administrador principal pode corrigir o histórico.");
+    const motivo = window.prompt("Corrigir o motivo da retirada (deixe em branco se não houver):", item.motivo_retirada ?? "");
+    if (motivo === null) return;
+    const status = window.prompt("Status após a retirada: disponivel, backup, manutencao ou descartado", item.status_apos_retirada ?? "disponivel");
+    if (status === null) return;
+    if (!["disponivel", "backup", "manutencao", "descartado"].includes(status.trim())) return toast.error("Status inválido.");
+    setSaving(true);
+    const { error } = await (supabase as any).from("instalacoes_frota").update({ motivo_retirada: motivo.trim() || null, status_apos_retirada: status.trim() }).eq("id", item.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível corrigir o histórico: " + error.message);
+    toast.success("Histórico corrigido e auditado.");
+    await load();
+  }
+
+  async function editStockMovement(move: MovimentacaoEstoque) {
+    if (!isRootAdmin) return toast.error("Somente o administrador principal pode corrigir movimentações.");
+    const observacoes = window.prompt("Corrigir observações da movimentação:", move.observacoes ?? "");
+    if (observacoes === null) return;
+    setSaving(true);
+    const { error } = await (supabase as any).from("movimentacoes_componentes_frota").update({ observacoes: observacoes.trim() || null }).eq("id", move.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível corrigir a movimentação: " + error.message);
+    toast.success("Movimentação corrigida e auditada.");
+    await load();
+  }
+
+  async function editTransferRecord(move: TransferenciaFrota) {
+    if (!isRootAdmin) return toast.error("Somente o administrador principal pode corrigir transferências.");
+    const observacoes = window.prompt("Corrigir observações da transferência:", move.observacoes ?? "");
+    if (observacoes === null) return;
+    setSaving(true);
+    const { error } = await (supabase as any).from("transferencias_componentes_frota").update({ observacoes: observacoes.trim() || null }).eq("id", move.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível corrigir a transferência: " + error.message);
+    toast.success("Transferência corrigida e auditada.");
+    await load();
   }
 
   async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
@@ -767,12 +827,12 @@ function CentralFrotaPage() {
   }
 
   const tabs = [
-    { id: "frotas", label: "Frotas", icon: CarFront },
-    { id: "componentes", label: "Componentes", icon: Boxes },
-    { id: "instalacoes", label: "Instalações", icon: Wrench },
-    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package }] : []),
-    ...(canManageTransfers ? [{ id: "transferencias", label: "Transferências", icon: Truck }] : []),
-    { id: "historico", label: "Histórico", icon: History },
+    { id: "frotas", label: "Frotas", icon: CarFront, color: "blue" },
+    { id: "componentes", label: "Componentes", icon: Boxes, color: "purple" },
+    { id: "instalacoes", label: "Instalações", icon: Wrench, color: "green" },
+    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package, color: "amber" }] : []),
+    ...(canManageTransfers ? [{ id: "transferencias", label: "Transferências", icon: Truck, color: "cyan" }] : []),
+    { id: "historico", label: "Histórico", icon: History, color: "slate" },
   ] as const;
 
   return (
@@ -798,7 +858,29 @@ function CentralFrotaPage() {
         </section>
 
         <nav className="flex flex-wrap gap-2" aria-label="Seções do Central Frota">
-          {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
+          {tabs.map(item => {
+            const palette = {
+              blue: tab === item.id
+                ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70",
+              purple: tab === item.id
+                ? "border-purple-700 bg-purple-700 text-white hover:bg-purple-800"
+                : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-950/70",
+              green: tab === item.id
+                ? "border-green-700 bg-green-700 text-white hover:bg-green-800"
+                : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/70",
+              amber: tab === item.id
+                ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-700"
+                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/70",
+              cyan: tab === item.id
+                ? "border-cyan-700 bg-cyan-700 text-white hover:bg-cyan-800"
+                : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300 dark:hover:bg-cyan-950/70",
+              slate: tab === item.id
+                ? "border-slate-700 bg-slate-700 text-white hover:bg-slate-800"
+                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800",
+            }[item.color];
+            return <Button key={item.id} size="sm" variant="outline" className={palette} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>;
+          })}
         </nav>
 
 
@@ -809,7 +891,7 @@ function CentralFrotaPage() {
             <h2 className="mt-1 text-2xl font-bold">Frota {selectedFleet.numero}</h2>
             <p className="text-sm text-muted-foreground">{tiposFrota.find(x => x[0] === selectedFleet.tipo)?.[1] ?? selectedFleet.tipo} · {[selectedFleet.marca, selectedFleet.modelo].filter(Boolean).join(" ") || "Marca/modelo não informados"} · {units.find(u => u.id === selectedFleet.unidade_id)?.nome ?? "Unidade"}</p>
             <p className="mt-2 text-sm">Status: <strong>{selectedFleet.status}</strong> · {fleetInstallations.filter(x => !x.retirado_em).length} componente(s) instalado(s) atualmente</p>
-            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setFleetEditForm({ numero: selectedFleet.numero, tipo: selectedFleet.tipo, marca: selectedFleet.marca ?? "", modelo: selectedFleet.modelo ?? "", status: selectedFleet.status }); setEditingFleet(true); }}>Editar dados da frota</Button>
+            <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => { setFleetEditForm({ numero: selectedFleet.numero, tipo: selectedFleet.tipo, marca: selectedFleet.marca ?? "", modelo: selectedFleet.modelo ?? "", status: selectedFleet.status }); setEditingFleet(true); }}>Editar dados da frota</Button>{isRootAdmin && <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void adminDeleteRecord("frotas", selectedFleet.id, `a frota ${selectedFleet.numero}`, () => setSelectedFleetId(null))}><Trash2 className="mr-2 size-4" />Excluir frota</Button>}</div>
           </div>
           <section className="rounded-2xl border bg-card p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -864,7 +946,7 @@ function CentralFrotaPage() {
             <h2 className="mt-1 text-2xl font-bold">{selectedComponent.numero_serie}</h2>
             <p className="text-sm text-muted-foreground">{nomeTipoComponente(selectedComponent.tipo)} · {[selectedComponent.fabricante, selectedComponent.modelo].filter(Boolean).join(" ") || "Fabricante/modelo não informados"}</p>
             <p className="mt-2 text-sm">Status: <strong>{nomeStatusComponente(selectedComponent.status)}</strong> · Unidade: {units.find(u => u.id === selectedComponent.unidade_id)?.nome ?? "—"}</p>
-            <Button className="mt-3" variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, tipoPersonalizado: "", fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>
+            <div className="mt-3 flex flex-wrap gap-2"><Button variant="outline" size="sm" onClick={() => { setComponentEditForm({ tipo: selectedComponent.tipo, tipoPersonalizado: "", fabricante: selectedComponent.fabricante ?? "", modelo: selectedComponent.modelo ?? "", numero_serie: selectedComponent.numero_serie, status: selectedComponent.status ?? "disponivel" }); setEditingComponent(true); }}>Editar dados do componente</Button>{isRootAdmin && <Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void adminDeleteRecord("componentes_frota", selectedComponent.id, `o dispositivo ${selectedComponent.numero_serie}`, () => setSelectedComponentId(null))}><Trash2 className="mr-2 size-4" />Excluir dispositivo</Button>}</div>
           </div>
           {editingComponent && <form onSubmit={saveComponentChanges} className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-4">
             <h3 className="font-semibold sm:col-span-4">Editar componente</h3>
@@ -1091,6 +1173,7 @@ function CentralFrotaPage() {
                     {move.status === "recusada" && <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-900 dark:bg-red-950/20"><p className="text-xs font-semibold text-red-800 dark:text-red-300">Motivo da recusa</p><p className="mt-1 text-sm text-red-900 dark:text-red-200">{move.motivo_recusa}</p><p className="mt-2 text-xs text-red-800/80 dark:text-red-300/80">O equipamento permanece vinculado à origem e bloqueado até a resolução.</p></div>}
                     {canReceive && <div className="rounded-xl bg-muted/40 p-3"><p className="mb-2 text-sm font-medium">Conferência de recebimento</p><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" disabled={saving} onClick={() => void confirmComponentTransfer(move.id)}>Confirmar recebimento</Button><div className="flex min-w-0 flex-1 gap-2"><Input placeholder="Motivo da recusa" value={rejectReasons[move.id] ?? ""} onChange={e => setRejectReasons(current => ({ ...current, [move.id]: e.target.value }))} /><Button type="button" variant="destructive" disabled={saving || !(rejectReasons[move.id] ?? "").trim()} onClick={() => void refuseComponentTransfer(move.id)}>Recusar</Button></div></div></div>}
                     {move.status === "enviada" && (isCentralManager || transferUnitIds.includes(move.unidade_origem_id)) && <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => void cancelComponentTransfer(move.id)}><X className="mr-2 size-4" />Cancelar transferência</Button>}
+                    {isRootAdmin && <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void editTransferRecord(move)}>Editar observações</Button><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void adminDeleteRecord("transferencias_componentes_frota", move.id, "a transferência")}><Trash2 className="size-4" /></Button></div>}
                   </article>;
                 })}
                 {!transfers.length && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma transferência registrada até o momento.</p>}
@@ -1100,7 +1183,7 @@ function CentralFrotaPage() {
                 <div className="border-b p-4"><h3 className="font-semibold">Movimentações recentes</h3><p className="text-xs text-muted-foreground">Rastreabilidade das últimas alterações no estoque.</p></div>
                 {stockMovements.slice(0,20).map(move => {
                   const component = components.find(x => x.id === move.componente_id);
-                  return <div key={move.id} className="flex flex-col gap-1 border-b px-4 py-3 text-sm last:border-b-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{component?.numero_serie ?? "Dispositivo"} · {({entrada:"Entrada",instalacao:"Instalação",retirada:"Retirada",transferencia:"Transferência",manutencao:"Manutenção",descarte:"Descarte"} as Record<string,string>)[move.tipo] ?? move.tipo}</p><p className="text-xs text-muted-foreground">{move.localizacao_origem ?? "—"} → {move.localizacao_destino ?? "Instalado em frota"}</p></div><div className="text-xs text-muted-foreground sm:text-right">{new Date(move.ocorrido_em).toLocaleString("pt-BR")}{move.observacoes ? <p className="mt-1 max-w-md">{move.observacoes}</p> : null}</div></div>;
+                  return <div key={move.id} className="flex flex-col gap-1 border-b px-4 py-3 text-sm last:border-b-0 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">{component?.numero_serie ?? "Dispositivo"} · {({entrada:"Entrada",instalacao:"Instalação",retirada:"Retirada",transferencia:"Transferência",manutencao:"Manutenção",descarte:"Descarte"} as Record<string,string>)[move.tipo] ?? move.tipo}</p><p className="text-xs text-muted-foreground">{move.localizacao_origem ?? "—"} → {move.localizacao_destino ?? "Instalado em frota"}</p></div><div className="flex flex-col items-end gap-2"><div className="text-xs text-muted-foreground sm:text-right">{new Date(move.ocorrido_em).toLocaleString("pt-BR")}{move.observacoes ? <p className="mt-1 max-w-md">{move.observacoes}</p> : null}</div>{isRootAdmin && <div className="flex gap-1"><Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => void editStockMovement(move)}>Editar</Button><Button type="button" variant="outline" size="sm" disabled={saving} onClick={() => void adminDeleteRecord("movimentacoes_componentes_frota", move.id, "a movimentação")}><Trash2 className="size-4" /></Button></div>}</div></div>;
                 })}
                 {!stockMovements.length && <p className="p-8 text-center text-sm text-muted-foreground">As movimentações aparecerão aqui automaticamente.</p>}
               </div>
@@ -1174,8 +1257,10 @@ function CentralFrotaPage() {
             <p className="font-semibold">Frota {item.frotas?.numero ?? "—"} · Série {item.componentes_frota?.numero_serie ?? "—"}</p>
             <p className="text-muted-foreground">Instalado: {new Date(item.instalado_em).toLocaleString("pt-BR")} · Responsável: {item.instalado_por_nome || "Usuário autenticado"}</p>
             {item.retirado_em && <p className="text-muted-foreground">Retirado: {new Date(item.retirado_em).toLocaleString("pt-BR")} · Responsável: {item.retirado_por_nome || "Usuário autenticado"} · Motivo: {item.motivo_retirada}</p>}
+            {isRootAdmin && <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void editInstallationRecord(item)}>Corrigir informações</Button><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void adminDeleteRecord("instalacoes_frota", item.id, "o registro de instalação/retirada")}><Trash2 className="mr-1 size-4" />Excluir registro</Button></div>}
           </article>)}
           {!installations.length && <p className="p-6 text-center text-sm text-muted-foreground">O histórico aparecerá aqui após a primeira movimentação.</p>}
+          {isRootAdmin && <details className="mt-5 border-t pt-4"><summary className="cursor-pointer py-3 font-semibold">Auditoria administrativa ({auditEntries.length})</summary><div className="space-y-2 pb-2"><p className="text-xs text-muted-foreground">Alterações e exclusões registradas automaticamente, com responsável e data/hora.</p>{auditEntries.length ? auditEntries.map(entry => <article key={entry.id} className="rounded-lg border p-3 text-xs"><div className="flex flex-wrap items-center justify-between gap-2"><strong>{entry.acao === "DELETE" ? "Exclusão" : "Edição"} · {entry.tabela.replaceAll("_", " ")}</strong><span className="text-muted-foreground">{new Date(entry.ocorrido_em).toLocaleString("pt-BR")}</span></div><p className="mt-1 text-muted-foreground">Responsável: {entry.usuario_email || "Usuário autenticado"} · Registro: {entry.registro_id}</p><details className="mt-2"><summary className="cursor-pointer font-medium">Ver dados registrados</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2">{JSON.stringify({antes: entry.dados_anteriores, depois: entry.dados_novos}, null, 2)}</pre></details></article>) : <p className="rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">Ainda não há edições ou exclusões registradas.</p>}</div></details>}
         </section>}
       </main>
       {serialScannerTarget && <SerialCameraScanner
