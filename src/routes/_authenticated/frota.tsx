@@ -857,28 +857,28 @@ function CentralFrotaPage() {
           <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Instalações ativas</p><p className="mt-1 text-3xl font-bold tabular-nums">{activeInstallations.length}</p></div>
         </section>
 
-        <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2" aria-label="Seções do Central Frota">
+        <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-6" aria-label="Seções do Central Frota">
           {tabs.map(item => {
             const selected = tab === item.id;
             const palette = {
               blue: selected
-                ? "border-blue-700 bg-blue-700 text-white"
-                : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60",
+                ? "border-blue-700 bg-blue-700 text-white shadow-blue-900/15"
+                : "border-blue-200/80 bg-card text-blue-800 hover:border-blue-400 hover:bg-blue-50/80 dark:border-blue-900/60 dark:text-blue-300 dark:hover:bg-blue-950/30",
               purple: selected
-                ? "border-purple-700 bg-purple-700 text-white"
-                : "border-purple-200 bg-purple-50 text-purple-700 hover:border-purple-300 hover:bg-purple-100 dark:border-purple-900/60 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/60",
+                ? "border-purple-700 bg-purple-700 text-white shadow-purple-900/15"
+                : "border-purple-200/80 bg-card text-purple-800 hover:border-purple-400 hover:bg-purple-50/80 dark:border-purple-900/60 dark:text-purple-300 dark:hover:bg-purple-950/30",
               green: selected
-                ? "border-green-700 bg-green-700 text-white"
-                : "border-green-200 bg-green-50 text-green-700 hover:border-green-300 hover:bg-green-100 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-300 dark:hover:bg-green-950/60",
+                ? "border-green-700 bg-green-700 text-white shadow-green-900/15"
+                : "border-green-200/80 bg-card text-green-800 hover:border-green-400 hover:bg-green-50/80 dark:border-green-900/60 dark:text-green-300 dark:hover:bg-green-950/30",
               amber: selected
-                ? "border-amber-600 bg-amber-600 text-white"
-                : "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/60",
+                ? "border-amber-600 bg-amber-600 text-white shadow-amber-900/15"
+                : "border-amber-200/80 bg-card text-amber-800 hover:border-amber-400 hover:bg-amber-50/80 dark:border-amber-900/60 dark:text-amber-300 dark:hover:bg-amber-950/30",
               cyan: selected
-                ? "border-cyan-700 bg-cyan-700 text-white"
-                : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-300 dark:hover:bg-cyan-950/60",
+                ? "border-cyan-700 bg-cyan-700 text-white shadow-cyan-900/15"
+                : "border-cyan-200/80 bg-card text-cyan-800 hover:border-cyan-400 hover:bg-cyan-50/80 dark:border-cyan-900/60 dark:text-cyan-300 dark:hover:bg-cyan-950/30",
               slate: selected
-                ? "border-slate-700 bg-slate-700 text-white"
-                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800",
+                ? "border-slate-700 bg-slate-700 text-white shadow-slate-900/15"
+                : "border-slate-200 bg-card text-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800/70",
             }[item.color];
             const count = item.id === "frotas" ? fleets.length
               : item.id === "componentes" ? components.length
@@ -891,10 +891,21 @@ function CentralFrotaPage() {
                 type="button"
                 aria-pressed={selected}
                 onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}
-                className={["group flex min-h-10 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2", palette].join(" ")}
+                className={["group relative flex min-h-[68px] min-w-0 items-center gap-3 overflow-hidden rounded-xl border px-3 py-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2", palette, selected ? "shadow-md" : ""].join(" ")}
               >
-                <span className="flex min-w-0 items-center gap-1 truncate"><item.icon className="size-3.5 shrink-0" /><span className="truncate">{item.label}</span></span>
-                <span className={"inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>{count}</span>
+                <span className={["grid size-10 shrink-0 place-items-center rounded-lg transition-colors", selected ? "bg-white/15 text-white" : "bg-current/10"].join(" ")}>
+                  <item.icon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold leading-5">{item.label}</span>
+                  <span className={["mt-0.5 block text-[11px] font-medium", selected ? "text-white/80" : "text-muted-foreground"].join(" ")}>
+                    {selected ? "Seção selecionada" : "Abrir seção"}
+                  </span>
+                </span>
+                <span className={["inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full px-2 text-xs font-extrabold tabular-nums", selected ? "bg-white/20 text-white" : "bg-muted text-foreground"].join(" ")}>
+                  {count}
+                </span>
+                {selected && <span className="absolute inset-x-0 bottom-0 h-1 bg-white/35" />}
               </button>
             );
           })}
