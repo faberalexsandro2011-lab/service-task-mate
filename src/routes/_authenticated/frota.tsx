@@ -837,15 +837,26 @@ function CentralFrotaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-primary/10 p-2 text-primary"><Truck className="size-6" /></div>
-            <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
+      <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/20">
+                <Truck className="size-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Central OS</p>
+                  <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Gestão de equipamentos</span>
+                </div>
+                <h1 className="truncate text-2xl font-extrabold tracking-tight text-foreground sm:text-[1.7rem]">Central Frota</h1>
+                <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Controle de frotas, dispositivos e instalações</p>
+              </div>
+            </div>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button className="flex-1 sm:flex-none" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
+              <Button className="flex-1 sm:flex-none" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
+            </div>
           </div>
         </div>
       </header>
