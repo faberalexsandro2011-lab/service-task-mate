@@ -534,6 +534,18 @@ function CentralFrotaPage() {
     await load();
   }
 
+  async function editTransferRecord(move: TransferenciaFrota) {
+    if (!isRootAdmin) return toast.error("Somente o administrador principal pode corrigir transferências.");
+    const observacoes = window.prompt("Corrigir observações da transferência:", move.observacoes ?? "");
+    if (observacoes === null) return;
+    setSaving(true);
+    const { error } = await (supabase as any).from("transferencias_componentes_frota").update({ observacoes: observacoes.trim() || null }).eq("id", move.id);
+    setSaving(false);
+    if (error) return toast.error("Não foi possível corrigir a transferência: " + error.message);
+    toast.success("Transferência corrigida e auditada.");
+    await load();
+  }
+
   async function saveFleetChanges(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedFleet || !fleetEditForm.numero.trim()) return toast.error("Informe o número da frota.");
@@ -1124,6 +1136,7 @@ function CentralFrotaPage() {
                     {move.status === "recebida" && move.recebida_em && <p className="text-xs text-emerald-700 dark:text-emerald-300">Recebida em {new Date(move.recebida_em).toLocaleString("pt-BR")}</p>}
                     {move.status === "recusada" && <div className="rounded-xl border border-red-200 bg-red-50/70 p-3 dark:border-red-900 dark:bg-red-950/20"><p className="text-xs font-semibold text-red-800 dark:text-red-300">Motivo da recusa</p><p className="mt-1 text-sm text-red-900 dark:text-red-200">{move.motivo_recusa}</p><p className="mt-2 text-xs text-red-800/80 dark:text-red-300/80">O equipamento permanece vinculado à origem e bloqueado até a resolução.</p></div>}
                     {canReceive && <div className="rounded-xl bg-muted/40 p-3"><p className="mb-2 text-sm font-medium">Conferência de recebimento</p><div className="flex flex-col gap-2 sm:flex-row"><Button type="button" disabled={saving} onClick={() => void confirmComponentTransfer(move.id)}>Confirmar recebimento</Button><div className="flex min-w-0 flex-1 gap-2"><Input placeholder="Motivo da recusa" value={rejectReasons[move.id] ?? ""} onChange={e => setRejectReasons(current => ({ ...current, [move.id]: e.target.value }))} /><Button type="button" variant="destructive" disabled={saving || !(rejectReasons[move.id] ?? "").trim()} onClick={() => void refuseComponentTransfer(move.id)}>Recusar</Button></div></div></div>}
+                    {isRootAdmin && <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={saving} onClick={() => void editTransferRecord(move)}>Editar observações</Button><Button type="button" size="sm" variant="destructive" disabled={saving} onClick={() => void adminDeleteRecord("transferencias_componentes_frota", move.id, "a transferência")}><Trash2 className="size-4" /></Button></div>}
                   </article>;
                 })}
                 {!transfers.length && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma transferência registrada até o momento.</p>}
