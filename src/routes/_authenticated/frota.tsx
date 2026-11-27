@@ -827,12 +827,12 @@ function CentralFrotaPage() {
   }
 
   const tabs = [
-    { id: "frotas", label: "Frotas", icon: CarFront },
-    { id: "componentes", label: "Componentes", icon: Boxes },
-    { id: "instalacoes", label: "Instalações", icon: Wrench },
-    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package }] : []),
-    ...(canManageTransfers ? [{ id: "transferencias", label: "Transferências", icon: Truck }] : []),
-    { id: "historico", label: "Histórico", icon: History },
+    { id: "frotas", label: "Frotas", icon: CarFront, color: "blue" },
+    { id: "componentes", label: "Componentes", icon: Boxes, color: "purple" },
+    { id: "instalacoes", label: "Instalações", icon: Wrench, color: "green" },
+    ...(canManageStock ? [{ id: "estoque", label: "Estoque por unidade", icon: Package, color: "amber" }] : []),
+    ...(canManageTransfers ? [{ id: "transferencias", label: "Transferências", icon: Truck, color: "cyan" }] : []),
+    { id: "historico", label: "Histórico", icon: History, color: "slate" },
   ] as const;
 
   return (
@@ -858,7 +858,29 @@ function CentralFrotaPage() {
         </section>
 
         <nav className="flex flex-wrap gap-2" aria-label="Seções do Central Frota">
-          {tabs.map(item => <Button key={item.id} size="sm" variant={tab === item.id ? "default" : "outline"} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>)}
+          {tabs.map(item => {
+            const palette = {
+              blue: tab === item.id
+                ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70",
+              purple: tab === item.id
+                ? "border-purple-700 bg-purple-700 text-white hover:bg-purple-800"
+                : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-950/70",
+              green: tab === item.id
+                ? "border-green-700 bg-green-700 text-white hover:bg-green-800"
+                : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/70",
+              amber: tab === item.id
+                ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-700"
+                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/70",
+              cyan: tab === item.id
+                ? "border-cyan-700 bg-cyan-700 text-white hover:bg-cyan-800"
+                : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300 dark:hover:bg-cyan-950/70",
+              slate: tab === item.id
+                ? "border-slate-700 bg-slate-700 text-white hover:bg-slate-800"
+                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800",
+            }[item.color];
+            return <Button key={item.id} size="sm" variant="outline" className={palette} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>;
+          })}
         </nav>
 
 
