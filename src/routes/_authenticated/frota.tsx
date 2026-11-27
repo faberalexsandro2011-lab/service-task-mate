@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Trash2, Truck, Wrench, X } from "lucide-react";
+import { Boxes, Building2, Camera, CarFront, ChevronRight, Copy, History, MapPin, Package, Plus, QrCode, RefreshCw, Search, Trash2, Truck, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -838,15 +838,12 @@ function CentralFrotaPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-20 border-b border-blue-900/20 bg-gradient-to-r from-blue-800 via-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-950/10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/20 bg-white/15 shadow-inner shadow-white/10"><Truck className="size-7 text-white" /></div>
             <div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-100">Central OS · Gestão de equipamentos</p><h1 className="truncate text-xl font-extrabold tracking-tight sm:text-2xl">Central Frota</h1><p className="hidden text-xs text-blue-100/90 sm:block">Frotas, componentes, instalações e controle de estoque</p></div>
           </div>
-          <div className="flex shrink-0 gap-2">
-            <Button className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
-            <Button className="border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
-          </div>
+          <Button className="shrink-0 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
         </div>
       </header>
 
