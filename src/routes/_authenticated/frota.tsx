@@ -837,26 +837,15 @@ function CentralFrotaPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-border/70 bg-background/90 shadow-sm backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="relative flex size-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-lg shadow-primary/20 ring-1 ring-white/20">
-                <Truck className="size-6" />
-              </div>
-              <div className="min-w-0">
-                <div className="mb-1 flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Central OS</p>
-                  <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">Gestão de equipamentos</span>
-                </div>
-                <h1 className="truncate text-2xl font-extrabold tracking-tight text-foreground sm:text-[1.7rem]">Central Frota</h1>
-                <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Controle de frotas, dispositivos e instalações</p>
-              </div>
-            </div>
-            <div className="flex w-full gap-2 sm:w-auto">
-              <Button className="flex-1 sm:flex-none" variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
-              <Button className="flex-1 sm:flex-none" variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
-            </div>
+      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-primary/10 p-2 text-primary"><Truck className="size-6" /></div>
+            <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Central OS</p><h1 className="text-xl font-bold">Central Frota</h1></div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => window.history.back()}><ArrowLeft className="mr-1 size-4" /> Voltar</Button>
+            <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}><RefreshCw className="mr-1 size-4" /> Atualizar</Button>
           </div>
         </div>
       </header>
@@ -868,29 +857,46 @@ function CentralFrotaPage() {
           <div className="rounded-2xl border bg-card p-4"><p className="text-sm text-muted-foreground">Instalações ativas</p><p className="mt-1 text-3xl font-bold tabular-nums">{activeInstallations.length}</p></div>
         </section>
 
-        <nav className="flex flex-wrap gap-2" aria-label="Seções do Central Frota">
+        <nav className="grid grid-cols-3 gap-1.5 sm:grid-cols-6 sm:gap-2" aria-label="Seções do Central Frota">
           {tabs.map(item => {
+            const selected = tab === item.id;
             const palette = {
-              blue: tab === item.id
-                ? "border-blue-700 bg-blue-700 text-white hover:bg-blue-800"
-                : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/70",
-              purple: tab === item.id
-                ? "border-purple-700 bg-purple-700 text-white hover:bg-purple-800"
-                : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-950/70",
-              green: tab === item.id
-                ? "border-green-700 bg-green-700 text-white hover:bg-green-800"
-                : "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300 dark:hover:bg-green-950/70",
-              amber: tab === item.id
-                ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-700"
-                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/70",
-              cyan: tab === item.id
-                ? "border-cyan-700 bg-cyan-700 text-white hover:bg-cyan-800"
-                : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300 dark:hover:bg-cyan-950/70",
-              slate: tab === item.id
-                ? "border-slate-700 bg-slate-700 text-white hover:bg-slate-800"
-                : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800",
+              blue: selected
+                ? "border-blue-700 bg-blue-700 text-white"
+                : "border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/60",
+              purple: selected
+                ? "border-purple-700 bg-purple-700 text-white"
+                : "border-purple-200 bg-purple-50 text-purple-700 hover:border-purple-300 hover:bg-purple-100 dark:border-purple-900/60 dark:bg-purple-950/30 dark:text-purple-300 dark:hover:bg-purple-950/60",
+              green: selected
+                ? "border-green-700 bg-green-700 text-white"
+                : "border-green-200 bg-green-50 text-green-700 hover:border-green-300 hover:bg-green-100 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-300 dark:hover:bg-green-950/60",
+              amber: selected
+                ? "border-amber-600 bg-amber-600 text-white"
+                : "border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/60",
+              cyan: selected
+                ? "border-cyan-700 bg-cyan-700 text-white"
+                : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-300 hover:bg-cyan-100 dark:border-cyan-900/60 dark:bg-cyan-950/30 dark:text-cyan-300 dark:hover:bg-cyan-950/60",
+              slate: selected
+                ? "border-slate-700 bg-slate-700 text-white"
+                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:bg-slate-800",
             }[item.color];
-            return <Button key={item.id} size="sm" variant="outline" className={palette} onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}><item.icon className="mr-1 size-4" />{item.label}</Button>;
+            const count = item.id === "frotas" ? fleets.length
+              : item.id === "componentes" ? components.length
+              : item.id === "instalacoes" || item.id === "historico" ? installations.length
+              : item.id === "estoque" ? stockMovements.length
+              : transfers.length;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => { setTab(item.id as typeof tab); setSearch(""); }}
+                className={["group flex min-h-10 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2", palette].join(" ")}
+              >
+                <span className="flex min-w-0 items-center gap-1 truncate"><item.icon className="size-3.5 shrink-0" /><span className="truncate">{item.label}</span></span>
+                <span className={"inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums " + (selected ? "bg-white/20" : "bg-white/80 dark:bg-black/10")}>{count}</span>
+              </button>
+            );
           })}
         </nav>
 
