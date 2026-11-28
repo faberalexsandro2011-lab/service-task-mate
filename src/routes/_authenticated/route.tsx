@@ -177,7 +177,7 @@ function AuthenticatedLayout() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {!["/painel", "/painel-teste", "/tecnico", "/dashboard", "/visualizacao"].includes(pathname) && (
+      {!["/painel", "/painel-teste", "/tecnico", "/dashboard", "/visualizacao", "/frota"].includes(pathname) && (
         <div className="sticky top-0 z-40 border-b bg-background/95 px-3 py-2 backdrop-blur sm:px-5">
           <button
             type="button"
