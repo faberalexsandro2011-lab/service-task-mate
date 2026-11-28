@@ -836,7 +836,7 @@ function CentralFrotaPage() {
   ] as const;
 
   return (
-    <div className="min-h-screen bg-[#002b25]">
+    <div className="min-h-screen bg-[#002b25] text-white [&_.text-muted-foreground]:!text-white/75 [&_.bg-card]:!text-card-foreground [&_.bg-background]:!text-foreground [&_.bg-muted]:!text-foreground">
       <header className="sticky top-0 z-20 border-b border-blue-900/20 bg-gradient-to-r from-blue-800 via-blue-700 to-indigo-700 text-white shadow-lg shadow-blue-950/10">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-3">
